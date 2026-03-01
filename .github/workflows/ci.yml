@@ -14,16 +14,16 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: f1_dashboard
+          POSTGRES_DB: f1_vibetiming
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d f1_dashboard"
+          --health-cmd "pg_isready -U postgres -d f1_vibetiming"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f1_dashboard?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f1_vibetiming?schema=public
 
     steps:
       - name: Checkout

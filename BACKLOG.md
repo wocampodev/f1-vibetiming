@@ -1,4 +1,4 @@
-# F1 Dashboard Backlog
+# F1 VibeTiming Backlog
 
 Last updated: 2026-03-01
 

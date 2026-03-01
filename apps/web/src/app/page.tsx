@@ -48,7 +48,7 @@ export default async function Home() {
         <div className="grid gap-6 md:grid-cols-[1.3fr_1fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-              Formula 1 weekend tracker
+              F1 VibeTiming weekend tracker
             </p>
             <h1 className="mt-2 text-4xl leading-tight tracking-wide text-[var(--ink)] sm:text-5xl">
               Follow every practice, qualifying battle, and race result in one place.

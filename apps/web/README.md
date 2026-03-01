@@ -1,6 +1,6 @@
 # Web App
 
-This is the Next.js frontend for the F1 dashboard MVP.
+This is the Next.js frontend for the F1 VibeTiming MVP.
 
 Run from repository root:
 

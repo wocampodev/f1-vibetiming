@@ -1,6 +1,6 @@
 # API App
 
-This is the NestJS backend for the F1 dashboard MVP.
+This is the NestJS backend for the F1 VibeTiming MVP.
 
 Run from repository root:
 

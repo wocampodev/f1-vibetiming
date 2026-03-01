@@ -1,6 +1,13 @@
-# F1 Dashboard MVP
+# F1 VibeTiming MVP
 
-Fast MVP dashboard for Formula 1 practice, qualifying, and race tracking.
+Fast MVP live-timing dashboard for Formula 1 practice, qualifying, and race tracking.
+
+Hero tagline options:
+
+- F1 live timing, built in public with vibecoding speed.
+- Turn raw race data into instant weekend signal.
+- From pit wall pulse to dashboard in seconds.
+- Build fast, ship laps, iterate race by race.
 
 ## Stack
 

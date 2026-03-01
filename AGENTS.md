@@ -6,7 +6,7 @@ Last updated: 2026-03-01 (compact checkpoint)
 
 ## Snapshot
 
-- Project: F1 dashboard (`apps/api` NestJS + Prisma, `apps/web` Next.js)
+- Project: F1 VibeTiming (`apps/api` NestJS + Prisma, `apps/web` Next.js)
 - Package manager: `pnpm` workspace
 - MVP data source: Option 1 public REST (`api.jolpi.ca/ergast`)
 - Current state: MVP mostly complete, CI covers lint + unit + e2e + build

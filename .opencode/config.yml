@@ -1,7 +1,7 @@
 version: 1
 
 project:
-  name: f1-dashboard
+  name: f1-vibetiming
   repo_root: .
   package_manager: pnpm
   backend: NestJS

@@ -27,7 +27,7 @@ Use this file as a quick pause/resume log between coding sessions.
 ## 2026-03-01
 
 ### Done
-- Bootstrapped MVP architecture (`apps/api` + `apps/web`)
+- Bootstrapped F1 VibeTiming MVP architecture (`apps/api` + `apps/web`)
 - Migrated workspace from npm to `pnpm` and aligned CI
 - Added API e2e integration tests and CI DB service flow
 - Implemented MVP-014 (pagination meta + cache headers + error envelope)

@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: f1-dashboard-postgres
+    container_name: f1-vibetiming-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: f1_dashboard
+      POSTGRES_DB: f1_vibetiming
     ports:
       - '5432:5432'
     volumes:
@@ -14,7 +14,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: f1-dashboard-redis
+    container_name: f1-vibetiming-redis
     restart: unless-stopped
     ports:
       - '6379:6379'
