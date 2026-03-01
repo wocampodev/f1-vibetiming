@@ -8,18 +8,25 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App as SupertestApp } from 'supertest/types';
+import { ApiExceptionFilter } from '../src/common/filters/api-exception.filter';
 import { F1Module } from '../src/f1/f1.module';
 import { HealthModule } from '../src/health/health.module';
 import { PrismaModule } from '../src/prisma/prisma.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const fallbackDatabaseUrl =
-  'postgresql://postgres:postgres@localhost:5432/f1_dashboard?schema=public';
+  'postgresql://postgres:postgres@localhost:5432/f1_vibetiming?schema=public';
 
 process.env.DATABASE_URL ??= fallbackDatabaseUrl;
 
 interface CalendarBody {
   season: number;
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   events: Array<{
     name: string;
     sessions: unknown[];
@@ -47,6 +54,12 @@ interface SessionResultsBody {
 }
 
 interface DriverStandingsBody {
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   standings: Array<{
     position: number;
     driver: {
@@ -56,6 +69,12 @@ interface DriverStandingsBody {
 }
 
 interface ConstructorStandingsBody {
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   standings: Array<{
     position: number;
     team: {
@@ -73,6 +92,17 @@ interface HealthBody {
   };
 }
 
+interface ErrorBody {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details: string[] | null;
+  };
+  path: string;
+  timestamp: string;
+}
+
 describe('F1 API (e2e)', () => {
   let app: INestApplication;
   let httpServer: SupertestApp;
@@ -87,6 +117,7 @@ describe('F1 API (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
+    app.useGlobalFilters(new ApiExceptionFilter());
     app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -118,7 +149,16 @@ describe('F1 API (e2e)', () => {
 
     const body = response.body as unknown as CalendarBody;
 
+    expect(response.headers['cache-control']).toBe(
+      'public, max-age=30, stale-while-revalidate=120',
+    );
     expect(body.season).toBe(2024);
+    expect(body.meta).toEqual({
+      page: 1,
+      limit: 20,
+      total: 1,
+      totalPages: 1,
+    });
     expect(body.events).toHaveLength(1);
     expect(body.events[0].name).toBe('Bahrain Grand Prix');
     expect(body.events[0].sessions).toHaveLength(2);
@@ -156,6 +196,12 @@ describe('F1 API (e2e)', () => {
 
     const body = response.body as unknown as DriverStandingsBody;
 
+    expect(body.meta).toEqual({
+      page: 1,
+      limit: 20,
+      total: 2,
+      totalPages: 1,
+    });
     expect(body.standings).toHaveLength(2);
     expect(body.standings[0].position).toBe(1);
     expect(body.standings[0].driver.familyName).toBe('Norris');
@@ -168,6 +214,12 @@ describe('F1 API (e2e)', () => {
 
     const body = response.body as unknown as ConstructorStandingsBody;
 
+    expect(body.meta).toEqual({
+      page: 1,
+      limit: 20,
+      total: 2,
+      totalPages: 1,
+    });
     expect(body.standings).toHaveLength(2);
     expect(body.standings[0].position).toBe(1);
     expect(body.standings[0].team.name).toBe('McLaren');
@@ -186,14 +238,44 @@ describe('F1 API (e2e)', () => {
     expect(body.checks.standings.status).toBe('success');
   });
 
-  it('GET /api/weekends/:eventId returns 404 for unknown event', () => {
-    return request(httpServer).get('/api/weekends/unknown-event').expect(404);
+  it('GET /api/weekends/:eventId returns 404 envelope for unknown event', async () => {
+    const response = await request(httpServer)
+      .get('/api/weekends/unknown-event')
+      .expect(404);
+
+    const body = response.body as unknown as ErrorBody;
+
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.message).toContain('unknown-event');
+    expect(body.path).toBe('/api/weekends/unknown-event');
+    expect(body.timestamp).toEqual(expect.any(String));
   });
 
-  it('GET /api/sessions/:sessionId/results returns 404 for unknown session', () => {
-    return request(httpServer)
+  it('GET /api/sessions/:sessionId/results returns 404 envelope for unknown session', async () => {
+    const response = await request(httpServer)
       .get('/api/sessions/unknown-session/results')
       .expect(404);
+
+    const body = response.body as unknown as ErrorBody;
+
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.message).toContain('unknown-session');
+  });
+
+  it('GET /api/calendar validates pagination query params', async () => {
+    const response = await request(httpServer)
+      .get('/api/calendar?season=2024&page=0')
+      .expect(400);
+
+    const body = response.body as unknown as ErrorBody;
+
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('BAD_REQUEST');
+    expect(body.error.details).toEqual(
+      expect.arrayContaining(['page must not be less than 1']),
+    );
   });
 });
 

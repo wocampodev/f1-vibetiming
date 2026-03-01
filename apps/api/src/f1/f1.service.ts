@@ -2,15 +2,29 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { IngestionStatus, SessionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+interface SeasonPaginationOptions {
+  season?: number;
+  page?: number;
+  limit?: number;
+}
+
 @Injectable()
 export class F1Service {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getCalendar(season?: number) {
+  async getCalendar(options: SeasonPaginationOptions = {}) {
+    const { season, page, limit } = options;
     const resolvedSeason = await this.resolveSeason(season);
+    const pagination = this.resolvePagination(page, limit);
+    const total = await this.prisma.event.count({
+      where: { season: resolvedSeason },
+    });
+
     const events = await this.prisma.event.findMany({
       where: { season: resolvedSeason },
       orderBy: { round: 'asc' },
+      skip: pagination.skip,
+      take: pagination.limit,
       include: {
         sessions: {
           orderBy: { startsAt: 'asc' },
@@ -21,6 +35,7 @@ export class F1Service {
     return {
       season: resolvedSeason,
       freshness: await this.getFreshness(),
+      meta: this.buildPaginationMeta(total, pagination.page, pagination.limit),
       events: events.map((event) => ({
         id: event.id,
         season: event.season,
@@ -145,11 +160,19 @@ export class F1Service {
     };
   }
 
-  async getDriverStandings(season?: number) {
+  async getDriverStandings(options: SeasonPaginationOptions = {}) {
+    const { season, page, limit } = options;
     const resolvedSeason = await this.resolveSeason(season);
+    const pagination = this.resolvePagination(page, limit);
+    const total = await this.prisma.driverStanding.count({
+      where: { season: resolvedSeason },
+    });
+
     const standings = await this.prisma.driverStanding.findMany({
       where: { season: resolvedSeason },
       orderBy: { position: 'asc' },
+      skip: pagination.skip,
+      take: pagination.limit,
       include: {
         driver: {
           include: {
@@ -162,6 +185,7 @@ export class F1Service {
     return {
       season: resolvedSeason,
       freshness: await this.getFreshness(),
+      meta: this.buildPaginationMeta(total, pagination.page, pagination.limit),
       standings: standings.map((standing) => ({
         position: standing.position,
         points: standing.points,
@@ -186,11 +210,19 @@ export class F1Service {
     };
   }
 
-  async getConstructorStandings(season?: number) {
+  async getConstructorStandings(options: SeasonPaginationOptions = {}) {
+    const { season, page, limit } = options;
     const resolvedSeason = await this.resolveSeason(season);
+    const pagination = this.resolvePagination(page, limit);
+    const total = await this.prisma.constructorStanding.count({
+      where: { season: resolvedSeason },
+    });
+
     const standings = await this.prisma.constructorStanding.findMany({
       where: { season: resolvedSeason },
       orderBy: { position: 'asc' },
+      skip: pagination.skip,
+      take: pagination.limit,
       include: {
         team: true,
       },
@@ -199,6 +231,7 @@ export class F1Service {
     return {
       season: resolvedSeason,
       freshness: await this.getFreshness(),
+      meta: this.buildPaginationMeta(total, pagination.page, pagination.limit),
       standings: standings.map((standing) => ({
         position: standing.position,
         points: standing.points,
@@ -245,6 +278,26 @@ export class F1Service {
       ageSeconds: Math.floor(
         (Date.now() - lastSuccess.finishedAt.getTime()) / 1000,
       ),
+    };
+  }
+
+  private resolvePagination(page?: number, limit?: number) {
+    const resolvedPage = page && page > 0 ? page : 1;
+    const resolvedLimit = limit && limit > 0 ? Math.min(limit, 100) : 20;
+
+    return {
+      page: resolvedPage,
+      limit: resolvedLimit,
+      skip: (resolvedPage - 1) * resolvedLimit,
+    };
+  }
+
+  private buildPaginationMeta(total: number, page: number, limit: number) {
+    return {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 
