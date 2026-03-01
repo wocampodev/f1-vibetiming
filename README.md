@@ -42,11 +42,11 @@ Fast MVP dashboard for Formula 1 practice, qualifying, and race tracking.
 
 ## Key Endpoints
 
-- `GET /api/calendar?season=2026`
+- `GET /api/calendar?season=2026&page=1&limit=20`
 - `GET /api/weekends/:eventId`
 - `GET /api/sessions/:sessionId/results`
-- `GET /api/standings/drivers?season=2026`
-- `GET /api/standings/constructors?season=2026`
+- `GET /api/standings/drivers?season=2026&page=1&limit=20`
+- `GET /api/standings/constructors?season=2026&page=1&limit=20`
 - `GET /api/health/data`
 
 ## Notes
@@ -54,3 +54,12 @@ Fast MVP dashboard for Formula 1 practice, qualifying, and race tracking.
 - Ingestion runs automatically at API startup, then every 10 minutes.
 - If current season has no data yet, ingestion falls back to the previous season.
 - MVP currently ingests qualifying + race results and both standings tables.
+- List endpoints include `meta` pagination fields (`page`, `limit`, `total`, `totalPages`).
+- API errors use a shared envelope with `error.code`, `error.message`, and `error.details`.
+
+## Planning Artifacts
+
+- Backlog checklist: `BACKLOG.md`
+- Session handoff and future phases: `AGENTS.md`
+- Pause/resume log: `SESSION_NOTES.md`
+- Local assistant session configs: `.opencode/`

@@ -1,0 +1,39 @@
+version: 1
+
+project:
+  name: f1-dashboard
+  repo_root: .
+  package_manager: pnpm
+  backend: NestJS
+  frontend: Next.js
+
+mvp:
+  data_source: api.jolpi.ca/ergast
+  status: mostly_complete
+  open_items:
+    - MVP-021
+    - MVP-023
+    - MVP-024
+
+decisions:
+  - Keep backend on NestJS
+  - Keep MVP on public REST data source
+  - Keep pnpm as only package manager
+  - Preserve provider-adapter path for live mode
+
+artifacts:
+  backlog: BACKLOG.md
+  handoff: AGENTS.md
+  session_notes: SESSION_NOTES.md
+
+ci:
+  workflow_file: .github/workflows/ci.yml
+  gates:
+    - lint
+    - unit
+    - e2e
+    - build
+
+roadmap:
+  phase_2: Live Weekend Mode
+  phase_3: Analytics

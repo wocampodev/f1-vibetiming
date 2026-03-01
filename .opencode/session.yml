@@ -1,0 +1,22 @@
+version: 1
+
+current_focus:
+  - MVP-021: provider mapping and ingestion upsert unit tests
+  - MVP-023: frontend smoke tests for critical routes
+  - MVP-024: deployment setup and environment docs
+
+resume_order:
+  - MVP-021
+  - MVP-023
+  - MVP-024
+
+guardrails:
+  - Keep API response contracts backward compatible
+  - Verify data-source terms before live-feed work
+  - Do not switch package manager from pnpm
+
+next_session_checklist:
+  - Read BACKLOG.md
+  - Read AGENTS.md
+  - Read SESSION_NOTES.md
+  - Run bootstrap commands from .opencode/commands.yml

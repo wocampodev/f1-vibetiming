@@ -1,0 +1,25 @@
+version: 1
+
+bootstrap:
+  - pnpm install
+  - pnpm db:up
+  - pnpm --filter api prisma:push
+
+dev:
+  - pnpm dev
+
+test:
+  api_unit: pnpm --filter api test
+  api_e2e: pnpm --filter api test:e2e
+  web_smoke_status: not_configured_yet_mvp_023
+
+quality:
+  lint: pnpm lint
+  build: pnpm build
+
+recommended_resume_flow:
+  - pnpm install
+  - pnpm db:up
+  - pnpm --filter api prisma:push
+  - pnpm --filter api test:e2e
+  - pnpm dev
