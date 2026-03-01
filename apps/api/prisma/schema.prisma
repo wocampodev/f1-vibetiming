@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionType {
+  PRACTICE_1
+  PRACTICE_2
+  PRACTICE_3
+  QUALIFYING
+  SPRINT_QUALIFYING
+  SPRINT
+  RACE
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+}
+
+enum IngestionKind {
+  CALENDAR
+  RESULTS
+  STANDINGS
+}
+
+enum IngestionStatus {
+  SUCCESS
+  FAILED
+}
+
+model Team {
+  id                   String                 @id @default(cuid())
+  externalId           String                 @unique
+  name                 String
+  nationality          String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  drivers              Driver[]
+  results              SessionResult[]
+  constructorStandings ConstructorStanding[]
+}
+
+model Driver {
+  id              String           @id @default(cuid())
+  externalId      String           @unique
+  code            String?
+  number          Int?
+  givenName       String
+  familyName      String
+  nationality     String?
+  teamId          String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  team            Team?            @relation(fields: [teamId], references: [id])
+  results         SessionResult[]
+  driverStandings DriverStanding[]
+}
+
+model Event {
+  id            String    @id @default(cuid())
+  externalId    String    @unique
+  season        Int
+  round         Int
+  name          String
+  circuitName   String
+  locality      String?
+  country       String?
+  raceStartTime DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+
+  @@unique([season, round])
+}
+
+model Session {
+  id          String         @id @default(cuid())
+  externalId  String         @unique
+  eventId     String
+  type        SessionType
+  name        String
+  startsAt    DateTime
+  status      SessionStatus  @default(SCHEDULED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  results     SessionResult[]
+
+  @@index([eventId, startsAt])
+}
+
+model SessionResult {
+  id              String    @id @default(cuid())
+  sessionId       String
+  driverId        String
+  teamId          String?
+  position        Int?
+  grid            Int?
+  points          Float?
+  laps            Int?
+  status          String?
+  time            String?
+  q1              String?
+  q2              String?
+  q3              String?
+  fastestLapTime  String?
+  fastestLapRank  Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  driver          Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  team            Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, driverId])
+}
+
+model DriverStanding {
+  id         String   @id @default(cuid())
+  season     Int
+  round      Int
+  position   Int
+  points     Float
+  wins       Int
+  driverId   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([season, driverId])
+  @@index([season, position])
+}
+
+model ConstructorStanding {
+  id         String   @id @default(cuid())
+  season     Int
+  round      Int
+  position   Int
+  points     Float
+  wins       Int
+  teamId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([season, teamId])
+  @@index([season, position])
+}
+
+model IngestionRun {
+  id               String          @id @default(cuid())
+  kind             IngestionKind
+  status           IngestionStatus
+  startedAt        DateTime
+  finishedAt       DateTime
+  recordsProcessed Int             @default(0)
+  errorMessage     String?
+  season           Int?
+}
