@@ -3,9 +3,14 @@ version: 1
 project:
   name: f1-vibetiming
   repo_root: .
+  local_path: /home/walter/dev/f1-vibetiming
   package_manager: pnpm
   backend: NestJS
   frontend: Next.js
+
+repository:
+  url: https://github.com/wocampodev/f1-vibetiming
+  visibility: public
 
 mvp:
   data_source: api.jolpi.ca/ergast

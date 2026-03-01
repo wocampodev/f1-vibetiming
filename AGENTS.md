@@ -2,14 +2,16 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-01 (compact checkpoint)
+Last updated: 2026-03-01 (closeout checkpoint)
 
 ## Snapshot
 
 - Project: F1 VibeTiming (`apps/api` NestJS + Prisma, `apps/web` Next.js)
+- Local path: `/home/walter/dev/f1-vibetiming`
 - Package manager: `pnpm` workspace
 - MVP data source: Option 1 public REST (`api.jolpi.ca/ergast`)
 - Current state: MVP mostly complete, CI covers lint + unit + e2e + build
+- GitHub: `https://github.com/wocampodev/f1-vibetiming` (public)
 
 ## Completed
 
@@ -38,6 +40,12 @@ Last updated: 2026-03-01 (compact checkpoint)
 - MVP-021 unit tests for provider mapping and ingestion upsert behavior
 - MVP-023 frontend smoke tests for critical routes
 - MVP-024 deployment setup + environment docs
+
+## Release Baseline
+
+- Local runtime validated (`pnpm dev`): API `200` on `/api/health/data`, web `200` on `/`
+- Quality gates passed locally: `pnpm lint`, `pnpm --filter api test`, `pnpm --filter api test:e2e`, `pnpm build`
+- Infra naming aligned to VibeTiming (`f1_vibetiming` database and compose service naming)
 
 ## Roadmap (Do Not Lose)
 

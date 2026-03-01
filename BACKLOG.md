@@ -7,6 +7,8 @@ Last updated: 2026-03-01
 - Completed: MVP-001 to MVP-020, MVP-022, MVP-025
 - Open MVP work: MVP-021, MVP-023, MVP-024
 - Post-MVP scope remains Phase 2 (Live Weekend Mode) and Phase 3 (Analytics)
+- Release baseline validated locally (lint + unit + e2e + build all passing)
+- Repository is public at `https://github.com/wocampodev/f1-vibetiming`
 
 ## Week 1 - Data + API Foundation
 

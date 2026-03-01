@@ -1,5 +1,11 @@
 version: 1
 
+checkpoint:
+  date: 2026-03-01
+  status: closeout
+  repository_url: https://github.com/wocampodev/f1-vibetiming
+  release_baseline: passing
+
 current_focus:
   - MVP-021: provider mapping and ingestion upsert unit tests
   - MVP-023: frontend smoke tests for critical routes
