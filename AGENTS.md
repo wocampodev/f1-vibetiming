@@ -56,6 +56,7 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - deterministic simulator replay fixtures + seedable timeline
   - provider adapter stub is present but legally gated and intentionally degraded
   - live endpoints (`/api/live/state`, `/api/live/health`, `/api/live/stream`)
+  - unit tests cover legal gate adapter selection + stream envelope behavior
 - Phase 2A has started in web:
   - initial `/live` route consuming live SSE stream
   - leaderboard + session status + race control UI slice

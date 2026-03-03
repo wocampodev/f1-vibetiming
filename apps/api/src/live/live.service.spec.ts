@@ -1,5 +1,6 @@
 import { LiveService } from './live.service';
 import { LiveState } from './live.types';
+import { firstValueFrom } from 'rxjs';
 
 function createConfigMock(values: Record<string, unknown>) {
   return {
@@ -169,6 +170,60 @@ describe('LiveService', () => {
       legalGateMessage: null,
       status: 'degraded',
     });
+  });
+
+  it('streams an initial_state envelope when state is available', async () => {
+    const config = createConfigMock({
+      LIVE_SOURCE: 'simulator',
+      LIVE_PROVIDER_LEGAL_APPROVED: false,
+    });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
+
+    await service.onModuleInit();
+    const event = await firstValueFrom(service.stream());
+    const data = event.data as {
+      eventType: string;
+      source: string;
+      payload: LiveState;
+    };
+
+    expect(event.type).toBe('initial_state');
+    expect(data.eventType).toBe('initial_state');
+    expect(data.source).toBe('simulator');
+    expect(data.payload.session.sessionName).toContain('Simulator');
+  });
+
+  it('streams status envelope when provider is degraded without state', async () => {
+    const config = createConfigMock({
+      LIVE_SOURCE: 'provider',
+      LIVE_PROVIDER_LEGAL_APPROVED: true,
+    });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
+
+    await service.onModuleInit();
+    const event = await firstValueFrom(service.stream());
+    const data = event.data as {
+      eventType: string;
+      source: string;
+      payload: { status: string; message: string };
+    };
+
+    expect(event.type).toBe('status');
+    expect(data.eventType).toBe('status');
+    expect(data.source).toBe('provider');
+    expect(data.payload.status).toBe('degraded');
   });
 
   it('stops adapter on module destroy', async () => {
