@@ -1,6 +1,6 @@
 # F1 VibeTiming Backlog
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Compact Session Snapshot
 
@@ -49,6 +49,9 @@ Last updated: 2026-03-02
 - [x] PH2-001 Define simulator-first live adapter contract + normalized event schema
 - [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
 - [x] PH2-003 Implement local replay/simulator source for deterministic development
+- [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
+- [ ] PH2-107 Add sector comparison and mini pace chart
+- [ ] PH2-108 Add race control + team radio live feed panels
 - [ ] PH2-004 Decide deployment target (single-host Docker vs cloud split for web/api)
 
 ## Phase 2 - Live Weekend Mode (Post-MVP)
@@ -56,15 +59,15 @@ Last updated: 2026-03-02
 ### Track A - Build First (Simulator)
 
 - [ ] PH2-101 Implement ingest orchestrator (adapter + normalizer + publisher)
-- [ ] PH2-102 Implement API stream gateway for live updates
+- [x] PH2-102 Implement API stream gateway for live updates
 - [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
-- [ ] PH2-104 Add live leaderboard with lap/interval updates
-- [ ] PH2-105 Add session state timeline (green/yellow/red/checkered)
-- [ ] PH2-106 Add tire strategy view (compound + stint length)
+- [x] PH2-104 Add live leaderboard with lap/interval updates
+- [x] PH2-105 Add session state timeline (green/yellow/red/checkered)
+- [x] PH2-106 Add tire strategy view (compound + stint length)
 - [ ] PH2-107 Add sector comparison and mini pace chart
 - [ ] PH2-108 Add race control + team radio live feed panels
-- [ ] PH2-109 Add track map v1 with car position updates
-- [ ] PH2-110 Add simulator fixtures/replay tests for live flows
+- [x] PH2-109 Add track map v1 with car position updates
+- [x] PH2-110 Add simulator fixtures/replay tests for live flows
 
 ### Track B - Compliance Gate (Required Before Real Provider)
 

@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
+Last updated: 2026-03-03 (phase-2 live UI track-map slice)
 
 ## Snapshot
 
@@ -63,6 +63,8 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - leaderboard + session status + race control UI slice
   - session timeline and tire strategy panels
   - driver focus panel with nearest-rival context
+  - sector status strip from session/race-control state
+  - track map v1 with estimated relative car positions
 
 ## Remaining MVP Items
 
@@ -123,7 +125,7 @@ pnpm dev
 
 ## Current Plan
 
-1. Implement Phase 2A foundation in `apps/api` with simulator-first live events.
-2. Add stream endpoints and health/status visibility for live mode.
-3. Add deterministic simulator/replay fixtures for tests and local development.
-4. Do not integrate real provider in production until legal gate items are complete.
+1. Improve live stream resilience in API/web (reconnect/backoff and fallback polling).
+2. Build PH2-107 sector comparison and mini pace chart on `/live`.
+3. Build PH2-108 simulated team radio feed panel and schema path for provider parity.
+4. Keep provider integration production-gated until LEGAL-001 and LEGAL-003 are complete.

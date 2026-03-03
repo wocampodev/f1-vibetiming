@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LiveDeltaPayload,
   LiveEnvelope,
+  LiveFlagStatus,
   LiveHeartbeatPayload,
   LiveLeaderboardEntry,
   LiveRaceControlMessage,
@@ -83,6 +84,160 @@ const compoundTone: Record<string, string> = {
   HARD: "bg-zinc-500/20 text-zinc-900 border-zinc-700/20",
   INTERMEDIATE: "bg-emerald-600/20 text-emerald-900 border-emerald-700/20",
   WET: "bg-blue-500/20 text-blue-900 border-blue-700/20",
+};
+
+interface TrackPoint {
+  x: number;
+  y: number;
+}
+
+interface TrackMarker {
+  entry: LiveLeaderboardEntry;
+  progress: number;
+  point: TrackPoint;
+}
+
+interface SectorSnapshot {
+  sector: 1 | 2 | 3;
+  flag: LiveFlagStatus;
+  detail: string;
+}
+
+const TRACK_PATH_POINTS: TrackPoint[] = [
+  { x: 12, y: 55 },
+  { x: 20, y: 28 },
+  { x: 46, y: 18 },
+  { x: 73, y: 26 },
+  { x: 85, y: 44 },
+  { x: 82, y: 68 },
+  { x: 62, y: 80 },
+  { x: 34, y: 76 },
+  { x: 16, y: 62 },
+  { x: 12, y: 55 },
+];
+
+const TRACK_PATH_D = TRACK_PATH_POINTS.map((point, index) =>
+  `${index === 0 ? "M" : "L"}${point.x} ${point.y}`,
+).join(" ");
+
+const TRACK_SEGMENTS = TRACK_PATH_POINTS.slice(1).map((point, index) => {
+  const start = TRACK_PATH_POINTS[index];
+  const dx = point.x - start.x;
+  const dy = point.y - start.y;
+  return {
+    start,
+    end: point,
+    length: Math.sqrt(dx ** 2 + dy ** 2),
+  };
+});
+
+const TRACK_TOTAL_LENGTH = TRACK_SEGMENTS.reduce(
+  (total, segment) => total + segment.length,
+  0,
+);
+
+const normalizeProgress = (value: number): number => {
+  const remainder = value % 1;
+  return remainder < 0 ? remainder + 1 : remainder;
+};
+
+const getTrackPointAtProgress = (progress: number): TrackPoint => {
+  const normalized = normalizeProgress(progress);
+  const targetDistance = normalized * TRACK_TOTAL_LENGTH;
+  let traversed = 0;
+
+  for (const segment of TRACK_SEGMENTS) {
+    if (traversed + segment.length >= targetDistance) {
+      const localDistance = targetDistance - traversed;
+      const ratio = segment.length === 0 ? 0 : localDistance / segment.length;
+      return {
+        x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
+        y: segment.start.y + (segment.end.y - segment.start.y) * ratio,
+      };
+    }
+
+    traversed += segment.length;
+  }
+
+  return TRACK_PATH_POINTS[TRACK_PATH_POINTS.length - 1] ?? { x: 12, y: 55 };
+};
+
+const getSectorFromProgress = (progress: number): 1 | 2 | 3 => {
+  const normalized = normalizeProgress(progress);
+  if (normalized < 1 / 3) {
+    return 1;
+  }
+
+  if (normalized < 2 / 3) {
+    return 2;
+  }
+
+  return 3;
+};
+
+const deriveSectorSnapshots = (state: LiveState): SectorSnapshot[] => {
+  const baseline: SectorSnapshot[] = [
+    { sector: 1, flag: "green", detail: "Sector clear" },
+    { sector: 2, flag: "green", detail: "Sector clear" },
+    { sector: 3, flag: "green", detail: "Sector clear" },
+  ];
+
+  if (state.session.flag === "green") {
+    return baseline;
+  }
+
+  if (state.session.flag === "yellow") {
+    const sectorMessage = state.raceControl.find(
+      (message) =>
+        message.flag === "yellow" &&
+        /sector\s*[1-3]/i.test(message.message),
+    );
+
+    const sectorMatch = sectorMessage?.message.match(/sector\s*([1-3])/i);
+    const flaggedSector = Number(sectorMatch?.[1] ?? NaN);
+
+    return baseline.map((snapshot) => {
+      if (flaggedSector && snapshot.sector === flaggedSector) {
+        return {
+          ...snapshot,
+          flag: "yellow",
+          detail: "Local yellow",
+        };
+      }
+
+      if (!flaggedSector) {
+        return {
+          ...snapshot,
+          flag: "yellow",
+          detail: "Yellow caution",
+        };
+      }
+
+      return snapshot;
+    });
+  }
+
+  if (state.session.flag === "checkered") {
+    return baseline.map((snapshot) => ({
+      ...snapshot,
+      flag: "checkered",
+      detail: "Chequered flag",
+    }));
+  }
+
+  if (state.session.flag === "red") {
+    return baseline.map((snapshot) => ({
+      ...snapshot,
+      flag: "red",
+      detail: "Session stopped",
+    }));
+  }
+
+  return baseline.map((snapshot) => ({
+    ...snapshot,
+    flag: state.session.flag,
+    detail: state.session.flag === "safety_car" ? "Safety car" : "Virtual safety car",
+  }));
 };
 
 export function LiveDashboard() {
@@ -295,6 +450,34 @@ export function LiveDashboard() {
     ? selectedEntry.lastLapMs - selectedEntry.bestLapMs
     : null;
 
+  const sectorSnapshots = useMemo(
+    () => (liveState ? deriveSectorSnapshots(liveState) : []),
+    [liveState],
+  );
+
+  const trackMarkers = useMemo<TrackMarker[]>(() => {
+    if (!liveState || liveState.leaderboard.length === 0) {
+      return [];
+    }
+
+    const leader = liveState.leaderboard[0];
+    const estimatedLeaderLapSec = Math.max(leader.lastLapMs / 1000, 85);
+    const leaderProgress =
+      ((Date.parse(liveState.generatedAt) / 1000) % estimatedLeaderLapSec) /
+      estimatedLeaderLapSec;
+
+    return liveState.leaderboard.slice(0, 10).map((entry) => {
+      const trailingProgress = entry.gapToLeaderSec / estimatedLeaderLapSec;
+      const progress = normalizeProgress(leaderProgress - trailingProgress);
+
+      return {
+        entry,
+        progress,
+        point: getTrackPointAtProgress(progress),
+      };
+    });
+  }, [liveState]);
+
   return (
     <div className="space-y-5">
       <section className="panel p-5">
@@ -319,29 +502,50 @@ export function LiveDashboard() {
         ) : null}
 
         {liveState ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <article className="rounded-lg border border-black/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-black/55">Session</p>
-              <p className="text-lg text-[var(--ink)]">{liveState.session.sessionName}</p>
-            </article>
-            <article className="rounded-lg border border-black/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-black/55">Lap</p>
-              <p className="text-lg text-[var(--ink)]">
-                {liveState.session.currentLap} / {liveState.session.totalLaps}
-              </p>
-            </article>
-            <article className="rounded-lg border border-black/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-black/55">Track Flag</p>
-              <p
-                className={`mt-1 inline-flex rounded-full border px-2 py-1 text-sm font-semibold uppercase tracking-wide ${flagToneByValue[liveState.session.flag] ?? "bg-zinc-500/20 text-zinc-900 border-zinc-700/20"}`}
-              >
-                {formatFlag(liveState.session.flag)}
-              </p>
-            </article>
-            <article className="rounded-lg border border-black/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-black/55">Session Clock</p>
-              <p className="text-lg text-[var(--ink)]">{formatClock(liveState.session.clockIso)}</p>
-            </article>
+          <div className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <article className="rounded-lg border border-black/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-black/55">Session</p>
+                <p className="text-lg text-[var(--ink)]">{liveState.session.sessionName}</p>
+              </article>
+              <article className="rounded-lg border border-black/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-black/55">Lap</p>
+                <p className="text-lg text-[var(--ink)]">
+                  {liveState.session.currentLap} / {liveState.session.totalLaps}
+                </p>
+              </article>
+              <article className="rounded-lg border border-black/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-black/55">Track Flag</p>
+                <p
+                  className={`mt-1 inline-flex rounded-full border px-2 py-1 text-sm font-semibold uppercase tracking-wide ${flagToneByValue[liveState.session.flag] ?? "bg-zinc-500/20 text-zinc-900 border-zinc-700/20"}`}
+                >
+                  {formatFlag(liveState.session.flag)}
+                </p>
+              </article>
+              <article className="rounded-lg border border-black/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-black/55">Session Clock</p>
+                <p className="text-lg text-[var(--ink)]">{formatClock(liveState.session.clockIso)}</p>
+              </article>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              {sectorSnapshots.map((snapshot) => (
+                <article
+                  key={`sector-${snapshot.sector}`}
+                  className="rounded-lg border border-black/10 px-3 py-2"
+                >
+                  <p className="text-xs uppercase tracking-wide text-black/55">
+                    Sector {snapshot.sector}
+                  </p>
+                  <p
+                    className={`mt-1 inline-flex rounded-full border px-2 py-1 text-xs font-semibold uppercase tracking-wide ${flagToneByValue[snapshot.flag] ?? "bg-zinc-500/20 text-zinc-900 border-zinc-700/20"}`}
+                  >
+                    {formatFlag(snapshot.flag)}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{snapshot.detail}</p>
+                </article>
+              ))}
+            </div>
           </div>
         ) : (
           <p className="mt-4 text-sm text-[var(--muted)]">
@@ -428,6 +632,108 @@ export function LiveDashboard() {
 
       <section className="grid gap-5 xl:grid-cols-3">
         <article className="panel p-4">
+          <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Track Map</h2>
+          {trackMarkers.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-black/10 bg-black/[0.02] p-2">
+                <svg viewBox="0 0 100 100" className="h-[250px] w-full" role="img" aria-label="Live track map">
+                  <path d={TRACK_PATH_D} fill="none" stroke="rgba(17, 19, 24, 0.13)" strokeWidth="7" />
+                  <path
+                    d={TRACK_PATH_D}
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="2 3"
+                  />
+                  {[1 / 3, 2 / 3].map((boundary, index) => {
+                    const boundaryPoint = getTrackPointAtProgress(boundary);
+                    return (
+                      <g key={`sector-boundary-${index + 1}`}>
+                        <circle
+                          cx={boundaryPoint.x}
+                          cy={boundaryPoint.y}
+                          r={1.8}
+                          fill="var(--panel)"
+                          stroke="rgba(17, 19, 24, 0.55)"
+                          strokeWidth="0.35"
+                        />
+                        <text
+                          x={boundaryPoint.x + 2}
+                          y={boundaryPoint.y - 2}
+                          fontSize="2.9"
+                          fill="rgba(17, 19, 24, 0.75)"
+                        >
+                          S{index + 2}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {trackMarkers.map((marker) => {
+                    const isFocused = selectedDriverCode === marker.entry.driverCode;
+                    const isLeader = marker.entry.position === 1;
+                    return (
+                      <g key={`track-marker-${marker.entry.driverCode}`}>
+                        {isFocused ? (
+                          <circle
+                            cx={marker.point.x}
+                            cy={marker.point.y}
+                            r={3.3}
+                            fill="none"
+                            stroke="var(--accent)"
+                            strokeWidth="0.85"
+                            opacity="0.6"
+                          />
+                        ) : null}
+                        <circle
+                          cx={marker.point.x}
+                          cy={marker.point.y}
+                          r={isLeader ? 2.6 : 2.1}
+                          fill={isLeader ? "var(--panel)" : "rgba(17, 19, 24, 0.88)"}
+                          stroke={isLeader ? "var(--accent)" : "var(--panel)"}
+                          strokeWidth={isLeader ? 1 : 0.45}
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              <ul className="space-y-2">
+                {trackMarkers.slice(0, 6).map((marker) => (
+                  <li
+                    key={`track-row-${marker.entry.driverCode}`}
+                    className="flex items-center justify-between rounded-lg border border-black/10 px-3 py-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFocusedDriverCode(marker.entry.driverCode)}
+                      className="text-left"
+                    >
+                      <p className="text-sm font-semibold text-[var(--ink)]">
+                        P{marker.entry.position} {marker.entry.driverCode}
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">{marker.entry.teamName}</p>
+                    </button>
+                    <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                      S{getSectorFromProgress(marker.progress)} - {Math.round(marker.progress * 100)}%
+                    </p>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-xs text-[var(--muted)]">
+                Relative positions are estimated from gaps to leader until provider-grade GPS telemetry is enabled.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-[var(--muted)]">Track map will render once live positions arrive.</p>
+          )}
+        </article>
+
+        <article className="panel p-4">
           <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Session Timeline</h2>
           <ol className="mt-3 space-y-2">
             {sessionTimeline.length > 0 ? (
@@ -479,75 +785,75 @@ export function LiveDashboard() {
             ))}
           </div>
         </article>
+      </section>
 
-        <article className="panel p-4">
-          <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Driver Focus</h2>
-          {selectedEntry ? (
-            <div className="mt-3 space-y-3">
+      <section className="panel p-4">
+        <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Driver Focus</h2>
+        {selectedEntry ? (
+          <div className="mt-3 space-y-3">
+            <div className="rounded-lg border border-black/10 px-3 py-2">
+              <p className="text-xs uppercase tracking-wide text-black/55">Selected Driver</p>
+              <p className="text-lg font-semibold text-[var(--ink)]">
+                P{selectedEntry.position} {selectedEntry.driverCode}
+              </p>
+              <p className="text-sm text-[var(--muted)]">{selectedEntry.driverName}</p>
+              <p className="text-sm text-[var(--muted)]">{selectedEntry.teamName}</p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border border-black/10 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-black/55">Selected Driver</p>
-                <p className="text-lg font-semibold text-[var(--ink)]">
-                  P{selectedEntry.position} {selectedEntry.driverCode}
-                </p>
-                <p className="text-sm text-[var(--muted)]">{selectedEntry.driverName}</p>
-                <p className="text-sm text-[var(--muted)]">{selectedEntry.teamName}</p>
+                <p className="text-xs uppercase tracking-wide text-black/55">Last Lap</p>
+                <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.lastLapMs)}</p>
               </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-lg border border-black/10 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-black/55">Last Lap</p>
-                  <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.lastLapMs)}</p>
-                </div>
-                <div className="rounded-lg border border-black/10 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-black/55">Best Lap</p>
-                  <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.bestLapMs)}</p>
-                </div>
-                <div className="rounded-lg border border-black/10 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-black/55">Gap to Leader</p>
-                  <p className="text-sm text-[var(--ink)]">
-                    {selectedEntry.gapToLeaderSec === 0
-                      ? "LEADER"
-                      : formatSignedSeconds(selectedEntry.gapToLeaderSec)}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-black/10 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-black/55">Interval Ahead</p>
-                  <p className="text-sm text-[var(--ink)]">
-                    {selectedEntry.intervalToAheadSec === 0
-                      ? "-"
-                      : formatSignedSeconds(selectedEntry.intervalToAheadSec)}
-                  </p>
-                </div>
-              </div>
-
               <div className="rounded-lg border border-black/10 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-black/55">Pace Delta</p>
+                <p className="text-xs uppercase tracking-wide text-black/55">Best Lap</p>
+                <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.bestLapMs)}</p>
+              </div>
+              <div className="rounded-lg border border-black/10 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-black/55">Gap to Leader</p>
                 <p className="text-sm text-[var(--ink)]">
-                  {selectedPaceDeltaMs != null
-                    ? `${formatSignedSeconds(selectedPaceDeltaMs / 1000)} vs personal best (${getPaceTrend(selectedPaceDeltaMs)})`
-                    : "-"}
+                  {selectedEntry.gapToLeaderSec === 0
+                    ? "LEADER"
+                    : formatSignedSeconds(selectedEntry.gapToLeaderSec)}
                 </p>
               </div>
-
               <div className="rounded-lg border border-black/10 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-black/55">Closest Rivals</p>
+                <p className="text-xs uppercase tracking-wide text-black/55">Interval Ahead</p>
                 <p className="text-sm text-[var(--ink)]">
-                  Ahead: {selectedAhead ? `P${selectedAhead.position} ${selectedAhead.driverCode}` : "none"}
-                </p>
-                <p className="text-sm text-[var(--ink)]">
-                  Behind: {selectedBehind ? `P${selectedBehind.position} ${selectedBehind.driverCode}` : "none"}
-                </p>
-                <p className="text-sm text-[var(--ink)]">
-                  Team mate: {selectedTeammate ? `P${selectedTeammate.position} ${selectedTeammate.driverCode}` : "none"}
+                  {selectedEntry.intervalToAheadSec === 0
+                    ? "-"
+                    : formatSignedSeconds(selectedEntry.intervalToAheadSec)}
                 </p>
               </div>
             </div>
-          ) : (
-            <p className="mt-3 text-sm text-[var(--muted)]">
-              Select a driver in the leaderboard to inspect pace and track position context.
-            </p>
-          )}
-        </article>
+
+            <div className="rounded-lg border border-black/10 px-3 py-2">
+              <p className="text-xs uppercase tracking-wide text-black/55">Pace Delta</p>
+              <p className="text-sm text-[var(--ink)]">
+                {selectedPaceDeltaMs != null
+                  ? `${formatSignedSeconds(selectedPaceDeltaMs / 1000)} vs personal best (${getPaceTrend(selectedPaceDeltaMs)})`
+                  : "-"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-black/10 px-3 py-2">
+              <p className="text-xs uppercase tracking-wide text-black/55">Closest Rivals</p>
+              <p className="text-sm text-[var(--ink)]">
+                Ahead: {selectedAhead ? `P${selectedAhead.position} ${selectedAhead.driverCode}` : "none"}
+              </p>
+              <p className="text-sm text-[var(--ink)]">
+                Behind: {selectedBehind ? `P${selectedBehind.position} ${selectedBehind.driverCode}` : "none"}
+              </p>
+              <p className="text-sm text-[var(--ink)]">
+                Team mate: {selectedTeammate ? `P${selectedTeammate.position} ${selectedTeammate.driverCode}` : "none"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Select a driver in the leaderboard to inspect pace and track position context.
+          </p>
+        )}
       </section>
     </div>
   );
