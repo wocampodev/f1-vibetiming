@@ -58,6 +58,7 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
 - Phase 2A has started in web:
   - initial `/live` route consuming live SSE stream
   - leaderboard + session status + race control UI slice
+  - session timeline and tire strategy panels
 
 ## Remaining MVP Items
 
