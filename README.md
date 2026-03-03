@@ -1,6 +1,6 @@
 # F1 VibeTiming MVP
 
-Fast MVP live-timing dashboard for Formula 1 practice, qualifying, and race tracking.
+Fast MVP focused on two views: a live timing dashboard and championship standings.
 
 Hero tagline options:
 
@@ -47,6 +47,11 @@ Hero tagline options:
    pnpm dev
    ```
 
+6. Open the app:
+
+   - Live dashboard: `http://localhost:3000/`
+   - Championship standings: `http://localhost:3000/standings`
+
 ## Quality Checks
 
 - `pnpm lint`
@@ -65,23 +70,22 @@ Hero tagline options:
 
 - Infra only up: `docker compose up -d`
 - Infra only down: `docker compose down`
-- Full stack up (db + redis + api + web): `docker compose --profile app up -d --build`
+- Full stack up (db + api + web): `docker compose --profile app up -d --build`
 - Full stack down: `docker compose --profile app down`
 
 ## Key Endpoints
 
-- `GET /api/calendar?season=2026&page=1&limit=20`
-- `GET /api/weekends/:eventId`
+- `GET /api/live/stream`
+- `GET /api/live/state`
+- `GET /api/live/health`
 - `GET /api/sessions/:sessionId/results`
-- `GET /api/standings/drivers?season=2026&page=1&limit=20`
-- `GET /api/standings/constructors?season=2026&page=1&limit=20`
 - `GET /api/health/data`
 
 ## Notes
 
 - Ingestion runs automatically at API startup, then every 10 minutes.
 - If current season has no data yet, ingestion falls back to the previous season.
-- MVP currently ingests qualifying + race results and both standings tables.
+- MVP currently ingests qualifying + race results and standings tables, while web UI stays focused on live + championship standings.
 - List endpoints include `meta` pagination fields (`page`, `limit`, `total`, `totalPages`).
 - API errors use a shared envelope with `error.code`, `error.message`, and `error.details`.
 

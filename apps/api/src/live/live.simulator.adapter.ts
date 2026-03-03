@@ -103,6 +103,21 @@ const rotateCompound = (
   return 'MEDIUM';
 };
 
+const splitLapIntoSectors = (
+  lapMs: number,
+  random: () => number = Math.random,
+): Pick<LiveLeaderboardEntry, 'sector1Ms' | 'sector2Ms' | 'sector3Ms'> => {
+  const s1 = roundMillis(lapMs * 0.327 + (random() - 0.5) * 260);
+  const s2 = roundMillis(lapMs * 0.338 + (random() - 0.5) * 260);
+  const s3 = lapMs - s1 - s2;
+
+  return {
+    sector1Ms: s1,
+    sector2Ms: s2,
+    sector3Ms: s3,
+  };
+};
+
 const appendRaceControl = (
   raceControl: LiveRaceControlMessage[],
   category: LiveRaceControlMessage['category'],
@@ -140,6 +155,11 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => ({
       index === 0
         ? 0
         : roundSecs(1.2 + index * 1.22 + (index % 3 === 0 ? 0.25 : 0));
+    const lastLapMs = 92000 + index * 175;
+    const sectors = splitLapIntoSectors(
+      lastLapMs,
+      () => ((index % 6) + 1) / 8,
+    );
 
     return {
       position: index + 1,
@@ -148,8 +168,9 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => ({
       teamName: driver.team,
       gapToLeaderSec: gap,
       intervalToAheadSec: interval,
-      lastLapMs: 92000 + index * 175,
-      bestLapMs: 92000 + index * 175,
+      ...sectors,
+      lastLapMs,
+      bestLapMs: lastLapMs,
       tireCompound: index < 7 ? 'SOFT' : index < 14 ? 'MEDIUM' : 'HARD',
       stintLap: 1 + (index % 8),
     };
@@ -184,6 +205,7 @@ export const evolveSimulatorState = (
     );
 
     const nextBestLap = Math.min(current.bestLapMs, nextLastLap);
+    const sectors = splitLapIntoSectors(nextLastLap, random);
 
     let nextStintLap = current.stintLap;
     let nextCompoundValue = current.tireCompound;
@@ -200,6 +222,7 @@ export const evolveSimulatorState = (
     if (index === 0) {
       nextLeaderboard.push({
         ...current,
+        ...sectors,
         lastLapMs: nextLastLap,
         bestLapMs: nextBestLap,
         gapToLeaderSec: 0,
@@ -217,6 +240,7 @@ export const evolveSimulatorState = (
 
     nextLeaderboard.push({
       ...current,
+      ...sectors,
       lastLapMs: nextLastLap,
       bestLapMs: nextBestLap,
       gapToLeaderSec: cumulativeGap,

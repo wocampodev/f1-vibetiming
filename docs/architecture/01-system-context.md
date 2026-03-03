@@ -10,7 +10,6 @@ flowchart LR
   api["API Service<br/>NestJS<br/>apps/api"]
   provider["Jolpica/Ergast API<br/>api.jolpi.ca/ergast"]
   db[("PostgreSQL<br/>f1_vibetiming")]
-  cache[(Redis)]
   gha[GitHub Actions CI]
   repo[("GitHub Repo<br/>wocampodev/f1-vibetiming")]
 
@@ -18,7 +17,6 @@ flowchart LR
   web -->|HTTP JSON| api
   api -->|Read/Write| db
   api -->|Scheduled fetch| provider
-  api --> cache
   gha -->|Lint/Test/Build| repo
   gha -->|e2e DB service| db
 ```

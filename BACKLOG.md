@@ -6,7 +6,8 @@ Last updated: 2026-03-03
 
 - Completed: MVP-001 to MVP-025
 - Open MVP work: none
-- Post-MVP scope remains Phase 2 (Live Weekend Mode) and Phase 3 (Analytics)
+- Product scope is simplified: Live Dashboard + Championship Standings only
+- Post-MVP scope is trimmed to reliability and table quality for live/standings views
 - Release baseline validated locally (lint + unit + e2e + build all passing)
 - Repository is public at `https://github.com/wocampodev/f1-vibetiming`
 
@@ -14,7 +15,7 @@ Last updated: 2026-03-03
 
 - [x] MVP-001 Initialize monorepo and apps
 - [x] MVP-002 Configure CI for lint/test/build
-- [x] MVP-003 Add local Postgres/Redis compose setup
+- [x] MVP-003 Add local Postgres compose setup
 - [x] MVP-004 Add environment validation in NestJS
 - [x] MVP-005 Design database schema and migrations
 - [x] MVP-006 Create Option 1 provider client module
@@ -43,6 +44,11 @@ Last updated: 2026-03-03
 
 ## Immediate Next Steps
 
+- [x] SCOPE-001 Simplify web UX to live dashboard + championship standings only
+- [x] SCOPE-002 Remove calendar/weekend/session routes from frontend
+- [x] SCOPE-003 Simplify `/live` to a single driver timing table
+- [x] SCOPE-004 Add sector timing columns (S1/S2/S3) to live leaderboard model
+- [x] SCOPE-005 Apply broadcast-style dark timing-board visual language
 - [ ] LEGAL-001 Complete provider terms and licensing review for live data sources
 - [x] LEGAL-002 Publish a data-usage policy (allowed usage, attribution, retention, caching)
 - [ ] LEGAL-003 Add compliance checklist gate to release process for real-provider rollout
@@ -50,8 +56,6 @@ Last updated: 2026-03-03
 - [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
 - [x] PH2-003 Implement local replay/simulator source for deterministic development
 - [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
-- [ ] PH2-107 Add sector comparison and mini pace chart
-- [ ] PH2-108 Add race control + team radio live feed panels
 - [ ] PH2-004 Decide deployment target (single-host Docker vs cloud split for web/api)
 
 ## Phase 2 - Live Weekend Mode (Post-MVP)
@@ -61,12 +65,12 @@ Last updated: 2026-03-03
 - [ ] PH2-101 Implement ingest orchestrator (adapter + normalizer + publisher)
 - [x] PH2-102 Implement API stream gateway for live updates
 - [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
-- [x] PH2-104 Add live leaderboard with lap/interval updates
-- [x] PH2-105 Add session state timeline (green/yellow/red/checkered)
-- [x] PH2-106 Add tire strategy view (compound + stint length)
-- [ ] PH2-107 Add sector comparison and mini pace chart
-- [ ] PH2-108 Add race control + team radio live feed panels
-- [x] PH2-109 Add track map v1 with car position updates
+- [x] PH2-104 Add live leaderboard with tire + sector + gap columns
+- [x] PH2-105 Add session state timeline (green/yellow/red/checkered) (de-scoped from UI)
+- [x] PH2-106 Add tire strategy view (compound + stint length) (de-scoped from UI)
+- [ ] PH2-107 Add sector comparison and mini pace chart (cancelled for simplified scope)
+- [ ] PH2-108 Add race control + team radio live feed panels (cancelled for simplified scope)
+- [x] PH2-109 Add track map v1 with car position updates (de-scoped from UI)
 - [x] PH2-110 Add simulator fixtures/replay tests for live flows
 
 ### Track B - Compliance Gate (Required Before Real Provider)

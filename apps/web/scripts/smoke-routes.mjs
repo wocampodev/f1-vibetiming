@@ -11,12 +11,13 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const routes = [
-  { path: '/', contains: 'F1 VibeTiming weekend tracker' },
-  { path: '/live', contains: 'Track Map' },
-  { path: '/calendar', contains: 'Calendar' },
-  { path: '/standings', contains: 'Standings' },
-  { path: '/weekend/unknown-event', contains: 'Weekend not found' },
-  { path: '/session/unknown-session', contains: 'Session unavailable' },
+  { path: '/', status: 200, contains: 'Live dashboard' },
+  { path: '/live', status: 200, contains: 'Live dashboard' },
+  { path: '/standings', status: 200, contains: 'Championship standings' },
+  { path: '/calendar', status: 404 },
+  { path: '/session', status: 404 },
+  { path: '/session/unknown-session', status: 404 },
+  { path: '/weekend/unknown-event', status: 404 },
 ];
 
 function startWebServer() {
@@ -59,10 +60,15 @@ async function waitUntilReachable(timeoutMs = 90_000) {
 async function runSmokeChecks() {
   for (const route of routes) {
     const response = await fetch(`${baseUrl}${route.path}`);
-    if (!response.ok) {
+    const expectedStatus = route.status ?? 200;
+    if (response.status !== expectedStatus) {
       throw new Error(
-        `Smoke check failed for ${route.path}: expected HTTP 200, got ${response.status}`,
+        `Smoke check failed for ${route.path}: expected HTTP ${expectedStatus}, got ${response.status}`,
       );
+    }
+
+    if (!route.contains) {
+      continue;
     }
 
     const html = await response.text();

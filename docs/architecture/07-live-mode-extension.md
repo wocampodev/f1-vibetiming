@@ -1,6 +1,6 @@
 # 07. Live Mode Extension (Phase 2)
 
-This is the target extension path without breaking current MVP contracts.
+This is the target extension path for the simplified product scope (live timing table + championship standings) without breaking current MVP contracts.
 
 Delivery strategy for Phase 2:
 
@@ -19,7 +19,7 @@ flowchart LR
     liveAdapter[Live Adapter]
     pollFallback[Polling Fallback]
     normalizer[Live Event Normalizer]
-    streamGateway[WebSocket Gateway]
+    streamGateway[SSE Stream Gateway]
     readApi[Existing REST Read APIs]
   end
 
@@ -46,6 +46,22 @@ Design guardrails:
 - Keep provider adapter boundary explicit so sources can be swapped.
 - Use fallback polling whenever live transport is unavailable.
 - Treat legal/provider approval as a release gate for non-simulator live feeds.
+
+Execution slices (active planning):
+
+- Slice A (`PH2-103`): resilience baseline
+  - reconnect/backoff on web SSE client
+  - fallback polling against `/api/live/state`
+  - stale/recovery diagnostics from `/api/live/health`
+- Slice B (`SCOPE-004`): live table quality
+  - keep leaderboard entries with tire + sector split fields (`S1`, `S2`, `S3`)
+  - keep `/live` UI constrained to one table (no map/radio/timeline panels)
+
+Validation baseline per slice:
+
+- `pnpm --filter web lint`
+- `pnpm --filter web test:smoke`
+- targeted `pnpm --filter api test` for touched live modules
 
 Roadmap source:
 

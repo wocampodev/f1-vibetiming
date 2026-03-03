@@ -33,6 +33,7 @@ Health checks:
 ```bash
 curl http://localhost:4000/api/health/data
 curl http://localhost:3000
+curl http://localhost:3000/standings
 ```
 
 ## Environment Mapping
@@ -67,6 +68,7 @@ Published image names:
 - For production, use managed Postgres credentials and secure secrets.
 - If moving toward live mode, verify provider licensing/terms before enabling live adapters.
 - `api` service runs `prisma db push` at startup before `start:prod`.
+- Current web product scope is intentionally minimal: live table + championship standings only.
 
 ## Infra-Only Local Mode
 

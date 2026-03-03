@@ -34,6 +34,9 @@ export interface LiveLeaderboardEntry {
   teamName: string;
   gapToLeaderSec: number;
   intervalToAheadSec: number;
+  sector1Ms: number;
+  sector2Ms: number;
+  sector3Ms: number;
   lastLapMs: number;
   bestLapMs: number;
   tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET';

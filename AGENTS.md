@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-03 (phase-2 live UI track-map slice)
+Last updated: 2026-03-03 (scope simplified to live + championship standings)
 
 ## Snapshot
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-03 (phase-2 live UI track-map slice)
 - Local path: `/home/walter/dev/f1-vibetiming`
 - Package manager: `pnpm` workspace
 - MVP data source: Option 1 public REST (`api.jolpi.ca/ergast`)
-- Current state: MVP complete, CI covers lint + unit + e2e + build
+- Current state: MVP complete, UI simplified to live dashboard + championship standings
 - GitHub: `https://github.com/wocampodev/f1-vibetiming` (public)
 
 ## Completed
@@ -31,12 +31,10 @@ Last updated: 2026-03-03 (phase-2 live UI track-map slice)
 - MVP-021 is done:
   - unit tests for ingestion/provider mapping and upsert behavior
 - Frontend routes are implemented:
-  - `/`
+  - `/` (live dashboard)
   - `/live`
-  - `/calendar`
   - `/standings`
-  - `/weekend/[eventId]`
-  - `/session/[sessionId]`
+  - unused routes removed from frontend (`/calendar`, `/weekend/[eventId]`, `/session`, `/session/[sessionId]`)
 - Architecture docs are in place (`docs/architecture`):
   - system context
   - container view
@@ -59,12 +57,11 @@ Last updated: 2026-03-03 (phase-2 live UI track-map slice)
   - live endpoints (`/api/live/state`, `/api/live/health`, `/api/live/stream`)
   - unit tests cover legal gate adapter selection + stream envelope behavior
 - Phase 2A has started in web:
-  - initial `/live` route consuming live SSE stream
-  - leaderboard + session status + race control UI slice
-  - session timeline and tire strategy panels
-  - driver focus panel with nearest-rival context
-  - sector status strip from session/race-control state
-  - track map v1 with estimated relative car positions
+  - `/` and `/live` consume live SSE stream
+  - simplified `/live` dashboard with one driver timing table
+  - table columns: tire, sector splits (S1/S2/S3), lap time, gap, interval
+  - broadcast-style dark timing-board UI
+  - secondary route focused on championship standings (`/standings`)
 
 ## Remaining MVP Items
 
@@ -125,7 +122,14 @@ pnpm dev
 
 ## Current Plan
 
-1. Improve live stream resilience in API/web (reconnect/backoff and fallback polling).
-2. Build PH2-107 sector comparison and mini pace chart on `/live`.
-3. Build PH2-108 simulated team radio feed panel and schema path for provider parity.
-4. Keep provider integration production-gated until LEGAL-001 and LEGAL-003 are complete.
+1. Keep product scope simple: live timing table and championship standings only.
+2. Implement PH2-103 stream resilience (reconnect/backoff and fallback polling) without adding new dashboard widgets.
+3. Keep simulator/provider contract stable, including sector timing fields in leaderboard entries.
+4. Maintain legal gate invariants: provider source remains non-production until LEGAL-001 and LEGAL-003 are closed.
+
+## Next Session Checklist
+
+- Start with PH2-103.1/103.2 in web (`live-dashboard` stream lifecycle + fallback state machine).
+- Keep `/live` UI as a single table and avoid re-introducing track-map/timeline/radio/session panels.
+- Validate with `pnpm --filter web lint`, `pnpm --filter web test:smoke`, and targeted `pnpm --filter api test`.
+- Update `BACKLOG.md` checkboxes as each resilience sub-slice lands.

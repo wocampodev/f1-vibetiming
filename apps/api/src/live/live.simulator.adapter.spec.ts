@@ -18,6 +18,14 @@ describe('LiveSimulatorAdapter helpers', () => {
     expect(state.leaderboard).toHaveLength(20);
     expect(state.leaderboard[0]?.position).toBe(1);
     expect(state.leaderboard[0]?.gapToLeaderSec).toBe(0);
+    expect(state.leaderboard[0]?.sector1Ms).toBeGreaterThan(0);
+    expect(state.leaderboard[0]?.sector2Ms).toBeGreaterThan(0);
+    expect(state.leaderboard[0]?.sector3Ms).toBeGreaterThan(0);
+    expect(
+      (state.leaderboard[0]?.sector1Ms ?? 0) +
+        (state.leaderboard[0]?.sector2Ms ?? 0) +
+        (state.leaderboard[0]?.sector3Ms ?? 0),
+    ).toBe(state.leaderboard[0]?.lastLapMs);
   });
 
   it('advances live timing data without changing lap on non-lap ticks', () => {
