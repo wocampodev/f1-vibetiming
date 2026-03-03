@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
+Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
 
 ## Snapshot
 
@@ -49,6 +49,10 @@ Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
 - MVP-024 is done:
   - deployment setup/docs (`apps/api/Dockerfile`, `apps/web/Dockerfile`, `compose.yml`, `docs/deployment/README.md`)
   - container image workflow (`.github/workflows/deploy-images.yml`)
+- Phase 2A has started in API:
+  - live adapter contract and normalized live schema scaffolding (`apps/api/src/live`)
+  - simulator-first stream source with status/heartbeat/delta events
+  - live endpoints (`/api/live/state`, `/api/live/health`, `/api/live/stream`)
 
 ## Remaining MVP Items
 
@@ -65,10 +69,15 @@ Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
 
 ### Phase 2 - Live Weekend Mode
 
-- Live leaderboard and session status timeline
-- Provider adapter for low-latency feed ingestion (SignalR or equivalent)
-- Normalized live event schema + fallback polling
-- API to web WebSocket streaming
+- Track A (build first): simulator/replay live pipeline
+  - adapter contract + normalized event schema
+  - stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
+  - API stream gateway + reconnect/backoff + fallback polling
+  - live UI slices (leaderboard, session timeline, tires/sectors, radio)
+- Track B (gate): provider legal/compliance readiness
+  - terms/licensing review and approval record
+  - attribution/disclaimer and retention policy
+  - go/no-go gate before real-provider production rollout
 
 ### Phase 3 - Analytics
 
@@ -100,3 +109,10 @@ pnpm dev
 - Verify provider terms/licensing before any live-feed work
 - Compose file strategy: one `compose.yml` with `app` profile for full stack and default infra-only startup
 - Image publish workflow is manual-only; `publish` input must be true to push to GHCR
+
+## Current Plan
+
+1. Implement Phase 2A foundation in `apps/api` with simulator-first live events.
+2. Add stream endpoints and health/status visibility for live mode.
+3. Add deterministic simulator/replay fixtures for tests and local development.
+4. Do not integrate real provider in production until legal gate items are complete.

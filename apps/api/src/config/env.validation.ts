@@ -11,4 +11,7 @@ export const envValidationSchema = Joi.object({
   ERGAST_BASE_URL: Joi.string().uri().default('https://api.jolpi.ca/ergast'),
   OPENF1_BASE_URL: Joi.string().uri().optional(),
   OPENF1_POLL_MINUTES: Joi.number().integer().min(1).default(10),
+  LIVE_SOURCE: Joi.string().valid('simulator', 'provider').default('simulator'),
+  LIVE_SIMULATOR_TICK_MS: Joi.number().integer().min(250).default(2000),
+  LIVE_HEARTBEAT_MS: Joi.number().integer().min(1000).default(15000),
 });

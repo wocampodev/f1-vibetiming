@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { LiveModule } from './live/live.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
     IngestionModule,
     F1Module,
     HealthModule,
+    LiveModule,
   ],
 })
 export class AppModule {}

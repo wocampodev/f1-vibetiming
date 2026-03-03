@@ -43,18 +43,35 @@ Last updated: 2026-03-02
 
 ## Immediate Next Steps
 
-- [ ] Start Phase 2 live-mode technical spike (adapter contract + websocket shape)
-- [ ] Decide deployment target (single-host Docker vs cloud split for web/api)
+- [ ] LEGAL-001 Complete provider terms and licensing review for live data sources
+- [ ] LEGAL-002 Publish a data-usage policy (allowed usage, attribution, retention, caching)
+- [ ] LEGAL-003 Add compliance checklist gate to release process for real-provider rollout
+- [x] PH2-001 Define simulator-first live adapter contract + normalized event schema
+- [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
+- [ ] PH2-003 Implement local replay/simulator source for deterministic development
+- [ ] PH2-004 Decide deployment target (single-host Docker vs cloud split for web/api)
 
 ## Phase 2 - Live Weekend Mode (Post-MVP)
 
-- [ ] Add live leaderboard with lap/interval updates
-- [ ] Add session state timeline (green/yellow/red/checkered)
-- [ ] Add tire strategy view (compound + stint length)
-- [ ] Add sector comparison and mini pace chart
-- [ ] Add ingestion adapter for live source (SignalR or equivalent)
-- [ ] Add reconnect/backoff and fallback polling strategy
-- [ ] Add WebSocket push API for live client updates
+### Track A - Build First (Simulator)
+
+- [ ] PH2-101 Implement ingest orchestrator (adapter + normalizer + publisher)
+- [ ] PH2-102 Implement API stream gateway for live updates
+- [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
+- [ ] PH2-104 Add live leaderboard with lap/interval updates
+- [ ] PH2-105 Add session state timeline (green/yellow/red/checkered)
+- [ ] PH2-106 Add tire strategy view (compound + stint length)
+- [ ] PH2-107 Add sector comparison and mini pace chart
+- [ ] PH2-108 Add race control + team radio live feed panels
+- [ ] PH2-109 Add track map v1 with car position updates
+- [ ] PH2-110 Add simulator fixtures/replay tests for live flows
+
+### Track B - Compliance Gate (Required Before Real Provider)
+
+- [ ] PH2-901 Verify provider terms allow intended app usage
+- [ ] PH2-902 Verify legal attribution/disclaimer requirements in UI/docs
+- [ ] PH2-903 Verify retention/rate-limit rules and enforce in code/config
+- [ ] PH2-904 Get explicit sign-off before enabling non-simulator provider in production
 
 ## Phase 3 - Analytics (Post-MVP)
 

@@ -23,3 +23,15 @@ pnpm --filter api test
 pnpm --filter api test:e2e
 pnpm --filter api build
 ```
+
+Live mode foundation endpoints (simulator-first):
+
+- `GET /api/live/state`
+- `GET /api/live/health`
+- `GET /api/live/stream` (SSE)
+
+Live mode environment variables:
+
+- `LIVE_SOURCE` (`simulator` default; provider path is gated)
+- `LIVE_SIMULATOR_TICK_MS` (default `2000`)
+- `LIVE_HEARTBEAT_MS` (default `15000`)
