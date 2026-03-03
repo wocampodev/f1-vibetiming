@@ -207,7 +207,10 @@ const mergeRecords = (
   return merged;
 };
 
-const decodeTopicPayload = (topic: string, payload: unknown): FeedEnvelope => {
+export const decodeTopicPayload = (
+  topic: string,
+  payload: unknown,
+): FeedEnvelope => {
   const emittedAt = new Date().toISOString();
   if (!topic.endsWith('.z')) {
     if (typeof payload === 'string') {
@@ -248,7 +251,7 @@ const decodeTopicPayload = (topic: string, payload: unknown): FeedEnvelope => {
   }
 };
 
-class ProviderStateAccumulator {
+export class ProviderStateAccumulator {
   private readonly driverByNumber = new Map<string, JsonRecord>();
   private readonly timingByNumber = new Map<string, JsonRecord>();
   private readonly timingAppByNumber = new Map<string, JsonRecord>();

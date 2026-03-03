@@ -27,6 +27,15 @@ const statusToneByValue: Record<LiveStreamStatus, string> = {
   stopped: "border-zinc-400/40 bg-zinc-400/10 text-zinc-200",
 };
 
+const flagToneByValue: Record<string, string> = {
+  green: "border-emerald-400/50 bg-emerald-400/10 text-emerald-200",
+  yellow: "border-yellow-400/50 bg-yellow-400/10 text-yellow-200",
+  red: "border-red-400/50 bg-red-400/10 text-red-200",
+  safety_car: "border-orange-400/50 bg-orange-400/10 text-orange-200",
+  virtual_safety_car: "border-cyan-400/50 bg-cyan-400/10 text-cyan-200",
+  checkered: "border-zinc-200/50 bg-zinc-300/10 text-zinc-100",
+};
+
 const tireToneByValue: Record<string, string> = {
   SOFT: "border-red-400/40 bg-red-400/10 text-red-200",
   MEDIUM: "border-amber-400/40 bg-amber-400/10 text-amber-200",
@@ -103,6 +112,9 @@ const formatGap = (seconds: number | null, isLeader: boolean): string => {
 
   return `+${seconds.toFixed(3)}`;
 };
+
+const formatFlagLabel = (value: string): string =>
+  value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
@@ -394,6 +406,7 @@ export function LiveDashboard() {
   }, [liveState]);
 
   const rows: LiveLeaderboardEntry[] = liveState?.leaderboard ?? [];
+  const raceControl = liveState?.raceControl ?? [];
   const lapLabel =
     liveState?.session.currentLap != null && liveState.session.totalLaps != null
       ? `L${liveState.session.currentLap}/${liveState.session.totalLaps}`
@@ -418,6 +431,13 @@ export function LiveDashboard() {
             <span className="rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#d3e1f5]">
               {lapLabel}
             </span>
+            {liveState ? (
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${flagToneByValue[liveState.session.flag] ?? "border-zinc-400/40 bg-zinc-400/10 text-zinc-200"}`}
+              >
+                {formatFlagLabel(liveState.session.flag)}
+              </span>
+            ) : null}
             <span className="rounded-full border border-[#2f4c69] bg-[#102034] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#9ec5e8]">
               Source {streamSource}
             </span>
@@ -442,77 +462,105 @@ export function LiveDashboard() {
       </div>
 
       {liveState ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1240px] bg-[#070d15] text-sm">
-            <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
-              <tr>
-                <th className="px-2 py-2">Pos</th>
-                <th className="px-2 py-2">Driver</th>
-                <th className="px-2 py-2">Team</th>
-                <th className="px-2 py-2">Tire</th>
-                <th className="px-2 py-2">S1</th>
-                <th className="px-2 py-2">S2</th>
-                <th className="px-2 py-2">S3</th>
-                <th className="px-2 py-2">Lap</th>
-                <th className="px-2 py-2">Best</th>
-                <th className="px-2 py-2">Gap</th>
-                <th className="px-2 py-2">Int</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((entry) => (
-                <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
-                  <td className="px-2 py-2">
-                    <span
-                      className={`inline-flex min-w-11 items-center justify-center rounded-md bg-gradient-to-r px-2 py-1 text-base font-bold text-white ${getPositionTone(entry.position)}`}
-                    >
-                      {entry.position}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-xl font-bold tracking-wide text-[#d7ebff]">
-                        {entry.driverCode}
-                      </span>
-                      <span className="text-xs text-[var(--muted)]">{entry.driverName ?? "-"}</span>
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
-                  <td className="px-2 py-2">
-                    {entry.tireCompound ? (
-                      <span
-                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tireToneByValue[entry.tireCompound] ?? tireToneByValue.HARD}`}
-                      >
-                        {entry.tireCompound}
-                        {entry.stintLap != null ? ` L${entry.stintLap}` : ""}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-[#8aa0be]">-</span>
-                    )}
-                  </td>
-                  <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
-                  <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
-                  <SectorCell label="S3" value={entry.sector3Ms} max={sectorMax.s3} />
-                  <td className="px-2 py-2 font-mono text-[1.65rem] leading-none text-[#f1f7ff]">
-                    {formatLapTime(entry.lastLapMs)}
-                  </td>
-                  <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                    {formatLapTime(entry.bestLapMs)}
-                  </td>
-                  <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
-                    {formatGap(entry.gapToLeaderSec, entry.position === 1)}
-                  </td>
-                  <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                    {entry.position === 1
-                      ? "-"
-                      : entry.intervalToAheadSec == null
-                        ? "-"
-                        : `+${entry.intervalToAheadSec.toFixed(3)}`}
-                  </td>
+        <div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1240px] bg-[#070d15] text-sm">
+              <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
+                <tr>
+                  <th className="px-2 py-2">Pos</th>
+                  <th className="px-2 py-2">Driver</th>
+                  <th className="px-2 py-2">Team</th>
+                  <th className="px-2 py-2">Tire</th>
+                  <th className="px-2 py-2">S1</th>
+                  <th className="px-2 py-2">S2</th>
+                  <th className="px-2 py-2">S3</th>
+                  <th className="px-2 py-2">Lap</th>
+                  <th className="px-2 py-2">Best</th>
+                  <th className="px-2 py-2">Gap</th>
+                  <th className="px-2 py-2">Int</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((entry) => (
+                  <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
+                    <td className="px-2 py-2">
+                      <span
+                        className={`inline-flex min-w-11 items-center justify-center rounded-md bg-gradient-to-r px-2 py-1 text-base font-bold text-white ${getPositionTone(entry.position)}`}
+                      >
+                        {entry.position}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-xl font-bold tracking-wide text-[#d7ebff]">
+                          {entry.driverCode}
+                        </span>
+                        <span className="text-xs text-[var(--muted)]">{entry.driverName ?? "-"}</span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
+                    <td className="px-2 py-2">
+                      {entry.tireCompound ? (
+                        <span
+                          className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tireToneByValue[entry.tireCompound] ?? tireToneByValue.HARD}`}
+                        >
+                          {entry.tireCompound}
+                          {entry.stintLap != null ? ` L${entry.stintLap}` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#8aa0be]">-</span>
+                      )}
+                    </td>
+                    <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
+                    <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
+                    <SectorCell label="S3" value={entry.sector3Ms} max={sectorMax.s3} />
+                    <td className="px-2 py-2 font-mono text-[1.65rem] leading-none text-[#f1f7ff]">
+                      {formatLapTime(entry.lastLapMs)}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
+                      {formatLapTime(entry.bestLapMs)}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
+                      {formatGap(entry.gapToLeaderSec, entry.position === 1)}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
+                      {entry.position === 1
+                        ? "-"
+                        : entry.intervalToAheadSec == null
+                          ? "-"
+                          : `+${entry.intervalToAheadSec.toFixed(3)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="border-t border-[var(--line)] bg-[#0a121e] px-5 py-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Race Control</p>
+            {raceControl.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--muted)]">No race control messages yet.</p>
+            ) : (
+              <div className="mt-2 grid gap-2">
+                {raceControl.slice(0, 8).map((message) => (
+                  <div
+                    key={message.id}
+                    className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs uppercase tracking-wide text-[#9ec5e8]">
+                        {message.category}
+                      </span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {formatClock(message.emittedAt)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-[#e5eefc]">{message.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <p className="px-5 py-4 text-sm text-[var(--muted)]">
