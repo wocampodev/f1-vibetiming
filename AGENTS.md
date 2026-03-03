@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-01 (closeout checkpoint)
+Last updated: 2026-03-02 (architecture + tests checkpoint)
 
 ## Snapshot
 
@@ -28,16 +28,25 @@ Last updated: 2026-03-01 (closeout checkpoint)
   - shared error envelope
   - pagination `meta` on list endpoints
   - cache headers on read endpoints
+- MVP-021 is done:
+  - unit tests for ingestion/provider mapping and upsert behavior
 - Frontend routes are implemented:
   - `/`
   - `/calendar`
   - `/standings`
   - `/weekend/[eventId]`
   - `/session/[sessionId]`
+- Architecture docs are in place (`docs/architecture`):
+  - system context
+  - container view
+  - ingestion sequence
+  - request flow
+  - data model ERD
+  - CI flow
+  - live mode extension sketch
 
 ## Remaining MVP Items
 
-- MVP-021 unit tests for provider mapping and ingestion upsert behavior
 - MVP-023 frontend smoke tests for critical routes
 - MVP-024 deployment setup + environment docs
 

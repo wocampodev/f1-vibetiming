@@ -16,7 +16,6 @@ mvp:
   data_source: api.jolpi.ca/ergast
   status: mostly_complete
   open_items:
-    - MVP-021
     - MVP-023
     - MVP-024
 

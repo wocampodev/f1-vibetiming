@@ -104,3 +104,33 @@ Use this file as a quick pause/resume log between coding sessions.
 
 - Keep API contracts stable while remaining MVP items are implemented
 - Verify provider terms/licensing before any live-feed adapter work
+
+## 2026-03-02
+
+### Done
+
+- Added architecture documentation pack under `docs/architecture` with seven Mermaid diagrams and index
+- Linked architecture docs from root `README.md`
+- Implemented MVP-021 via new ingestion unit tests in `apps/api/src/ingestion/ingestion.service.spec.ts`
+- Pushed architecture docs commit to `main`
+
+### In Progress
+
+- MVP-023 frontend smoke tests
+- MVP-024 deployment setup and environment docs
+
+### Next
+
+1. Implement MVP-023 smoke tests for critical routes in web app
+2. Implement MVP-024 deployment documentation and environment mapping
+3. Re-run full quality gates in a Docker-enabled environment
+
+### Commands
+
+- `pnpm --filter api test`
+- `pnpm lint`
+
+### Notes / Risks
+
+- API unit tests and lint passed
+- e2e tests could not run in this session because Docker is unavailable in this environment

@@ -1,11 +1,11 @@
 # F1 VibeTiming Backlog
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Compact Session Snapshot
 
-- Completed: MVP-001 to MVP-020, MVP-022, MVP-025
-- Open MVP work: MVP-021, MVP-023, MVP-024
+- Completed: MVP-001 to MVP-022, MVP-025
+- Open MVP work: MVP-023, MVP-024
 - Post-MVP scope remains Phase 2 (Live Weekend Mode) and Phase 3 (Analytics)
 - Release baseline validated locally (lint + unit + e2e + build all passing)
 - Repository is public at `https://github.com/wocampodev/f1-vibetiming`
@@ -35,7 +35,7 @@ Last updated: 2026-03-01
 - [x] MVP-018 Build weekend detail page
 - [x] MVP-019 Build session results page
 - [x] MVP-020 Build standings page with chart
-- [ ] MVP-021 Add unit tests for provider mapping and ingestion
+- [x] MVP-021 Add unit tests for provider mapping and ingestion
 - [x] MVP-022 Add API integration tests for core endpoints
 - [ ] MVP-023 Add frontend smoke tests for critical routes
 - [ ] MVP-024 Set up deployment for web and API
@@ -43,7 +43,6 @@ Last updated: 2026-03-01
 
 ## Immediate Next Steps
 
-- [ ] Implement MVP-021 ingestion mapping/upsert unit tests
 - [ ] Implement MVP-023 frontend smoke tests
 - [ ] Implement MVP-024 deployment pipeline and environment docs
 

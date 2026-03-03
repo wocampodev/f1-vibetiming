@@ -7,12 +7,10 @@ checkpoint:
   release_baseline: passing
 
 current_focus:
-  - MVP-021: provider mapping and ingestion upsert unit tests
   - MVP-023: frontend smoke tests for critical routes
   - MVP-024: deployment setup and environment docs
 
 resume_order:
-  - MVP-021
   - MVP-023
   - MVP-024
 
