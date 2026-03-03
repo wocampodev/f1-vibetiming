@@ -1,6 +1,9 @@
 import { deflateRawSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   decodeTopicPayload,
+  extractFeedMessagesFromRawText,
   ProviderStateAccumulator,
 } from './live.provider.adapter';
 
@@ -21,6 +24,36 @@ describe('decodeTopicPayload', () => {
 
     expect(decoded.topic).toBe('SessionStatus');
     expect(decoded.payload).toEqual({ Status: 'Started' });
+  });
+});
+
+describe('extractFeedMessagesFromRawText', () => {
+  it('extracts feed messages from a recorded SignalR frame fixture', () => {
+    const fixturePath = path.resolve(
+      __dirname,
+      'fixtures',
+      'signalr-feed-frame.json',
+    );
+    const fixture = JSON.parse(readFileSync(fixturePath, 'utf-8')) as {
+      hubName: string;
+      rawFrame: string;
+    };
+
+    const messages = extractFeedMessagesFromRawText(
+      fixture.rawFrame,
+      fixture.hubName,
+    );
+
+    expect(messages).toHaveLength(6);
+    expect(messages.map((message) => message.topic)).toEqual([
+      'LapCount',
+      'DriverList',
+      'TimingData',
+      'TimingStats',
+      'CarData',
+      'Position',
+    ]);
+    expect(messages[0].payload).toEqual({ CurrentLap: '14', TotalLaps: '57' });
   });
 });
 
@@ -131,6 +164,9 @@ describe('ProviderStateAccumulator', () => {
       driverCode: 'VER',
       driverName: 'Max Verstappen',
       teamName: 'Red Bull Racing',
+      trackStatus: null,
+      speedKph: null,
+      topSpeedKph: null,
       sector1Ms: 30100,
       sector2Ms: 31000,
       sector3Ms: 31000,
@@ -232,6 +268,145 @@ describe('ProviderStateAccumulator', () => {
     expect(state?.raceControl[1]).toMatchObject({
       id: 'rc-1',
       category: 'incident',
+    });
+  });
+
+  it('maps TimingStats, CarData, and Position topics into leaderboard telemetry', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'DriverList',
+      {
+        '1': {
+          RacingNumber: '1',
+          Tla: 'VER',
+          FirstName: 'Max',
+          LastName: 'Verstappen',
+          TeamName: 'Red Bull Racing',
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:32.800' },
+            BestLapTime: { Value: '1:31.900' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingStats',
+      {
+        Lines: {
+          '1': {
+            BestSpeeds: {
+              I1: { Value: '296.2' },
+              ST: { Value: '323.8' },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'CarData',
+      {
+        Entries: [
+          {
+            Cars: {
+              '1': {
+                Channels: {
+                  '2': '312',
+                },
+              },
+            },
+            Utc: '2026-03-03T00:00:02.000Z',
+          },
+        ],
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'Position',
+      {
+        Position: [
+          {
+            Entries: {
+              '1': {
+                Status: 'OnTrack',
+              },
+            },
+          },
+        ],
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      speedKph: 312,
+      topSpeedKph: 324,
+      trackStatus: 'on_track',
+    });
+  });
+
+  it('uses TimingStats sector and personal best fallbacks when TimingData fields are missing', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '44': {
+            Position: '2',
+            LastLapTime: { Value: '1:34.000' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingStats',
+      {
+        Lines: {
+          '44': {
+            PersonalBestLapTime: { Value: '1:33.200' },
+            BestSectors: [
+              { Value: '30.100' },
+              { Value: '31.200' },
+              { Value: '31.900' },
+            ],
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 2,
+      bestLapMs: 93200,
+      sector1Ms: 30100,
+      sector2Ms: 31200,
+      sector3Ms: 31900,
     });
   });
 });

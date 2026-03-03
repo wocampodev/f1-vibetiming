@@ -116,6 +116,14 @@ const formatGap = (seconds: number | null, isLeader: boolean): string => {
 const formatFlagLabel = (value: string): string =>
   value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 
+const formatTrackStatus = (value: string | null): string => {
+  if (!value) {
+    return "-";
+  }
+
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
 
@@ -464,12 +472,15 @@ export function LiveDashboard() {
       {liveState ? (
         <div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1240px] bg-[#070d15] text-sm">
+            <table className="w-full min-w-[1380px] bg-[#070d15] text-sm">
               <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
                 <tr>
                   <th className="px-2 py-2">Pos</th>
                   <th className="px-2 py-2">Driver</th>
                   <th className="px-2 py-2">Team</th>
+                  <th className="px-2 py-2">Track</th>
+                  <th className="px-2 py-2">Speed</th>
+                  <th className="px-2 py-2">VMax</th>
                   <th className="px-2 py-2">Tire</th>
                   <th className="px-2 py-2">S1</th>
                   <th className="px-2 py-2">S2</th>
@@ -499,6 +510,15 @@ export function LiveDashboard() {
                       </div>
                     </td>
                     <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
+                    <td className="px-2 py-2 text-xs text-[var(--muted)]">
+                      {formatTrackStatus(entry.trackStatus)}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
+                      {entry.speedKph == null ? "-" : `${entry.speedKph}`}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
+                      {entry.topSpeedKph == null ? "-" : `${entry.topSpeedKph}`}
+                    </td>
                     <td className="px-2 py-2">
                       {entry.tireCompound ? (
                         <span

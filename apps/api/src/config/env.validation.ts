@@ -16,7 +16,7 @@ export const envValidationSchema = Joi.object({
     .default('https://livetiming.formula1.com/signalr'),
   LIVE_SIGNALR_HUB: Joi.string().default('streaming'),
   LIVE_SIGNALR_TOPICS: Joi.string().default(
-    'SessionInfo,SessionStatus,LapCount,TrackStatus,DriverList,TimingData,TimingAppData,RaceControlMessages',
+    'SessionInfo,SessionStatus,LapCount,TrackStatus,DriverList,TimingData,TimingStats,TimingAppData,CarData.z,Position.z,RaceControlMessages,ExtrapolatedClock',
   ),
   LIVE_SIGNALR_RECONNECT_MIN_MS: Joi.number().integer().min(250).default(1000),
   LIVE_SIGNALR_RECONNECT_MAX_MS: Joi.number()

@@ -163,6 +163,9 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => ({
       driverCode: driver.code,
       driverName: driver.name,
       teamName: driver.team,
+      trackStatus: 'on_track',
+      speedKph: 311 - index * 2,
+      topSpeedKph: 321 - index,
       gapToLeaderSec: gap,
       intervalToAheadSec: interval,
       ...sectors,
@@ -196,6 +199,7 @@ export const evolveSimulatorState = (
     const current = previous.leaderboard[index];
     const currentLastLap = current.lastLapMs ?? 92000;
     const currentBestLap = current.bestLapMs ?? currentLastLap;
+    const currentTopSpeed = current.topSpeedKph ?? 0;
     const noise = roundMillis((random() - 0.5) * 520);
     const paceBias = index * 14;
     const nextLastLap = clampNumber(
@@ -203,6 +207,12 @@ export const evolveSimulatorState = (
       86000,
       111000,
     );
+    const nextSpeed = clampNumber(
+      (current.speedKph ?? 285) + Math.round((random() - 0.5) * 12),
+      190,
+      335,
+    );
+    const nextTopSpeed = Math.max(currentTopSpeed, nextSpeed);
 
     const nextBestLap = Math.min(currentBestLap, nextLastLap);
     const sectors = splitLapIntoSectors(nextLastLap, random);
@@ -225,6 +235,9 @@ export const evolveSimulatorState = (
         ...sectors,
         lastLapMs: nextLastLap,
         bestLapMs: nextBestLap,
+        speedKph: nextSpeed,
+        topSpeedKph: nextTopSpeed,
+        trackStatus: 'on_track',
         gapToLeaderSec: 0,
         intervalToAheadSec: 0,
         stintLap: nextStintLap,
@@ -243,6 +256,9 @@ export const evolveSimulatorState = (
       ...sectors,
       lastLapMs: nextLastLap,
       bestLapMs: nextBestLap,
+      speedKph: nextSpeed,
+      topSpeedKph: nextTopSpeed,
+      trackStatus: 'on_track',
       gapToLeaderSec: cumulativeGap,
       intervalToAheadSec: roundSecs(interval),
       stintLap: nextStintLap,

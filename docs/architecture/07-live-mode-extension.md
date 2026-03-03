@@ -37,6 +37,7 @@ flowchart LR
 Implementation notes:
 
 - Live stream transport is SignalR with reconnect/backoff handling in API and web.
+- Provider normalization currently covers session, timing, timing stats, car telemetry, position, and race-control topics.
 - Web consumes SSE first and uses `/api/live/state` as fallback polling path.
 - Standings remain DB-backed with ingestion freshness metadata.
 

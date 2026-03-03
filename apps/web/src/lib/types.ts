@@ -90,6 +90,9 @@ export interface LiveLeaderboardEntry {
   driverCode: string;
   driverName: string | null;
   teamName: string | null;
+  trackStatus: string | null;
+  speedKph: number | null;
+  topSpeedKph: number | null;
   gapToLeaderSec: number | null;
   intervalToAheadSec: number | null;
   sector1Ms: number | null;

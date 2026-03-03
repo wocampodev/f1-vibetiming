@@ -28,6 +28,12 @@ interface FeedEnvelope {
   emittedAt: string;
 }
 
+export interface SignalrFeedMessage {
+  topic: string;
+  payload: unknown;
+  emittedAt: string;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 const DEFAULT_TOPICS = [
@@ -37,7 +43,10 @@ const DEFAULT_TOPICS = [
   'TrackStatus',
   'DriverList',
   'TimingData',
+  'TimingStats',
   'TimingAppData',
+  'CarData.z',
+  'Position.z',
   'RaceControlMessages',
   'ExtrapolatedClock',
 ];
@@ -69,6 +78,27 @@ const asRecord = (value: unknown): JsonRecord | null =>
 
 const asString = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
+
+const asNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const asRecordArray = (value: unknown): JsonRecord[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is JsonRecord => isRecord(item));
+};
 
 const toInt = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -145,6 +175,41 @@ const parseGapSeconds = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const parseSpeedKph = (value: unknown): number | null => {
+  const parsed = asNumber(value);
+  if (parsed == null) {
+    return null;
+  }
+
+  return Math.round(parsed);
+};
+
+const normalizeTrackStatus = (value: unknown): string | null => {
+  const raw = asString(value);
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized.includes('ontrack') || normalized === 'on_track') {
+    return 'on_track';
+  }
+  if (normalized.includes('pitlane') || normalized.includes('pit lane')) {
+    return 'pit_lane';
+  }
+  if (normalized.includes('garage')) {
+    return 'pit_garage';
+  }
+  if (normalized.includes('stopped')) {
+    return 'stopped';
+  }
+  if (normalized.includes('offtrack') || normalized.includes('off track')) {
+    return 'off_track';
+  }
+
+  return normalized;
+};
+
 const normalizeFlag = (value: unknown): LiveFlagStatus | null => {
   const raw = asString(value);
   if (!raw) {
@@ -186,6 +251,45 @@ const normalizeCompound = (
   return TIRE_COMPOUNDS.has(upper)
     ? (upper as NonNullable<LiveLeaderboardEntry['tireCompound']>)
     : null;
+};
+
+const parseTopSpeedKphFromStats = (
+  timingStats: JsonRecord | undefined,
+): number | null => {
+  if (!timingStats) {
+    return null;
+  }
+
+  const bestSpeeds = asRecord(timingStats.BestSpeeds);
+  if (!bestSpeeds) {
+    return null;
+  }
+
+  const values = Object.values(bestSpeeds)
+    .map((node) => {
+      const speedValue = asRecord(node)?.Value ?? node;
+      return parseSpeedKph(speedValue);
+    })
+    .filter((value): value is number => value != null);
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  return Math.max(...values);
+};
+
+const parseTimingStatsSector = (
+  timingStats: JsonRecord | undefined,
+  index: number,
+): number | null => {
+  if (!timingStats) {
+    return null;
+  }
+
+  const bestSectors = asRecordArray(timingStats.BestSectors);
+  const node = bestSectors.at(index);
+  return node ? parseLapOrSectorMs(node.Value) : null;
 };
 
 const mergeRecords = (
@@ -251,10 +355,67 @@ export const decodeTopicPayload = (
   }
 };
 
+export const extractFeedMessagesFromRawText = (
+  rawText: string,
+  hubName: string,
+): SignalrFeedMessage[] => {
+  const frames = rawText.includes('\u001e')
+    ? rawText
+        .split('\u001e')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    : [rawText.trim()].filter((value) => value.length > 0);
+
+  const messages: SignalrFeedMessage[] = [];
+
+  for (const frame of frames) {
+    let envelope: JsonRecord;
+    try {
+      envelope = JSON.parse(frame) as JsonRecord;
+    } catch {
+      continue;
+    }
+
+    const hubMessages = Array.isArray(envelope.M) ? envelope.M : [];
+    for (const item of hubMessages) {
+      const hubMessage = asRecord(item) as SignalrHubMessage | null;
+      if (!hubMessage) {
+        continue;
+      }
+
+      const hub = (asString(hubMessage.H) ?? '').toLowerCase();
+      const method = (asString(hubMessage.M) ?? '').toLowerCase();
+      if (hub !== hubName.toLowerCase() || method !== 'feed') {
+        continue;
+      }
+
+      const args = Array.isArray(hubMessage.A) ? hubMessage.A : [];
+      const topicRaw = asString(args[0]);
+      if (!topicRaw) {
+        continue;
+      }
+
+      const decoded = decodeTopicPayload(topicRaw, args[1]);
+      const emittedAt = toIso(args[2], decoded.emittedAt);
+
+      messages.push({
+        topic: decoded.topic,
+        payload: decoded.payload,
+        emittedAt,
+      });
+    }
+  }
+
+  return messages;
+};
+
 export class ProviderStateAccumulator {
   private readonly driverByNumber = new Map<string, JsonRecord>();
   private readonly timingByNumber = new Map<string, JsonRecord>();
+  private readonly timingStatsByNumber = new Map<string, JsonRecord>();
   private readonly timingAppByNumber = new Map<string, JsonRecord>();
+  private readonly carDataByNumber = new Map<string, JsonRecord>();
+  private readonly positionByNumber = new Map<string, JsonRecord>();
 
   private sessionName: string | null = null;
   private weekendId: string | null = null;
@@ -299,6 +460,22 @@ export class ProviderStateAccumulator {
       }
     }
 
+    if (topic === 'TimingStats' && record) {
+      const lines = asRecord(record.Lines);
+      if (lines) {
+        for (const [number, lineValue] of Object.entries(lines)) {
+          const line = asRecord(lineValue);
+          if (!line) {
+            continue;
+          }
+
+          const current = this.timingStatsByNumber.get(number) ?? {};
+          this.timingStatsByNumber.set(number, mergeRecords(current, line));
+        }
+        changed.add('leaderboard');
+      }
+    }
+
     if (topic === 'TimingAppData' && record) {
       const lines = asRecord(record.Lines);
       if (lines) {
@@ -311,6 +488,56 @@ export class ProviderStateAccumulator {
           const current = this.timingAppByNumber.get(number) ?? {};
           this.timingAppByNumber.set(number, mergeRecords(current, line));
         }
+        changed.add('leaderboard');
+      }
+    }
+
+    if (topic === 'CarData' && record) {
+      const entries = asRecordArray(record.Entries);
+      for (const entry of entries) {
+        const cars = asRecord(entry.Cars);
+        if (!cars) {
+          continue;
+        }
+
+        for (const [number, carValue] of Object.entries(cars)) {
+          const car = asRecord(carValue);
+          if (!car) {
+            continue;
+          }
+
+          const current = this.carDataByNumber.get(number) ?? {};
+          const merged = mergeRecords(current, car);
+          merged.Utc = toIso(entry.Utc, emittedAt);
+          this.carDataByNumber.set(number, merged);
+        }
+      }
+
+      if (entries.length > 0) {
+        changed.add('leaderboard');
+      }
+    }
+
+    if (topic === 'Position' && record) {
+      const positions = asRecordArray(record.Position);
+      for (const position of positions) {
+        const entries = asRecord(position.Entries);
+        if (!entries) {
+          continue;
+        }
+
+        for (const [number, entryValue] of Object.entries(entries)) {
+          const entry = asRecord(entryValue);
+          if (!entry) {
+            continue;
+          }
+
+          const current = this.positionByNumber.get(number) ?? {};
+          this.positionByNumber.set(number, mergeRecords(current, entry));
+        }
+      }
+
+      if (positions.length > 0) {
         changed.add('leaderboard');
       }
     }
@@ -433,7 +660,10 @@ export class ProviderStateAccumulator {
     for (const number of numbers) {
       const driver = this.driverByNumber.get(number);
       const timing = this.timingByNumber.get(number);
+      const timingStats = this.timingStatsByNumber.get(number);
       const timingApp = this.timingAppByNumber.get(number);
+      const carData = this.carDataByNumber.get(number);
+      const positionData = this.positionByNumber.get(number);
 
       if (!timing) {
         continue;
@@ -448,6 +678,29 @@ export class ProviderStateAccumulator {
       const sector1 = asRecord(sectors?.['0']);
       const sector2 = asRecord(sectors?.['1']);
       const sector3 = asRecord(sectors?.['2']);
+      const sector1Ms =
+        parseLapOrSectorMs(sector1?.Value) ??
+        parseTimingStatsSector(timingStats, 0);
+      const sector2Ms =
+        parseLapOrSectorMs(sector2?.Value) ??
+        parseTimingStatsSector(timingStats, 1);
+      const sector3Ms =
+        parseLapOrSectorMs(sector3?.Value) ??
+        parseTimingStatsSector(timingStats, 2);
+
+      const statsBestLap = parseLapOrSectorMs(
+        asRecord(timingStats?.PersonalBestLapTime)?.Value,
+      );
+      const bestLapMs =
+        parseLapOrSectorMs(asRecord(timing.BestLapTime)?.Value) ?? statsBestLap;
+
+      const channels = asRecord(carData?.Channels);
+      const speedKph = parseSpeedKph(channels?.['2']);
+      const topSpeedKph =
+        parseTopSpeedKphFromStats(timingStats) ??
+        speedKph ??
+        parseSpeedKph(asRecord(timingStats?.Speeds)?.ST);
+      const trackStatus = normalizeTrackStatus(positionData?.Status);
 
       const intervalValue =
         asString(asRecord(timing.IntervalToPositionAhead)?.Value) ??
@@ -485,13 +738,16 @@ export class ProviderStateAccumulator {
           (combinedName.length > 0 ? combinedName : null) ??
           asString(driver?.BroadcastName),
         teamName: asString(driver?.TeamName),
+        trackStatus,
+        speedKph,
+        topSpeedKph,
         gapToLeaderSec: parseGapSeconds(timing.GapToLeader),
         intervalToAheadSec: parseGapSeconds(intervalValue),
-        sector1Ms: parseLapOrSectorMs(sector1?.Value),
-        sector2Ms: parseLapOrSectorMs(sector2?.Value),
-        sector3Ms: parseLapOrSectorMs(sector3?.Value),
+        sector1Ms,
+        sector2Ms,
+        sector3Ms,
         lastLapMs: parseLapOrSectorMs(asRecord(timing.LastLapTime)?.Value),
-        bestLapMs: parseLapOrSectorMs(asRecord(timing.BestLapTime)?.Value),
+        bestLapMs,
         tireCompound:
           normalizeCompound(latestStint?.Compound) ??
           normalizeCompound(timing.Compound),
@@ -833,51 +1089,15 @@ export class LiveProviderAdapter implements LiveAdapter {
               ).toString('utf-8')
             : Buffer.from(data).toString('utf-8');
 
-    const frames = rawText.includes('\u001e')
-      ? rawText
-          .split('\u001e')
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0)
-      : [rawText.trim()].filter((value) => value.length > 0);
-
-    for (const frame of frames) {
-      let envelope: JsonRecord;
-      try {
-        envelope = JSON.parse(frame) as JsonRecord;
-      } catch {
-        continue;
-      }
-
-      const messages = Array.isArray(envelope.M) ? envelope.M : [];
-      for (const item of messages) {
-        const hubMessage = asRecord(item) as SignalrHubMessage | null;
-        if (!hubMessage) {
-          continue;
-        }
-
-        const hub = (asString(hubMessage.H) ?? '').toLowerCase();
-        const method = (asString(hubMessage.M) ?? '').toLowerCase();
-        if (hub !== this.hubName.toLowerCase() || method !== 'feed') {
-          continue;
-        }
-
-        const args = Array.isArray(hubMessage.A) ? hubMessage.A : [];
-        const topicRaw = asString(args[0]);
-        if (!topicRaw) {
-          continue;
-        }
-
-        const decoded = decodeTopicPayload(topicRaw, args[1]);
-        const emittedAt = toIso(args[2], decoded.emittedAt);
-
-        const changedFields = this.accumulator.ingest(
-          decoded.topic,
-          decoded.payload,
-          emittedAt,
-        );
-        this.lastEventAt = emittedAt;
-        this.publishState(changedFields, emittedAt);
-      }
+    const messages = extractFeedMessagesFromRawText(rawText, this.hubName);
+    for (const message of messages) {
+      const changedFields = this.accumulator.ingest(
+        message.topic,
+        message.payload,
+        message.emittedAt,
+      );
+      this.lastEventAt = message.emittedAt;
+      this.publishState(changedFields, message.emittedAt);
     }
   }
 

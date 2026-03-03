@@ -25,8 +25,8 @@ Last updated: 2026-03-03 (provider-first live runtime)
 
 ## Active Priorities
 
-1. Improve provider decoding coverage for additional live topics and payload variants.
-2. Add provider normalization tests to lock feed-shape assumptions.
+1. Keep provider normalization locked with fixture-based tests as topic shapes evolve.
+2. Extend live telemetry usage (speed/track status history and reliability diagnostics).
 3. Extend standings from snapshot to round-history with movement deltas.
 4. Keep docs and architecture aligned with provider-first runtime.
 

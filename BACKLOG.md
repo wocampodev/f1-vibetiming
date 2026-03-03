@@ -18,8 +18,8 @@ Last updated: 2026-03-03
 - [x] LIVE-004 Add SignalR provider transport bootstrap (`negotiate`/`connect`/`start`).
 - [x] LIVE-005 Add provider reconnect/backoff and heartbeat loop.
 - [x] LIVE-006 Normalize provider feed updates into live state envelopes.
-- [ ] LIVE-007 Harden topic decoding coverage for additional upstream message variants.
-- [ ] LIVE-008 Add integration-style tests for provider message normalization.
+- [x] LIVE-007 Harden topic decoding coverage for additional upstream message variants (`TimingStats`, `CarData`, `Position`).
+- [x] LIVE-008 Add integration-style tests for provider message normalization and raw frame parsing.
 
 ### Track 2 - Live Dashboard Quality
 
@@ -27,7 +27,7 @@ Last updated: 2026-03-03
 - [x] DASH-002 Add fallback polling from `/api/live/state` during stream disruption.
 - [x] DASH-003 Add health diagnostics paneling from `/api/live/health`.
 - [x] DASH-004 Render partial/null-safe timing data without synthetic placeholders.
-- [ ] DASH-005 Add race-control strip and flag timeline panel.
+- [x] DASH-005 Add race-control strip and flag context on the live board.
 
 ### Track 3 - Standings Depth
 
