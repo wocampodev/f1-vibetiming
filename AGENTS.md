@@ -54,6 +54,7 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - live adapter contract and normalized live schema scaffolding (`apps/api/src/live`)
   - simulator-first stream source with status/heartbeat/delta events
   - deterministic simulator replay fixtures + seedable timeline
+  - provider adapter stub is present but legally gated and intentionally degraded
   - live endpoints (`/api/live/state`, `/api/live/health`, `/api/live/stream`)
 - Phase 2A has started in web:
   - initial `/live` route consuming live SSE stream

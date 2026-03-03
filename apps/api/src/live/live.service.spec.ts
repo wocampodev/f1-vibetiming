@@ -75,6 +75,29 @@ function createSimulatorAdapterMock() {
   };
 }
 
+function createProviderAdapterMock() {
+  return {
+    source: 'provider' as const,
+    start: jest.fn((publish: (event: unknown) => void) => {
+      publish({
+        type: 'status',
+        status: 'degraded',
+        message: 'Provider adapter is not implemented in this build',
+      });
+      return Promise.resolve();
+    }),
+    stop: jest.fn(() => Promise.resolve()),
+    getHealth: jest.fn(() => ({
+      running: true,
+      startedAt: '2026-03-03T00:00:00.000Z',
+      lastEventAt: '2026-03-03T00:00:00.000Z',
+      tickMs: 0,
+      heartbeatMs: 0,
+      seed: null,
+    })),
+  };
+}
+
 describe('LiveService', () => {
   it('starts simulator source and exposes current state', async () => {
     const config = createConfigMock({
@@ -82,7 +105,12 @@ describe('LiveService', () => {
       LIVE_PROVIDER_LEGAL_APPROVED: false,
     });
     const simulator = createSimulatorAdapterMock();
-    const service = new LiveService(config as never, simulator as never);
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
 
     await service.onModuleInit();
 
@@ -101,7 +129,12 @@ describe('LiveService', () => {
       LIVE_PROVIDER_LEGAL_APPROVED: false,
     });
     const simulator = createSimulatorAdapterMock();
-    const service = new LiveService(config as never, simulator as never);
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
 
     await service.onModuleInit();
 
@@ -113,10 +146,40 @@ describe('LiveService', () => {
     expect(service.getHealth().legalGateMessage).toContain('legal/compliance');
   });
 
+  it('uses provider adapter when legal gate is approved', async () => {
+    const config = createConfigMock({
+      LIVE_SOURCE: 'provider',
+      LIVE_PROVIDER_LEGAL_APPROVED: true,
+    });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(simulator.start).not.toHaveBeenCalled();
+    expect(provider.start).toHaveBeenCalledTimes(1);
+    expect(service.getHealth()).toMatchObject({
+      source: 'provider',
+      legalGateActive: false,
+      legalGateMessage: null,
+      status: 'degraded',
+    });
+  });
+
   it('stops adapter on module destroy', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
-    const service = new LiveService(config as never, simulator as never);
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
 
     await service.onModuleInit();
     await service.onModuleDestroy();

@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
 import { LiveAdapter } from './live.adapter';
+import { LiveProviderAdapter } from './live.provider.adapter';
 import { LiveSimulatorAdapter } from './live.simulator.adapter';
 import {
   LiveDeltaPayload,
@@ -38,6 +39,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly simulatorAdapter: LiveSimulatorAdapter,
+    private readonly providerAdapter: LiveProviderAdapter,
   ) {
     this.adapter = this.resolveAdapter();
   }
@@ -181,12 +183,9 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       return this.simulatorAdapter;
     }
 
-    this.logger.warn(
-      `LIVE_SOURCE=${source} is not implemented yet after legal approval, falling back to simulator`,
-    );
     this.legalGateActive = false;
     this.legalGateMessage = null;
-    return this.simulatorAdapter;
+    return this.providerAdapter;
   }
 
   private wrapEnvelope<
