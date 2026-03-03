@@ -1,7 +1,9 @@
 import {
+  createSeededRandom,
   createSimulatorInitialState,
   evolveSimulatorState,
 } from './live.simulator.adapter';
+import { LIVE_SIMULATOR_FIXTURE } from './live.simulator.fixture';
 
 describe('LiveSimulatorAdapter helpers', () => {
   it('creates a full initial state snapshot', () => {
@@ -71,5 +73,33 @@ describe('LiveSimulatorAdapter helpers', () => {
     expect(next.state.session.phase).toBe('finished');
     expect(next.state.session.flag).toBe('checkered');
     expect(next.changedFields).toContain('session.phase');
+  });
+
+  it('applies fixture events for race control and flag state', () => {
+    const initial = createSimulatorInitialState(
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
+
+    const next = evolveSimulatorState(
+      initial,
+      8,
+      () => 0.5,
+      new Date('2026-01-01T00:00:16.000Z'),
+      LIVE_SIMULATOR_FIXTURE,
+    );
+
+    expect(next.state.session.flag).toBe('yellow');
+    expect(next.changedFields).toContain('raceControl');
+    expect(next.state.raceControl[0]?.id).toBe('rc-yellow-s2');
+  });
+
+  it('produces deterministic pseudo-random sequence from seed', () => {
+    const left = createSeededRandom(2026);
+    const right = createSeededRandom(2026);
+
+    const leftValues = [left(), left(), left(), left()];
+    const rightValues = [right(), right(), right(), right()];
+
+    expect(leftValues).toEqual(rightValues);
   });
 });

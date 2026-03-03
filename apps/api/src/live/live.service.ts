@@ -92,6 +92,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       lastEventAt: adapterHealth.lastEventAt,
       tickMs: adapterHealth.tickMs,
       heartbeatMs: adapterHealth.heartbeatMs,
+      seed: adapterHealth.seed,
     };
   }
 

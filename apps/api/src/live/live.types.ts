@@ -89,4 +89,5 @@ export interface LiveAdapterHealth {
   lastEventAt: string | null;
   tickMs: number;
   heartbeatMs: number;
+  seed: number | null;
 }

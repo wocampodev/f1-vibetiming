@@ -35,3 +35,8 @@ Live mode environment variables:
 - `LIVE_SOURCE` (`simulator` default; provider path is gated)
 - `LIVE_SIMULATOR_TICK_MS` (default `2000`)
 - `LIVE_HEARTBEAT_MS` (default `15000`)
+- `LIVE_SIMULATOR_SEED` (default `2026`, keeps simulator timing deterministic)
+
+Deterministic replay fixture source:
+
+- `apps/api/src/live/live.simulator.fixture.ts`

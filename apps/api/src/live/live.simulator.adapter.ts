@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LiveAdapter, LivePublish } from './live.adapter';
 import {
+  LIVE_SIMULATOR_FIXTURE,
+  LiveSimulatorFixtureEvent,
+} from './live.simulator.fixture';
+import {
   LiveAdapterHealth,
   LiveFeedSource,
   LiveFlagStatus,
@@ -19,6 +23,11 @@ interface DriverSeed {
 interface SimulatorStepResult {
   state: LiveState;
   changedFields: string[];
+}
+
+interface AppendRaceControlOptions {
+  id?: string;
+  emittedAt?: string;
 }
 
 const SIMULATOR_DRIVERS: DriverSeed[] = [
@@ -54,6 +63,15 @@ const roundMillis = (value: number): number => Math.round(value);
 
 const roundSecs = (value: number): number => Number(value.toFixed(3));
 
+export const createSeededRandom = (seed: number): (() => number) => {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 2 ** 32;
+  };
+};
+
 const rotateCompound = (
   current: LiveLeaderboardEntry['tireCompound'],
 ): LiveLeaderboardEntry['tireCompound'] => {
@@ -73,10 +91,12 @@ const appendRaceControl = (
   category: LiveRaceControlMessage['category'],
   message: string,
   flag?: LiveFlagStatus,
+  options?: AppendRaceControlOptions,
 ): LiveRaceControlMessage[] => {
   const next: LiveRaceControlMessage = {
-    id: `sim-${Date.now()}-${Math.round(Math.random() * 100000)}`,
-    emittedAt: new Date().toISOString(),
+    id:
+      options?.id ?? `sim-${Date.now()}-${Math.round(Math.random() * 100000)}`,
+    emittedAt: options?.emittedAt ?? new Date().toISOString(),
     category,
     message,
     flag,
@@ -125,6 +145,7 @@ export const evolveSimulatorState = (
   tick: number,
   random: () => number = Math.random,
   now = new Date(),
+  fixture: LiveSimulatorFixtureEvent[] = LIVE_SIMULATOR_FIXTURE,
 ): SimulatorStepResult => {
   const lapAdvanced =
     tick % LAP_ADVANCE_INTERVAL === 0 &&
@@ -191,27 +212,24 @@ export const evolveSimulatorState = (
   let nextFlag = previous.session.flag;
   let nextRaceControl = previous.raceControl;
 
-  const controlRoll = random();
-  if (controlRoll < 0.025) {
-    nextFlag = 'yellow';
+  const fixtureEvents = fixture.filter((event) => event.tick === tick);
+  for (const event of fixtureEvents) {
     nextRaceControl = appendRaceControl(
       nextRaceControl,
-      'flag',
-      'Yellow flag in sector 2. Reduce speed and no overtaking.',
-      'yellow',
+      event.category,
+      event.message,
+      event.flag,
+      {
+        id: event.id,
+        emittedAt: now.toISOString(),
+      },
     );
-    changedFields.add('session.flag');
     changedFields.add('raceControl');
-  } else if (controlRoll > 0.992) {
-    nextFlag = 'green';
-    nextRaceControl = appendRaceControl(
-      nextRaceControl,
-      'flag',
-      'Track clear. Green flag.',
-      'green',
-    );
-    changedFields.add('session.flag');
-    changedFields.add('raceControl');
+
+    if (event.setFlag) {
+      nextFlag = event.setFlag;
+      changedFields.add('session.flag');
+    }
   }
 
   const nextLap = lapAdvanced
@@ -233,6 +251,10 @@ export const evolveSimulatorState = (
       'control',
       'Chequered flag. Session finished.',
       'checkered',
+      {
+        id: `rc-checkered-${nextLap}`,
+        emittedAt: now.toISOString(),
+      },
     );
   }
 
@@ -264,12 +286,14 @@ export class LiveSimulatorAdapter implements LiveAdapter {
 
   private readonly tickMs: number;
   private readonly heartbeatMs: number;
+  private readonly seed: number;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private tickCount = 0;
   private lastEventAt: string | null = null;
   private startedAt: string | null = null;
   private state: LiveState = createSimulatorInitialState();
+  private random: () => number;
   private running = false;
 
   constructor(private readonly configService: ConfigService) {
@@ -281,6 +305,8 @@ export class LiveSimulatorAdapter implements LiveAdapter {
       'LIVE_HEARTBEAT_MS',
       15000,
     );
+    this.seed = this.configService.get<number>('LIVE_SIMULATOR_SEED', 2026);
+    this.random = createSeededRandom(this.seed);
   }
 
   start(publish: LivePublish): Promise<void> {
@@ -292,6 +318,7 @@ export class LiveSimulatorAdapter implements LiveAdapter {
     this.tickCount = 0;
     this.startedAt = new Date().toISOString();
     this.state = createSimulatorInitialState();
+    this.random = createSeededRandom(this.seed);
 
     publish({
       type: 'status',
@@ -308,7 +335,11 @@ export class LiveSimulatorAdapter implements LiveAdapter {
 
     this.tickTimer = setInterval(() => {
       this.tickCount += 1;
-      const step = evolveSimulatorState(this.state, this.tickCount);
+      const step = evolveSimulatorState(
+        this.state,
+        this.tickCount,
+        this.random,
+      );
       this.state = step.state;
       this.lastEventAt = new Date().toISOString();
 
@@ -355,6 +386,7 @@ export class LiveSimulatorAdapter implements LiveAdapter {
       lastEventAt: this.lastEventAt,
       tickMs: this.tickMs,
       heartbeatMs: this.heartbeatMs,
+      seed: this.seed,
     };
   }
 }

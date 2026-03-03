@@ -48,7 +48,7 @@ Last updated: 2026-03-02
 - [ ] LEGAL-003 Add compliance checklist gate to release process for real-provider rollout
 - [x] PH2-001 Define simulator-first live adapter contract + normalized event schema
 - [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
-- [ ] PH2-003 Implement local replay/simulator source for deterministic development
+- [x] PH2-003 Implement local replay/simulator source for deterministic development
 - [ ] PH2-004 Decide deployment target (single-host Docker vs cloud split for web/api)
 
 ## Phase 2 - Live Weekend Mode (Post-MVP)
