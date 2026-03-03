@@ -41,7 +41,7 @@ Implementation notes:
 - Leaderboard entries include bounded speed-history and track-status-history windows for trend rendering.
 - Web consumes SSE first and uses `/api/live/state` as fallback polling path.
 - `/api/live/health` includes provider transport diagnostics (frame/message counters, parser/decode errors, topic throughput snapshots).
-- Standings remain DB-backed with ingestion freshness metadata.
+- Standings remain DB-backed with per-round history persistence, selectable round snapshots, and previous-round movement deltas.
 
 Source of truth:
 

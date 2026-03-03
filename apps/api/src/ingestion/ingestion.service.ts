@@ -86,49 +86,65 @@ export class IngestionService implements OnModuleInit {
 
   async refreshStandings(season = this.getCurrentSeason()): Promise<number> {
     return this.trackRun(IngestionKind.STANDINGS, season, async () => {
-      const driverStandings =
+      const latestDriverStandings =
         await this.jolpicaClient.fetchDriverStandings(season);
-      const constructorStandings =
+      const latestConstructorStandings =
         await this.jolpicaClient.fetchConstructorStandings(season);
+      const latestRound = Math.max(
+        latestDriverStandings.round,
+        latestConstructorStandings.round,
+      );
 
       let processed = 0;
 
       await this.prisma.driverStanding.deleteMany({ where: { season } });
-      for (const standing of driverStandings.items) {
-        const team = standing.Constructors.at(0);
-        const teamId = team ? await this.upsertTeam(team) : null;
-        const driverId = await this.upsertDriver(standing.Driver, teamId);
-
-        await this.prisma.driverStanding.create({
-          data: {
-            season,
-            round: driverStandings.round,
-            position: this.toInt(standing.position) ?? 0,
-            points: this.toNumber(standing.points) ?? 0,
-            wins: this.toInt(standing.wins) ?? 0,
-            driverId,
-          },
-        });
-
-        processed += 1;
-      }
-
       await this.prisma.constructorStanding.deleteMany({ where: { season } });
-      for (const standing of constructorStandings.items) {
-        const teamId = await this.upsertTeam(standing.Constructor);
 
-        await this.prisma.constructorStanding.create({
-          data: {
-            season,
-            round: constructorStandings.round,
-            position: this.toInt(standing.position) ?? 0,
-            points: this.toNumber(standing.points) ?? 0,
-            wins: this.toInt(standing.wins) ?? 0,
-            teamId,
-          },
-        });
+      for (let round = 1; round <= latestRound; round += 1) {
+        const driverStandings =
+          round === latestDriverStandings.round
+            ? latestDriverStandings
+            : await this.jolpicaClient.fetchDriverStandings(season, round);
+        const constructorStandings =
+          round === latestConstructorStandings.round
+            ? latestConstructorStandings
+            : await this.jolpicaClient.fetchConstructorStandings(season, round);
 
-        processed += 1;
+        for (const standing of driverStandings.items) {
+          const team = standing.Constructors.at(0);
+          const teamId = team ? await this.upsertTeam(team) : null;
+          const driverId = await this.upsertDriver(standing.Driver, teamId);
+
+          await this.prisma.driverStanding.create({
+            data: {
+              season,
+              round,
+              position: this.toInt(standing.position) ?? 0,
+              points: this.toNumber(standing.points) ?? 0,
+              wins: this.toInt(standing.wins) ?? 0,
+              driverId,
+            },
+          });
+
+          processed += 1;
+        }
+
+        for (const standing of constructorStandings.items) {
+          const teamId = await this.upsertTeam(standing.Constructor);
+
+          await this.prisma.constructorStanding.create({
+            data: {
+              season,
+              round,
+              position: this.toInt(standing.position) ?? 0,
+              points: this.toNumber(standing.points) ?? 0,
+              wins: this.toInt(standing.wins) ?? 0,
+              teamId,
+            },
+          });
+
+          processed += 1;
+        }
       }
 
       return processed;

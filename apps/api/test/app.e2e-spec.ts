@@ -54,6 +54,9 @@ interface SessionResultsBody {
 }
 
 interface DriverStandingsBody {
+  round: number | null;
+  previousRound: number | null;
+  availableRounds: number[];
   meta: {
     page: number;
     limit: number;
@@ -62,6 +65,9 @@ interface DriverStandingsBody {
   };
   standings: Array<{
     position: number;
+    previousRoundPosition: number | null;
+    positionDelta: number | null;
+    pointsDelta: number | null;
     driver: {
       familyName: string;
     };
@@ -69,6 +75,9 @@ interface DriverStandingsBody {
 }
 
 interface ConstructorStandingsBody {
+  round: number | null;
+  previousRound: number | null;
+  availableRounds: number[];
   meta: {
     page: number;
     limit: number;
@@ -77,6 +86,9 @@ interface ConstructorStandingsBody {
   };
   standings: Array<{
     position: number;
+    previousRoundPosition: number | null;
+    positionDelta: number | null;
+    pointsDelta: number | null;
     team: {
       name: string;
     };
@@ -202,9 +214,30 @@ describe('F1 API (e2e)', () => {
       total: 2,
       totalPages: 1,
     });
+    expect(body.round).toBe(2);
+    expect(body.previousRound).toBe(1);
+    expect(body.availableRounds).toEqual([1, 2]);
     expect(body.standings).toHaveLength(2);
     expect(body.standings[0].position).toBe(1);
+    expect(body.standings[0].driver.familyName).toBe('Verstappen');
+    expect(body.standings[0].positionDelta).toBe(1);
+    expect(body.standings[0].previousRoundPosition).toBe(2);
+    expect(body.standings[0].pointsDelta).toBe(17);
+  });
+
+  it('GET /api/standings/drivers supports selecting a specific round', async () => {
+    const response = await request(httpServer)
+      .get('/api/standings/drivers?season=2024&round=1')
+      .expect(200);
+
+    const body = response.body as unknown as DriverStandingsBody;
+
+    expect(body.round).toBe(1);
+    expect(body.previousRound).toBeNull();
+    expect(body.availableRounds).toEqual([1, 2]);
     expect(body.standings[0].driver.familyName).toBe('Norris');
+    expect(body.standings[0].positionDelta).toBeNull();
+    expect(body.standings[0].pointsDelta).toBeNull();
   });
 
   it('GET /api/standings/constructors returns constructor standings', async () => {
@@ -220,9 +253,29 @@ describe('F1 API (e2e)', () => {
       total: 2,
       totalPages: 1,
     });
+    expect(body.round).toBe(2);
+    expect(body.previousRound).toBe(1);
+    expect(body.availableRounds).toEqual([1, 2]);
     expect(body.standings).toHaveLength(2);
     expect(body.standings[0].position).toBe(1);
+    expect(body.standings[0].team.name).toBe('Red Bull');
+    expect(body.standings[0].positionDelta).toBe(1);
+    expect(body.standings[0].pointsDelta).toBe(17);
+  });
+
+  it('GET /api/standings/constructors supports selecting a specific round', async () => {
+    const response = await request(httpServer)
+      .get('/api/standings/constructors?season=2024&round=1')
+      .expect(200);
+
+    const body = response.body as unknown as ConstructorStandingsBody;
+
+    expect(body.round).toBe(1);
+    expect(body.previousRound).toBeNull();
+    expect(body.availableRounds).toEqual([1, 2]);
     expect(body.standings[0].team.name).toBe('McLaren');
+    expect(body.standings[0].positionDelta).toBeNull();
+    expect(body.standings[0].pointsDelta).toBeNull();
   });
 
   it('GET /api/health/data returns ingestion freshness checks', async () => {
@@ -429,6 +482,22 @@ async function seedDatabase(prisma: PrismaService) {
         wins: 0,
         driverId: verstappen.id,
       },
+      {
+        season: 2024,
+        round: 2,
+        position: 1,
+        points: 35,
+        wins: 1,
+        driverId: verstappen.id,
+      },
+      {
+        season: 2024,
+        round: 2,
+        position: 2,
+        points: 33,
+        wins: 1,
+        driverId: norris.id,
+      },
     ],
   });
 
@@ -449,6 +518,22 @@ async function seedDatabase(prisma: PrismaService) {
         points: 18,
         wins: 0,
         teamId: redBull.id,
+      },
+      {
+        season: 2024,
+        round: 2,
+        position: 1,
+        points: 35,
+        wins: 1,
+        teamId: redBull.id,
+      },
+      {
+        season: 2024,
+        round: 2,
+        position: 2,
+        points: 33,
+        wins: 1,
+        teamId: mclaren.id,
       },
     ],
   });

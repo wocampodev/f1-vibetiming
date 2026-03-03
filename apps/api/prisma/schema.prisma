@@ -131,8 +131,8 @@ model DriverStanding {
   updatedAt  DateTime @updatedAt
   driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
-  @@unique([season, driverId])
-  @@index([season, position])
+  @@unique([season, round, driverId])
+  @@index([season, round, position])
 }
 
 model ConstructorStanding {
@@ -147,8 +147,8 @@ model ConstructorStanding {
   updatedAt  DateTime @updatedAt
   team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  @@unique([season, teamId])
-  @@index([season, position])
+  @@unique([season, round, teamId])
+  @@index([season, round, position])
 }
 
 model IngestionRun {

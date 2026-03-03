@@ -30,6 +30,11 @@ Live endpoints:
 - `GET /api/live/health` (includes transport counters, parser/decode errors, topic throughput)
 - `GET /api/live/stream` (SSE)
 
+Standings endpoints:
+
+- `GET /api/standings/drivers?season=<year>&round=<round>`
+- `GET /api/standings/constructors?season=<year>&round=<round>`
+
 Live runtime environment variables:
 
 - `LIVE_SOURCE` (`provider` default; set `simulator` for local opt-in)

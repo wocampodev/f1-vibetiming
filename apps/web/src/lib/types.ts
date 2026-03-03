@@ -17,6 +17,9 @@ export interface DriverStandingItem {
   wins: number;
   gapToLeaderPoints: number | null;
   gapToAheadPoints: number | null;
+  previousRoundPosition: number | null;
+  positionDelta: number | null;
+  pointsDelta: number | null;
   driver: {
     id: string;
     externalId: string;
@@ -40,6 +43,9 @@ export interface ConstructorStandingItem {
   wins: number;
   gapToLeaderPoints: number | null;
   gapToAheadPoints: number | null;
+  previousRoundPosition: number | null;
+  positionDelta: number | null;
+  pointsDelta: number | null;
   team: {
     id: string;
     externalId: string;
@@ -51,6 +57,8 @@ export interface ConstructorStandingItem {
 export interface DriverStandingsResponse {
   season: number;
   round: number | null;
+  previousRound: number | null;
+  availableRounds: number[];
   freshness: Freshness;
   meta: PaginationMeta;
   standings: DriverStandingItem[];
@@ -59,6 +67,8 @@ export interface DriverStandingsResponse {
 export interface ConstructorStandingsResponse {
   season: number;
   round: number | null;
+  previousRound: number | null;
+  availableRounds: number[];
   freshness: Freshness;
   meta: PaginationMeta;
   standings: ConstructorStandingItem[];

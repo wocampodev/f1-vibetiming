@@ -1,5 +1,6 @@
 import { Controller, Get, Header, Param, Query } from '@nestjs/common';
 import { SeasonPaginationQueryDto } from './dto/season-pagination-query.dto';
+import { StandingsQueryDto } from './dto/standings-query.dto';
 import { F1Service } from './f1.service';
 
 const CACHE_HEADER_VALUE = 'public, max-age=30, stale-while-revalidate=120';
@@ -28,13 +29,13 @@ export class F1Controller {
 
   @Get('standings/drivers')
   @Header('Cache-Control', CACHE_HEADER_VALUE)
-  getDriverStandings(@Query() query: SeasonPaginationQueryDto) {
+  getDriverStandings(@Query() query: StandingsQueryDto) {
     return this.f1Service.getDriverStandings(query);
   }
 
   @Get('standings/constructors')
   @Header('Cache-Control', CACHE_HEADER_VALUE)
-  getConstructorStandings(@Query() query: SeasonPaginationQueryDto) {
+  getConstructorStandings(@Query() query: StandingsQueryDto) {
     return this.f1Service.getConstructorStandings(query);
   }
 }

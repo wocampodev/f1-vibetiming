@@ -63,6 +63,7 @@ F1 VibeTiming is a two-view product:
 - Web consumes SSE from `/api/live/stream` and falls back to polling `/api/live/state` when needed.
 - Live health diagnostics are exposed at `/api/live/health`.
 - Live leaderboard rows include bounded speed-history and track-status-history arrays for trend visuals.
+- Standings support round selection with previous-round movement and points delta context.
 
 ## Planning Artifacts
 

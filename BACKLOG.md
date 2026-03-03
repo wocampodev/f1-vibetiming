@@ -38,8 +38,8 @@ Last updated: 2026-03-03
 
 - [x] STAND-001 Enrich standings API with round and points-gap context.
 - [x] STAND-002 Upgrade standings UI with gap-to-leader and gap-to-ahead columns.
-- [ ] STAND-003 Add standings round selector and previous-round delta movement.
-- [ ] STAND-004 Add standings history persistence by round.
+- [x] STAND-003 Add standings round selector and previous-round delta movement.
+- [x] STAND-004 Add standings history persistence by round.
 
 ### Track 4 - Cleanup and Documentation
 

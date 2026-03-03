@@ -24,13 +24,26 @@ async function fetchFromApi<T>(path: string): Promise<T | null> {
   }
 }
 
-export function getDriverStandings(season?: number) {
-  const query = season ? `?season=${season}` : "";
+function buildStandingsQuery(season?: number, round?: number): string {
+  const params = new URLSearchParams();
+  if (season) {
+    params.set("season", `${season}`);
+  }
+  if (round) {
+    params.set("round", `${round}`);
+  }
+
+  const query = params.toString();
+  return query.length > 0 ? `?${query}` : "";
+}
+
+export function getDriverStandings(season?: number, round?: number) {
+  const query = buildStandingsQuery(season, round);
   return fetchFromApi<DriverStandingsResponse>(`/standings/drivers${query}`);
 }
 
-export function getConstructorStandings(season?: number) {
-  const query = season ? `?season=${season}` : "";
+export function getConstructorStandings(season?: number, round?: number) {
+  const query = buildStandingsQuery(season, round);
   return fetchFromApi<ConstructorStandingsResponse>(
     `/standings/constructors${query}`,
   );

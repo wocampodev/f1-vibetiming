@@ -58,3 +58,4 @@ curl http://localhost:3000/standings
 - Product scope is intentionally minimal: live dashboard + championship standings.
 - Runtime should stay provider-first without synthetic fallback data.
 - `/api/live/health` is the primary provider diagnostics endpoint (transport throughput + parser/decode reliability).
+- `/standings` now relies on per-round standings history persisted in Postgres; keep schema synced with `prisma db push` during deploys.

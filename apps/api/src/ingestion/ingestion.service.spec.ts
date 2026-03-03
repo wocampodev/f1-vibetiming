@@ -283,47 +283,101 @@ describe('IngestionService', () => {
       jolpicaClient as never,
     );
 
-    jolpicaClient.fetchDriverStandings.mockResolvedValue({
-      round: 5,
-      items: [
-        {
-          position: '1',
-          points: '101',
-          wins: '3',
-          Driver: {
-            driverId: 'verstappen',
-            code: 'VER',
-            permanentNumber: '1',
-            givenName: 'Max',
-            familyName: 'Verstappen',
-            nationality: 'Dutch',
-          },
-          Constructors: [
+    jolpicaClient.fetchDriverStandings.mockImplementation(
+      (_season: number, round?: number) => {
+        if (round === 1) {
+          return Promise.resolve({
+            round: 1,
+            items: [
+              {
+                position: '1',
+                points: '51',
+                wins: '2',
+                Driver: {
+                  driverId: 'verstappen',
+                  code: 'VER',
+                  permanentNumber: '1',
+                  givenName: 'Max',
+                  familyName: 'Verstappen',
+                  nationality: 'Dutch',
+                },
+                Constructors: [
+                  {
+                    constructorId: 'red_bull',
+                    name: 'Red Bull',
+                    nationality: 'Austrian',
+                  },
+                ],
+              },
+            ],
+          });
+        }
+
+        return Promise.resolve({
+          round: 2,
+          items: [
             {
-              constructorId: 'red_bull',
-              name: 'Red Bull',
-              nationality: 'Austrian',
+              position: '1',
+              points: '101',
+              wins: '3',
+              Driver: {
+                driverId: 'verstappen',
+                code: 'VER',
+                permanentNumber: '1',
+                givenName: 'Max',
+                familyName: 'Verstappen',
+                nationality: 'Dutch',
+              },
+              Constructors: [
+                {
+                  constructorId: 'red_bull',
+                  name: 'Red Bull',
+                  nationality: 'Austrian',
+                },
+              ],
             },
           ],
-        },
-      ],
-    });
+        });
+      },
+    );
 
-    jolpicaClient.fetchConstructorStandings.mockResolvedValue({
-      round: 5,
-      items: [
-        {
-          position: '1',
-          points: '178',
-          wins: '4',
-          Constructor: {
-            constructorId: 'red_bull',
-            name: 'Red Bull',
-            nationality: 'Austrian',
-          },
-        },
-      ],
-    });
+    jolpicaClient.fetchConstructorStandings.mockImplementation(
+      (_season: number, round?: number) => {
+        if (round === 1) {
+          return Promise.resolve({
+            round: 1,
+            items: [
+              {
+                position: '1',
+                points: '89',
+                wins: '2',
+                Constructor: {
+                  constructorId: 'red_bull',
+                  name: 'Red Bull',
+                  nationality: 'Austrian',
+                },
+              },
+            ],
+          });
+        }
+
+        return Promise.resolve({
+          round: 2,
+          items: [
+            {
+              position: '1',
+              points: '178',
+              wins: '4',
+              Constructor: {
+                constructorId: 'red_bull',
+                name: 'Red Bull',
+                nationality: 'Austrian',
+              },
+            },
+          ],
+        });
+      },
+    );
 
     prisma.team.upsert.mockResolvedValue({ id: 'team-rb' });
     prisma.driver.upsert.mockResolvedValue({ id: 'driver-ver' });
@@ -335,7 +389,23 @@ describe('IngestionService', () => {
 
     const processed = await service.refreshStandings(2024);
 
-    expect(processed).toBe(2);
+    expect(processed).toBe(4);
+
+    expect(jolpicaClient.fetchDriverStandings).toHaveBeenNthCalledWith(1, 2024);
+    expect(jolpicaClient.fetchDriverStandings).toHaveBeenNthCalledWith(
+      2,
+      2024,
+      1,
+    );
+    expect(jolpicaClient.fetchConstructorStandings).toHaveBeenNthCalledWith(
+      1,
+      2024,
+    );
+    expect(jolpicaClient.fetchConstructorStandings).toHaveBeenNthCalledWith(
+      2,
+      2024,
+      1,
+    );
 
     expect(prisma.driverStanding.deleteMany).toHaveBeenCalledWith({
       where: { season: 2024 },
@@ -344,10 +414,20 @@ describe('IngestionService', () => {
       where: { season: 2024 },
     });
 
-    expect(prisma.driverStanding.create).toHaveBeenCalledWith({
+    expect(prisma.driverStanding.create).toHaveBeenNthCalledWith(1, {
       data: {
         season: 2024,
-        round: 5,
+        round: 1,
+        position: 1,
+        points: 51,
+        wins: 2,
+        driverId: 'driver-ver',
+      },
+    });
+    expect(prisma.driverStanding.create).toHaveBeenNthCalledWith(2, {
+      data: {
+        season: 2024,
+        round: 2,
         position: 1,
         points: 101,
         wins: 3,
@@ -355,10 +435,20 @@ describe('IngestionService', () => {
       },
     });
 
-    expect(prisma.constructorStanding.create).toHaveBeenCalledWith({
+    expect(prisma.constructorStanding.create).toHaveBeenNthCalledWith(1, {
       data: {
         season: 2024,
-        round: 5,
+        round: 1,
+        position: 1,
+        points: 89,
+        wins: 2,
+        teamId: 'team-rb',
+      },
+    });
+    expect(prisma.constructorStanding.create).toHaveBeenNthCalledWith(2, {
+      data: {
+        season: 2024,
+        round: 2,
         position: 1,
         points: 178,
         wins: 4,

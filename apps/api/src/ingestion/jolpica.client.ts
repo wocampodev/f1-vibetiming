@@ -38,6 +38,10 @@ interface ErgastStandingsResponse<T> {
 export class JolpicaClient {
   constructor(private readonly configService: ConfigService) {}
 
+  private buildRoundPathSegment(round?: number): string {
+    return round && round > 0 ? `/${round}` : '';
+  }
+
   async fetchCalendar(season: number): Promise<ErgastRace[]> {
     const response = await this.request<ErgastRacesResponse<ErgastRace>>(
       `/f1/${season}.json`,
@@ -65,10 +69,14 @@ export class JolpicaClient {
     return response.MRData.RaceTable.Races.at(0)?.QualifyingResults ?? [];
   }
 
-  async fetchDriverStandings(season: number): Promise<DriverStandingsPayload> {
+  async fetchDriverStandings(
+    season: number,
+    round?: number,
+  ): Promise<DriverStandingsPayload> {
+    const roundPath = this.buildRoundPathSegment(round);
     const response = await this.request<
       ErgastStandingsResponse<ErgastDriverStanding>
-    >(`/f1/${season}/driverStandings.json`);
+    >(`/f1/${season}${roundPath}/driverStandings.json`);
     const standings = response.MRData.StandingsTable.StandingsLists.at(0);
 
     return {
@@ -79,10 +87,12 @@ export class JolpicaClient {
 
   async fetchConstructorStandings(
     season: number,
+    round?: number,
   ): Promise<ConstructorStandingsPayload> {
+    const roundPath = this.buildRoundPathSegment(round);
     const response = await this.request<
       ErgastStandingsResponse<ErgastConstructorStanding>
-    >(`/f1/${season}/constructorStandings.json`);
+    >(`/f1/${season}${roundPath}/constructorStandings.json`);
     const standings = response.MRData.StandingsTable.StandingsLists.at(0);
 
     return {
