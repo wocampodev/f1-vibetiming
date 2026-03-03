@@ -2,15 +2,15 @@ version: 1
 
 bootstrap:
   - pnpm install
-  - pnpm db:up
+  - docker compose up -d
   - pnpm --filter api prisma:push
 
 dev:
   - pnpm dev
 
 deploy:
-  stack_up: pnpm stack:up
-  stack_down: pnpm stack:down
+  stack_up: docker compose --profile app up -d --build
+  stack_down: docker compose --profile app down
 
 test:
   api_unit: pnpm --filter api test
@@ -23,7 +23,7 @@ quality:
 
 recommended_resume_flow:
   - pnpm install
-  - pnpm db:up
+  - docker compose up -d
   - pnpm --filter api prisma:push
   - pnpm --filter web test:smoke
   - pnpm --filter api test:e2e

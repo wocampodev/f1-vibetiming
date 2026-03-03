@@ -59,7 +59,7 @@ Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
 - Local runtime validated (`pnpm dev`): API `200` on `/api/health/data`, web `200` on `/`
 - Quality gates passed locally: `pnpm lint`, `pnpm --filter api test`, `pnpm --filter web test:smoke`, `pnpm build`
 - Infra naming aligned to VibeTiming (`f1_vibetiming` database and compose service naming)
-- Full stack deployment validated locally via single compose (`pnpm stack:up`): API `200` and web `200`
+- Full stack deployment validated locally via single compose (`docker compose --profile app up -d --build`): API `200` and web `200`
 
 ## Roadmap (Do Not Lose)
 
@@ -88,7 +88,7 @@ Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
 
 ```bash
 pnpm install
-pnpm db:up
+docker compose up -d
 pnpm --filter api prisma:push
 pnpm dev
 ```

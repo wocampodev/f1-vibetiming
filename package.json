@@ -7,14 +7,9 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"pnpm dev:api\" \"pnpm dev:web\"",
     "dev:api": "pnpm --filter api start:dev",
     "dev:web": "pnpm --filter web dev",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down",
-    "stack:up": "docker compose --profile app up -d --build",
-    "stack:down": "docker compose --profile app down",
     "build": "pnpm --filter api build && pnpm --filter web build",
     "lint": "pnpm --filter api lint && pnpm --filter web lint",
-    "test": "pnpm --filter api test",
-    "format": "pnpm --filter api format"
+    "test": "pnpm --filter api test"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

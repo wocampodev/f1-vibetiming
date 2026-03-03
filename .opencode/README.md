@@ -13,4 +13,3 @@ Primary planning docs remain:
 
 - `BACKLOG.md`
 - `AGENTS.md`
-- `SESSION_NOTES.md`

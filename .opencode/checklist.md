@@ -6,13 +6,12 @@ Use this as a fast start checklist for the next coding block.
 
 - [ ] Read `BACKLOG.md`
 - [ ] Read `AGENTS.md`
-- [ ] Read `SESSION_NOTES.md`
 - [ ] Read `.opencode/session.yml`
 
 ## 2) Environment Boot
 
 - [ ] `pnpm install`
-- [ ] `pnpm db:up`
+- [ ] `docker compose up -d`
 - [ ] `pnpm --filter api prisma:push`
 
 ## 3) Current Priorities
@@ -31,5 +30,4 @@ Use this as a fast start checklist for the next coding block.
 ## 5) Before Handoff
 
 - [ ] Update `BACKLOG.md` checkboxes
-- [ ] Append `SESSION_NOTES.md` with done/in-progress/next
 - [ ] Keep `AGENTS.md` aligned with roadmap and locked decisions

@@ -19,7 +19,13 @@ This document captures the MVP deployment baseline for F1 VibeTiming.
 From repo root:
 
 ```bash
-pnpm stack:up
+docker compose --profile app up -d --build
+```
+
+Stop stack:
+
+```bash
+docker compose --profile app down
 ```
 
 Health checks:
@@ -61,3 +67,12 @@ Published image names:
 - For production, use managed Postgres credentials and secure secrets.
 - If moving toward live mode, verify provider licensing/terms before enabling live adapters.
 - `api` service runs `prisma db push` at startup before `start:prod`.
+
+## Infra-Only Local Mode
+
+For local API/web development outside containers:
+
+```bash
+docker compose up -d
+docker compose down
+```

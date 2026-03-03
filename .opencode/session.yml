@@ -22,5 +22,4 @@ guardrails:
 next_session_checklist:
   - Read BACKLOG.md
   - Read AGENTS.md
-  - Read SESSION_NOTES.md
   - Run bootstrap commands from .opencode/commands.yml

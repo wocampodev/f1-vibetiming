@@ -57,8 +57,16 @@ Hero tagline options:
 
 ## Deployment (MVP)
 
-- Local full stack via single compose: `pnpm stack:up`
+- Local full stack (Docker only): `docker compose --profile app up -d --build`
+- Stop full stack: `docker compose --profile app down`
 - Deployment docs: `docs/deployment/README.md`
+
+## Docker Local Environment
+
+- Infra only up: `docker compose up -d`
+- Infra only down: `docker compose down`
+- Full stack up (db + redis + api + web): `docker compose --profile app up -d --build`
+- Full stack down: `docker compose --profile app down`
 
 ## Key Endpoints
 
@@ -81,7 +89,6 @@ Hero tagline options:
 
 - Backlog checklist: `BACKLOG.md`
 - Session handoff and future phases: `AGENTS.md`
-- Pause/resume log: `SESSION_NOTES.md`
 - Local assistant session configs: `.opencode/`
 - Architecture diagrams: `docs/architecture/README.md`
 - Deployment setup and env mapping: `docs/deployment/README.md`

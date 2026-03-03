@@ -26,7 +26,6 @@ decisions:
 artifacts:
   backlog: BACKLOG.md
   handoff: AGENTS.md
-  session_notes: SESSION_NOTES.md
 
 ci:
   workflow_file: .github/workflows/ci.yml
