@@ -60,6 +60,7 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - initial `/live` route consuming live SSE stream
   - leaderboard + session status + race control UI slice
   - session timeline and tire strategy panels
+  - driver focus panel with nearest-rival context
 
 ## Remaining MVP Items
 

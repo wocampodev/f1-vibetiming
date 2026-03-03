@@ -5,6 +5,7 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LiveLeaderboardEntry,
   LiveRaceControlMessage,
   LiveState,
   LiveStatusPayload,
@@ -19,6 +20,27 @@ const formatLapTime = (milliseconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds - minutes * 60;
   return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
+};
+
+const formatSignedSeconds = (seconds: number): string => {
+  if (seconds === 0) {
+    return "0.000s";
+  }
+
+  const sign = seconds > 0 ? "+" : "-";
+  return `${sign}${Math.abs(seconds).toFixed(3)}s`;
+};
+
+const getPaceTrend = (deltaMs: number): "on pace" | "steady" | "fading" => {
+  if (deltaMs <= 180) {
+    return "on pace";
+  }
+
+  if (deltaMs <= 450) {
+    return "steady";
+  }
+
+  return "fading";
 };
 
 const formatClock = (value: string): string =>
@@ -68,6 +90,7 @@ export function LiveDashboard() {
   const [status, setStatus] = useState<LiveStreamStatus>("connecting");
   const [statusMessage, setStatusMessage] = useState("Connecting to live stream");
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
+  const [focusedDriverCode, setFocusedDriverCode] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -212,6 +235,66 @@ export function LiveDashboard() {
     ];
   }, [liveState, recentRaceControl]);
 
+  const selectedEntry = useMemo<LiveLeaderboardEntry | null>(() => {
+    if (!liveState) {
+      return null;
+    }
+
+    if (!focusedDriverCode) {
+      return liveState.leaderboard[0] ?? null;
+    }
+
+    return (
+      liveState.leaderboard.find(
+        (entry) => entry.driverCode === focusedDriverCode,
+      ) ?? null
+    );
+  }, [focusedDriverCode, liveState]);
+
+  const selectedDriverCode = selectedEntry?.driverCode ?? null;
+
+  const selectedAhead = useMemo(() => {
+    if (!liveState || !selectedEntry) {
+      return null;
+    }
+
+    return (
+      liveState.leaderboard.find(
+        (entry) => entry.position === selectedEntry.position - 1,
+      ) ?? null
+    );
+  }, [liveState, selectedEntry]);
+
+  const selectedBehind = useMemo(() => {
+    if (!liveState || !selectedEntry) {
+      return null;
+    }
+
+    return (
+      liveState.leaderboard.find(
+        (entry) => entry.position === selectedEntry.position + 1,
+      ) ?? null
+    );
+  }, [liveState, selectedEntry]);
+
+  const selectedTeammate = useMemo(() => {
+    if (!liveState || !selectedEntry) {
+      return null;
+    }
+
+    return (
+      liveState.leaderboard.find(
+        (entry) =>
+          entry.teamName === selectedEntry.teamName &&
+          entry.driverCode !== selectedEntry.driverCode,
+      ) ?? null
+    );
+  }, [liveState, selectedEntry]);
+
+  const selectedPaceDeltaMs = selectedEntry
+    ? selectedEntry.lastLapMs - selectedEntry.bestLapMs
+    : null;
+
   return (
     <div className="space-y-5">
       <section className="panel p-5">
@@ -287,11 +370,20 @@ export function LiveDashboard() {
               </thead>
               <tbody>
                 {topRunners.map((entry) => (
-                  <tr key={entry.driverCode} className="border-t border-black/5">
+                  <tr
+                    key={entry.driverCode}
+                    className={`border-t border-black/5 ${selectedDriverCode === entry.driverCode ? "bg-[var(--accent)]/6" : ""}`}
+                  >
                     <td className="px-4 py-2 font-semibold text-black/75">P{entry.position}</td>
                     <td className="px-4 py-2">
-                      <p className="font-semibold text-[var(--ink)]">{entry.driverCode}</p>
-                      <p className="text-xs text-[var(--muted)]">{entry.driverName}</p>
+                      <button
+                        type="button"
+                        onClick={() => setFocusedDriverCode(entry.driverCode)}
+                        className="text-left"
+                      >
+                        <p className="font-semibold text-[var(--ink)]">{entry.driverCode}</p>
+                        <p className="text-xs text-[var(--muted)]">{entry.driverName}</p>
+                      </button>
                     </td>
                     <td className="px-4 py-2 text-[var(--muted)]">{entry.teamName}</td>
                     <td className="px-4 py-2 text-[var(--muted)]">
@@ -334,7 +426,7 @@ export function LiveDashboard() {
         </article>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-3">
         <article className="panel p-4">
           <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Session Timeline</h2>
           <ol className="mt-3 space-y-2">
@@ -386,6 +478,75 @@ export function LiveDashboard() {
               </div>
             ))}
           </div>
+        </article>
+
+        <article className="panel p-4">
+          <h2 className="text-2xl uppercase tracking-wide text-[var(--ink)]">Driver Focus</h2>
+          {selectedEntry ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-black/10 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-black/55">Selected Driver</p>
+                <p className="text-lg font-semibold text-[var(--ink)]">
+                  P{selectedEntry.position} {selectedEntry.driverCode}
+                </p>
+                <p className="text-sm text-[var(--muted)]">{selectedEntry.driverName}</p>
+                <p className="text-sm text-[var(--muted)]">{selectedEntry.teamName}</p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-black/10 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-black/55">Last Lap</p>
+                  <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.lastLapMs)}</p>
+                </div>
+                <div className="rounded-lg border border-black/10 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-black/55">Best Lap</p>
+                  <p className="text-sm text-[var(--ink)]">{formatLapTime(selectedEntry.bestLapMs)}</p>
+                </div>
+                <div className="rounded-lg border border-black/10 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-black/55">Gap to Leader</p>
+                  <p className="text-sm text-[var(--ink)]">
+                    {selectedEntry.gapToLeaderSec === 0
+                      ? "LEADER"
+                      : formatSignedSeconds(selectedEntry.gapToLeaderSec)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-black/10 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-black/55">Interval Ahead</p>
+                  <p className="text-sm text-[var(--ink)]">
+                    {selectedEntry.intervalToAheadSec === 0
+                      ? "-"
+                      : formatSignedSeconds(selectedEntry.intervalToAheadSec)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-black/10 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-black/55">Pace Delta</p>
+                <p className="text-sm text-[var(--ink)]">
+                  {selectedPaceDeltaMs != null
+                    ? `${formatSignedSeconds(selectedPaceDeltaMs / 1000)} vs personal best (${getPaceTrend(selectedPaceDeltaMs)})`
+                    : "-"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-black/10 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-black/55">Closest Rivals</p>
+                <p className="text-sm text-[var(--ink)]">
+                  Ahead: {selectedAhead ? `P${selectedAhead.position} ${selectedAhead.driverCode}` : "none"}
+                </p>
+                <p className="text-sm text-[var(--ink)]">
+                  Behind: {selectedBehind ? `P${selectedBehind.position} ${selectedBehind.driverCode}` : "none"}
+                </p>
+                <p className="text-sm text-[var(--ink)]">
+                  Team mate: {selectedTeammate ? `P${selectedTeammate.position} ${selectedTeammate.driverCode}` : "none"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-[var(--muted)]">
+              Select a driver in the leaderboard to inspect pace and track position context.
+            </p>
+          )}
         </article>
       </section>
     </div>
