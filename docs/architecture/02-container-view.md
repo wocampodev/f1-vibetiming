@@ -5,27 +5,27 @@ This diagram decomposes the runtime into deployable containers/services.
 ```mermaid
 flowchart TB
   subgraph Client
-    browser[Browser]
+    browser["🌐 Browser"]
   end
 
-  subgraph Web[Web App Container]
-    webRoutes[Next.js App Router\n/, /calendar, /standings,\n/weekend/[eventId], /session/[sessionId]]
-    webApiClient[apps/web/src/lib/api.ts]
+  subgraph Web["Web App Container"]
+    webRoutes["Next.js App Router<br/>/, /calendar, /standings,<br/>/weekend/[eventId], /session/[sessionId]"]
+    webApiClient["apps/web/src/lib/api.ts"]
   end
 
-  subgraph Api[API Container]
-    f1Controller[F1 Controller\ncalendar/weekend/session/standings]
-    healthController[Health Controller\n/api/health/data]
-    f1Service[F1 Service\nread/query shaping]
-    healthService[Health Service\ningestion freshness checks]
-    ingestionScheduler[Ingestion Scheduler\ncron jobs]
-    ingestionService[Ingestion Service\nstartup + refresh + upsert]
-    jolpicaClient[Jolpica Client\nprovider adapter]
-    exceptionFilter[Global API Exception Filter]
+  subgraph Api["API Container"]
+    f1Controller["F1 Controller<br/>calendar/weekend/session/standings"]
+    healthController["Health Controller<br/>/api/health/data"]
+    f1Service["F1 Service<br/>read/query shaping"]
+    healthService["Health Service<br/>ingestion freshness checks"]
+    ingestionScheduler["Ingestion Scheduler<br/>cron jobs"]
+    ingestionService["Ingestion Service<br/>startup + refresh + upsert"]
+    jolpicaClient["Jolpica Client<br/>provider adapter"]
+    exceptionFilter["Global API Exception Filter"]
   end
 
-  db[(PostgreSQL\nPrisma)]
-  provider[Jolpica/Ergast]
+  db[("PostgreSQL<br/>Prisma")]
+  provider["Jolpica/Ergast"]
 
   browser --> webRoutes
   webRoutes --> webApiClient
