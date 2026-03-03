@@ -14,10 +14,8 @@ repository:
 
 mvp:
   data_source: api.jolpi.ca/ergast
-  status: mostly_complete
-  open_items:
-    - MVP-023
-    - MVP-024
+  status: complete
+  open_items: []
 
 decisions:
   - Keep backend on NestJS

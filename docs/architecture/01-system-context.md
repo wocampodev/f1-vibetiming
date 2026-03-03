@@ -6,13 +6,13 @@ This diagram shows the external systems and primary boundaries for the MVP.
 flowchart LR
   user[Fan / User]
   browser[Browser]
-  web[Web App\nNext.js\napps/web]
-  api[API Service\nNestJS\napps/api]
-  provider[Jolpica/Ergast API\napi.jolpi.ca/ergast]
-  db[(PostgreSQL\nf1_vibetiming)]
+  web["Web App<br/>Next.js<br/>apps/web"]
+  api["API Service<br/>NestJS<br/>apps/api"]
+  provider["Jolpica/Ergast API<br/>api.jolpi.ca/ergast"]
+  db[("PostgreSQL<br/>f1_vibetiming")]
   cache[(Redis)]
   gha[GitHub Actions CI]
-  repo[(GitHub Repo\nwocampodev/f1-vibetiming)]
+  repo[("GitHub Repo<br/>wocampodev/f1-vibetiming")]
 
   user --> browser --> web
   web -->|HTTP JSON| api

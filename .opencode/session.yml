@@ -1,18 +1,18 @@
 version: 1
 
 checkpoint:
-  date: 2026-03-01
-  status: closeout
+  date: 2026-03-02
+  status: mvp_complete
   repository_url: https://github.com/wocampodev/f1-vibetiming
   release_baseline: passing
 
 current_focus:
-  - MVP-023: frontend smoke tests for critical routes
-  - MVP-024: deployment setup and environment docs
+  - Phase 2 discovery: live adapter contract and websocket stream shape
+  - Deployment hardening: validate Docker flow in a Docker-enabled environment
 
 resume_order:
-  - MVP-023
-  - MVP-024
+  - Phase 2 discovery
+  - Deployment hardening
 
 guardrails:
   - Keep API response contracts backward compatible

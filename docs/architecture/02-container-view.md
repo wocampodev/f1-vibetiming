@@ -5,7 +5,7 @@ This diagram decomposes the runtime into deployable containers/services.
 ```mermaid
 flowchart TB
   subgraph Client
-    browser["🌐 Browser"]
+    browser["Browser"]
   end
 
   subgraph Web["Web App Container"]
@@ -34,7 +34,6 @@ flowchart TB
 
   f1Controller --> f1Service
   healthController --> healthService
-  healthController --> db
   f1Service --> db
   healthService --> db
 

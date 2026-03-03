@@ -47,6 +47,19 @@ Hero tagline options:
    pnpm dev
    ```
 
+## Quality Checks
+
+- `pnpm lint`
+- `pnpm --filter api test`
+- `pnpm --filter api test:e2e`
+- `pnpm --filter web test:smoke`
+- `pnpm build`
+
+## Deployment (MVP)
+
+- Local deploy-like compose: `docker compose -f compose.deploy.yml up -d --build`
+- Deployment docs: `docs/deployment/README.md`
+
 ## Key Endpoints
 
 - `GET /api/calendar?season=2026&page=1&limit=20`
@@ -71,3 +84,4 @@ Hero tagline options:
 - Pause/resume log: `SESSION_NOTES.md`
 - Local assistant session configs: `.opencode/`
 - Architecture diagrams: `docs/architecture/README.md`
+- Deployment setup and env mapping: `docs/deployment/README.md`

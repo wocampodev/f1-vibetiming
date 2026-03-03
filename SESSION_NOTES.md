@@ -134,3 +134,44 @@ Use this file as a quick pause/resume log between coding sessions.
 
 - API unit tests and lint passed
 - e2e tests could not run in this session because Docker is unavailable in this environment
+
+## 2026-03-02 (Continuation)
+
+### Done
+
+- Reviewed and aligned Mermaid rendering fixes (`<br/>`) for architecture diagrams where needed
+- Updated architecture diagrams for GitHub preview compatibility in:
+  - `docs/architecture/01-system-context.md`
+  - `docs/architecture/02-container-view.md`
+  - `docs/architecture/07-live-mode-extension.md`
+- Implemented MVP-023 with route smoke tests:
+  - script: `apps/web/scripts/smoke-routes.mjs`
+  - command: `pnpm --filter web test:smoke`
+- Implemented MVP-024 deployment baseline:
+  - `apps/api/Dockerfile`
+  - `apps/web/Dockerfile`
+  - `compose.deploy.yml`
+  - `docs/deployment/README.md`
+  - `.github/workflows/deploy-images.yml`
+
+### In Progress
+
+- Post-MVP planning for Phase 2 live mode
+
+### Next
+
+1. Validate Docker-based deploy flow in an environment with Docker available
+2. Start Phase 2 technical spike for live provider adapter + websocket contract
+3. Keep backward compatibility for current web/API read contracts
+
+### Commands
+
+- `pnpm --filter web test:smoke`
+- `pnpm --filter api test`
+- `pnpm lint`
+- `pnpm build`
+
+### Notes / Risks
+
+- Smoke tests, lint, unit tests, and build passed in this environment
+- Docker remains unavailable here, so deploy compose/image flow could not be executed locally

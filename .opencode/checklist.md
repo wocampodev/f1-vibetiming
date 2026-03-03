@@ -17,9 +17,9 @@ Use this as a fast start checklist for the next coding block.
 
 ## 3) Current Priorities
 
-- [ ] MVP-023: add frontend smoke tests for critical routes
-- [ ] MVP-024: add deployment setup + environment docs
-- [ ] Keep MVP-021 ingestion unit tests green while implementing remaining work
+- [ ] Phase 2 spike: define live adapter and websocket event contract
+- [ ] Validate deployment flow in a Docker-enabled environment
+- [ ] Keep MVP contracts stable while starting Phase 2 work
 
 ## 4) Validation Gates
 

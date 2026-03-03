@@ -4,8 +4,8 @@ Last updated: 2026-03-02
 
 ## Compact Session Snapshot
 
-- Completed: MVP-001 to MVP-022, MVP-025
-- Open MVP work: MVP-023, MVP-024
+- Completed: MVP-001 to MVP-025
+- Open MVP work: none
 - Post-MVP scope remains Phase 2 (Live Weekend Mode) and Phase 3 (Analytics)
 - Release baseline validated locally (lint + unit + e2e + build all passing)
 - Repository is public at `https://github.com/wocampodev/f1-vibetiming`
@@ -37,14 +37,14 @@ Last updated: 2026-03-02
 - [x] MVP-020 Build standings page with chart
 - [x] MVP-021 Add unit tests for provider mapping and ingestion
 - [x] MVP-022 Add API integration tests for core endpoints
-- [ ] MVP-023 Add frontend smoke tests for critical routes
-- [ ] MVP-024 Set up deployment for web and API
+- [x] MVP-023 Add frontend smoke tests for critical routes
+- [x] MVP-024 Set up deployment for web and API
 - [x] MVP-025 Write README and runbook
 
 ## Immediate Next Steps
 
-- [ ] Implement MVP-023 frontend smoke tests
-- [ ] Implement MVP-024 deployment pipeline and environment docs
+- [ ] Start Phase 2 live-mode technical spike (adapter contract + websocket shape)
+- [ ] Decide deployment target (single-host Docker vs cloud split for web/api)
 
 ## Phase 2 - Live Weekend Mode (Post-MVP)
 

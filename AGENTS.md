@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-02 (architecture + tests checkpoint)
+Last updated: 2026-03-02 (MVP completion checkpoint)
 
 ## Snapshot
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-02 (architecture + tests checkpoint)
 - Local path: `/home/walter/dev/f1-vibetiming`
 - Package manager: `pnpm` workspace
 - MVP data source: Option 1 public REST (`api.jolpi.ca/ergast`)
-- Current state: MVP mostly complete, CI covers lint + unit + e2e + build
+- Current state: MVP complete, CI covers lint + unit + e2e + build
 - GitHub: `https://github.com/wocampodev/f1-vibetiming` (public)
 
 ## Completed
@@ -44,16 +44,20 @@ Last updated: 2026-03-02 (architecture + tests checkpoint)
   - data model ERD
   - CI flow
   - live mode extension sketch
+- MVP-023 is done:
+  - frontend smoke tests for critical routes (`apps/web/scripts/smoke-routes.mjs`)
+- MVP-024 is done:
+  - deployment setup/docs (`apps/api/Dockerfile`, `apps/web/Dockerfile`, `compose.deploy.yml`, `docs/deployment/README.md`)
+  - container image workflow (`.github/workflows/deploy-images.yml`)
 
 ## Remaining MVP Items
 
-- MVP-023 frontend smoke tests for critical routes
-- MVP-024 deployment setup + environment docs
+- none
 
 ## Release Baseline
 
 - Local runtime validated (`pnpm dev`): API `200` on `/api/health/data`, web `200` on `/`
-- Quality gates passed locally: `pnpm lint`, `pnpm --filter api test`, `pnpm --filter api test:e2e`, `pnpm build`
+- Quality gates passed locally: `pnpm lint`, `pnpm --filter api test`, `pnpm --filter web test:smoke`, `pnpm build`
 - Infra naming aligned to VibeTiming (`f1_vibetiming` database and compose service naming)
 
 ## Roadmap (Do Not Lose)
@@ -93,3 +97,4 @@ pnpm dev
 - Check `BACKLOG.md` first for checkbox status
 - Keep API responses backward compatible for existing web routes
 - Verify provider terms/licensing before any live-feed work
+- Docker was unavailable in this environment for end-to-end deploy validation; smoke tests and lint/unit/build were validated locally

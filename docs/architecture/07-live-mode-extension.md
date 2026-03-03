@@ -4,8 +4,8 @@ This is the target extension path without breaking current MVP contracts.
 
 ```mermaid
 flowchart LR
-  providerLive[Live Feed Provider\nSignalR or equivalent]
-  providerRest[Public REST Provider\nJolpica/Ergast]
+  providerLive["Live Feed Provider<br/>SignalR or equivalent"]
+  providerRest["Public REST Provider<br/>Jolpica/Ergast"]
 
   subgraph Api[API Service]
     liveAdapter[Live Adapter]
