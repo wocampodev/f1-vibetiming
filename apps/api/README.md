@@ -27,7 +27,7 @@ pnpm --filter api build
 Live endpoints:
 
 - `GET /api/live/state`
-- `GET /api/live/health`
+- `GET /api/live/health` (includes transport counters, parser/decode errors, topic throughput)
 - `GET /api/live/stream` (SSE)
 
 Live runtime environment variables:

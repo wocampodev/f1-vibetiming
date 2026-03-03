@@ -64,7 +64,16 @@ interface LiveHealth {
   details?: {
     reconnectAttempt?: number;
     socketOpen?: boolean;
-  };
+    connectedAt?: string | null;
+    connectionUptimeSec?: number | null;
+    lastFrameAt?: string | null;
+    framesReceived?: number;
+    feedMessagesReceived?: number;
+    frameParseErrors?: number;
+    topicDecodeErrors?: number;
+    topicMessageCount?: Record<string, number>;
+    topicLastSeenAt?: Record<string, string>;
+  } | null;
 }
 
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
@@ -126,6 +135,52 @@ const formatTrackStatus = (value: string | null): string => {
 
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
+
+const SPARKLINE_POINTS = 10;
+
+const getSpeedTrendDelta = (
+  history: LiveLeaderboardEntry["speedHistoryKph"],
+): number | null => {
+  if (history.length < 2) {
+    return null;
+  }
+
+  const window = history.slice(-SPARKLINE_POINTS);
+  return window[window.length - 1].kph - window[0].kph;
+};
+
+function SpeedSparkline({
+  history,
+}: {
+  history: LiveLeaderboardEntry["speedHistoryKph"];
+}) {
+  if (history.length < 2) {
+    return null;
+  }
+
+  const window = history.slice(-SPARKLINE_POINTS);
+  const values = window.map((point) => point.kph);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+
+  return (
+    <div className="mt-1 flex h-5 items-end gap-0.5" aria-label="Speed trend">
+      {window.map((point, index) => {
+        const pct = (point.kph - min) / range;
+        const heightPx = Math.max(3, Math.round(3 + pct * 14));
+
+        return (
+          <span
+            key={`${point.at}-${index}`}
+            className="w-1 rounded-sm bg-gradient-to-t from-[#2b9cff] to-[#67d6ff]"
+            style={{ height: `${heightPx}px` }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 function SectorCell({
   label,
@@ -391,6 +446,34 @@ export function LiveDashboard() {
     return Math.max(0, Math.floor((nowMs - new Date(health.lastEventAt).getTime()) / 1000));
   })();
 
+  const feedMessagesPerMinute = useMemo(() => {
+    const totalMessages = health?.details?.feedMessagesReceived;
+    const uptimeSec = health?.details?.connectionUptimeSec;
+    if (
+      typeof totalMessages !== "number" ||
+      typeof uptimeSec !== "number" ||
+      uptimeSec <= 0
+    ) {
+      return null;
+    }
+
+    return Math.round((totalMessages / uptimeSec) * 60);
+  }, [health?.details?.connectionUptimeSec, health?.details?.feedMessagesReceived]);
+
+  const topicLeaders = useMemo(() => {
+    const topicMessageCount = health?.details?.topicMessageCount;
+    if (!topicMessageCount) {
+      return [];
+    }
+
+    return Object.entries(topicMessageCount)
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 4);
+  }, [health?.details?.topicMessageCount]);
+
+  const parserIssues =
+    (health?.details?.frameParseErrors ?? 0) + (health?.details?.topicDecodeErrors ?? 0);
+
   const sectorMax = useMemo(() => {
     if (!liveState || liveState.leaderboard.length === 0) {
       return { s1: 1, s2: 1, s3: 1 };
@@ -457,6 +540,12 @@ export function LiveDashboard() {
           {lastHeartbeat ? <span>Heartbeat {formatClock(lastHeartbeat)}</span> : null}
           {liveState ? <span>Updated {formatClock(liveState.generatedAt)}</span> : null}
           {providerLagSec != null ? <span>Provider lag {providerLagSec}s</span> : null}
+          {typeof health?.details?.connectionUptimeSec === "number" ? (
+            <span>Connected {health.details.connectionUptimeSec}s</span>
+          ) : null}
+          {health?.details?.lastFrameAt ? (
+            <span>Last frame {formatClock(health.details.lastFrameAt)}</span>
+          ) : null}
           {typeof health?.details?.reconnectAttempt === "number" ? (
             <span>Reconnect attempts {health.details.reconnectAttempt}</span>
           ) : null}
@@ -466,6 +555,47 @@ export function LiveDashboard() {
           <p className="mt-2 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
             Stream is stale. Dashboard is using latest known data while reconnecting.
           </p>
+        ) : null}
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Socket</p>
+            <p className="mt-1 text-sm text-[#e5eefc]">
+              {health?.details?.socketOpen ? "Open" : "Closed"}
+            </p>
+          </div>
+          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Frames / Messages</p>
+            <p className="mt-1 text-sm text-[#e5eefc]">
+              {health?.details?.framesReceived ?? 0} / {health?.details?.feedMessagesReceived ?? 0}
+            </p>
+          </div>
+          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Message Rate</p>
+            <p className="mt-1 text-sm text-[#e5eefc]">
+              {feedMessagesPerMinute == null ? "-" : `${feedMessagesPerMinute}/min`}
+            </p>
+          </div>
+          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Parse Issues</p>
+            <p className={`mt-1 text-sm ${parserIssues > 0 ? "text-orange-300" : "text-[#e5eefc]"}`}>
+              {parserIssues}
+            </p>
+          </div>
+        </div>
+
+        {topicLeaders.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+            <span className="uppercase tracking-wide text-[#8aa0be]">Top topics</span>
+            {topicLeaders.map(([topic, count]) => (
+              <span
+                key={topic}
+                className="rounded-full border border-[#2f4c69] bg-[#102034] px-2 py-1 font-mono text-[11px] text-[#c9e2ff]"
+              >
+                {topic} {count}
+              </span>
+            ))}
+          </div>
         ) : null}
       </div>
 
@@ -492,8 +622,14 @@ export function LiveDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((entry) => (
-                  <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
+                {rows.map((entry) => {
+                  const speedHistory = entry.speedHistoryKph ?? [];
+                  const trackStatusHistory = entry.trackStatusHistory ?? [];
+                  const speedTrendDelta = getSpeedTrendDelta(speedHistory);
+                  const recentTrackHistory = trackStatusHistory.slice(-3);
+
+                  return (
+                    <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
                     <td className="px-2 py-2">
                       <span
                         className={`inline-flex min-w-11 items-center justify-center rounded-md bg-gradient-to-r px-2 py-1 text-base font-bold text-white ${getPositionTone(entry.position)}`}
@@ -511,10 +647,34 @@ export function LiveDashboard() {
                     </td>
                     <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
                     <td className="px-2 py-2 text-xs text-[var(--muted)]">
-                      {formatTrackStatus(entry.trackStatus)}
+                      <div className="flex flex-col gap-1">
+                        <span>{formatTrackStatus(entry.trackStatus)}</span>
+                        {recentTrackHistory.length > 1 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {recentTrackHistory.map((sample, index) => (
+                              <span
+                                key={`${sample.at}-${index}`}
+                                className="rounded border border-[#2f4c69] bg-[#102034] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#9ec5e8]"
+                              >
+                                {formatTrackStatus(sample.status)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
-                      {entry.speedKph == null ? "-" : `${entry.speedKph}`}
+                      <div className="flex flex-col">
+                        <span>{entry.speedKph == null ? "-" : `${entry.speedKph}`}</span>
+                        <SpeedSparkline history={speedHistory} />
+                        {speedTrendDelta != null ? (
+                          <span
+                            className={`text-[10px] uppercase tracking-wide ${speedTrendDelta > 0 ? "text-emerald-300" : speedTrendDelta < 0 ? "text-amber-300" : "text-[#8aa0be]"}`}
+                          >
+                            {speedTrendDelta > 0 ? `+${speedTrendDelta}` : speedTrendDelta} trend
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
                       {entry.topSpeedKph == null ? "-" : `${entry.topSpeedKph}`}
@@ -550,8 +710,9 @@ export function LiveDashboard() {
                           ? "-"
                           : `+${entry.intervalToAheadSec.toFixed(3)}`}
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

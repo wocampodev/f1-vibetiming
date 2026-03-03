@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   decodeTopicPayload,
   extractFeedMessagesFromRawText,
+  extractFeedMessagesFromRawTextWithStats,
   ProviderStateAccumulator,
 } from './live.provider.adapter';
 
@@ -54,6 +55,36 @@ describe('extractFeedMessagesFromRawText', () => {
       'Position',
     ]);
     expect(messages[0].payload).toEqual({ CurrentLap: '14', TotalLaps: '57' });
+  });
+
+  it('tracks invalid frames and compressed decode failures from mixed frames', () => {
+    const fixturePath = path.resolve(
+      __dirname,
+      'fixtures',
+      'signalr-feed-multiframe.json',
+    );
+    const fixture = JSON.parse(readFileSync(fixturePath, 'utf-8')) as {
+      hubName: string;
+      frames: string[];
+    };
+    const rawFrame = `${fixture.frames.join('\u001e')}\u001e`;
+
+    const extracted = extractFeedMessagesFromRawTextWithStats(
+      rawFrame,
+      fixture.hubName,
+    );
+
+    expect(extracted.invalidFrames).toBe(1);
+    expect(extracted.messages).toHaveLength(3);
+    expect(extracted.messages.map((message) => message.topic)).toEqual([
+      'LapCount',
+      'CarData',
+      'Position',
+    ]);
+    expect(
+      extracted.messages.find((message) => message.topic === 'CarData')
+        ?.decodeError,
+    ).toBe(true);
   });
 });
 
@@ -361,6 +392,97 @@ describe('ProviderStateAccumulator', () => {
       speedKph: 312,
       topSpeedKph: 324,
       trackStatus: 'on_track',
+      speedHistoryKph: [{ at: '2026-03-03T00:00:02.000Z', kph: 312 }],
+      trackStatusHistory: [{ at: emittedAt, status: 'on_track' }],
+    });
+  });
+
+  it('caps telemetry history windows to prevent payload growth', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'DriverList',
+      {
+        '1': {
+          RacingNumber: '1',
+          Tla: 'VER',
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:32.500' },
+            BestLapTime: { Value: '1:32.100' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    for (let index = 0; index < 30; index += 1) {
+      accumulator.ingest(
+        'CarData',
+        {
+          Entries: [
+            {
+              Cars: {
+                '1': {
+                  Channels: {
+                    '2': `${300 + index}`,
+                  },
+                },
+              },
+              Utc: `2026-03-03T00:00:${String(index).padStart(2, '0')}.000Z`,
+            },
+          ],
+        },
+        emittedAt,
+      );
+    }
+
+    for (let index = 0; index < 20; index += 1) {
+      accumulator.ingest(
+        'Position',
+        {
+          Position: [
+            {
+              Utc: `2026-03-03T00:01:${String(index).padStart(2, '0')}.000Z`,
+              Entries: {
+                '1': {
+                  Status: index % 2 === 0 ? 'OnTrack' : 'PitLane',
+                },
+              },
+            },
+          ],
+        },
+        emittedAt,
+      );
+    }
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[0]?.speedHistoryKph).toHaveLength(16);
+    expect(state?.leaderboard[0]?.speedHistoryKph[0]).toEqual({
+      at: '2026-03-03T00:00:14.000Z',
+      kph: 314,
+    });
+    expect(state?.leaderboard[0]?.speedHistoryKph.at(-1)).toEqual({
+      at: '2026-03-03T00:00:29.000Z',
+      kph: 329,
+    });
+
+    expect(state?.leaderboard[0]?.trackStatusHistory).toHaveLength(10);
+    expect(state?.leaderboard[0]?.trackStatusHistory.at(-1)).toEqual({
+      at: '2026-03-03T00:01:19.000Z',
+      status: 'pit_lane',
     });
   });
 

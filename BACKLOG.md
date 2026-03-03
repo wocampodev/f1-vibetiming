@@ -20,6 +20,9 @@ Last updated: 2026-03-03
 - [x] LIVE-006 Normalize provider feed updates into live state envelopes.
 - [x] LIVE-007 Harden topic decoding coverage for additional upstream message variants (`TimingStats`, `CarData`, `Position`).
 - [x] LIVE-008 Add integration-style tests for provider message normalization and raw frame parsing.
+- [x] LIVE-009 Add bounded speed history and track-status timeline data to normalized leaderboard entries.
+- [x] LIVE-010 Add provider diagnostics counters for frame parse failures, compressed decode failures, and per-topic throughput.
+- [x] LIVE-011 Add mixed-frame fixture coverage for malformed SignalR frames and compressed decode fallbacks.
 
 ### Track 2 - Live Dashboard Quality
 
@@ -28,6 +31,8 @@ Last updated: 2026-03-03
 - [x] DASH-003 Add health diagnostics paneling from `/api/live/health`.
 - [x] DASH-004 Render partial/null-safe timing data without synthetic placeholders.
 - [x] DASH-005 Add race-control strip and flag context on the live board.
+- [x] DASH-006 Add speed trend sparkline and track-status timeline rendering per leaderboard row.
+- [x] DASH-007 Expand diagnostics panel with socket, throughput, and parser reliability metrics.
 
 ### Track 3 - Standings Depth
 

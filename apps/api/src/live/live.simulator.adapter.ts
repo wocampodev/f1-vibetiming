@@ -55,6 +55,8 @@ const SIMULATOR_DRIVERS: DriverSeed[] = [
 
 const LAP_ADVANCE_INTERVAL = 5;
 const MAX_RACE_CONTROL_MESSAGES = 25;
+const MAX_SPEED_HISTORY_POINTS = 16;
+const MAX_TRACK_STATUS_HISTORY_POINTS = 10;
 const MIN_EFFECTIVE_TICK_MS = 100;
 
 const clampNumber = (value: number, min: number, max: number): number =>
@@ -137,46 +139,81 @@ const appendRaceControl = (
   return [next, ...raceControl].slice(0, MAX_RACE_CONTROL_MESSAGES);
 };
 
-export const createSimulatorInitialState = (now = new Date()): LiveState => ({
-  generatedAt: now.toISOString(),
-  session: {
-    weekendId: 'sim-2026-round-1',
-    sessionId: 'sim-2026-round-1-race',
-    sessionName: 'Bahrain Grand Prix Race (Simulator)',
-    phase: 'running',
-    flag: 'green',
-    currentLap: 1,
-    totalLaps: 57,
-    clockIso: now.toISOString(),
-  },
-  leaderboard: SIMULATOR_DRIVERS.map((driver, index) => {
-    const interval = index === 0 ? 0 : roundSecs(0.95 + index * 0.08);
-    const gap =
-      index === 0
-        ? 0
-        : roundSecs(1.2 + index * 1.22 + (index % 3 === 0 ? 0.25 : 0));
-    const lastLapMs = 92000 + index * 175;
-    const sectors = splitLapIntoSectors(lastLapMs, () => ((index % 6) + 1) / 8);
+const appendSpeedSample = (
+  history: LiveLeaderboardEntry['speedHistoryKph'],
+  kph: number,
+  at: string,
+): LiveLeaderboardEntry['speedHistoryKph'] => {
+  const safeHistory = Array.isArray(history) ? history : [];
+  const next = [...safeHistory, { at, kph }];
+  return next.slice(-MAX_SPEED_HISTORY_POINTS);
+};
 
-    return {
-      position: index + 1,
-      driverCode: driver.code,
-      driverName: driver.name,
-      teamName: driver.team,
-      trackStatus: 'on_track',
-      speedKph: 311 - index * 2,
-      topSpeedKph: 321 - index,
-      gapToLeaderSec: gap,
-      intervalToAheadSec: interval,
-      ...sectors,
-      lastLapMs,
-      bestLapMs: lastLapMs,
-      tireCompound: index < 7 ? 'SOFT' : index < 14 ? 'MEDIUM' : 'HARD',
-      stintLap: 1 + (index % 8),
-    };
-  }),
-  raceControl: [],
-});
+const appendTrackStatusSample = (
+  history: LiveLeaderboardEntry['trackStatusHistory'],
+  status: string,
+  at: string,
+): LiveLeaderboardEntry['trackStatusHistory'] => {
+  const safeHistory = Array.isArray(history) ? history : [];
+  const last = safeHistory.at(-1);
+  if (last?.status === status) {
+    return safeHistory;
+  }
+
+  const next = [...safeHistory, { at, status }];
+  return next.slice(-MAX_TRACK_STATUS_HISTORY_POINTS);
+};
+
+export const createSimulatorInitialState = (now = new Date()): LiveState => {
+  const nowIso = now.toISOString();
+
+  return {
+    generatedAt: nowIso,
+    session: {
+      weekendId: 'sim-2026-round-1',
+      sessionId: 'sim-2026-round-1-race',
+      sessionName: 'Bahrain Grand Prix Race (Simulator)',
+      phase: 'running',
+      flag: 'green',
+      currentLap: 1,
+      totalLaps: 57,
+      clockIso: nowIso,
+    },
+    leaderboard: SIMULATOR_DRIVERS.map((driver, index) => {
+      const interval = index === 0 ? 0 : roundSecs(0.95 + index * 0.08);
+      const gap =
+        index === 0
+          ? 0
+          : roundSecs(1.2 + index * 1.22 + (index % 3 === 0 ? 0.25 : 0));
+      const speedKph = 311 - index * 2;
+      const lastLapMs = 92000 + index * 175;
+      const sectors = splitLapIntoSectors(
+        lastLapMs,
+        () => ((index % 6) + 1) / 8,
+      );
+
+      return {
+        position: index + 1,
+        driverCode: driver.code,
+        driverName: driver.name,
+        teamName: driver.team,
+        trackStatus: 'on_track',
+        speedKph,
+        topSpeedKph: 321 - index,
+        gapToLeaderSec: gap,
+        intervalToAheadSec: interval,
+        ...sectors,
+        lastLapMs,
+        bestLapMs: lastLapMs,
+        speedHistoryKph: [{ at: nowIso, kph: speedKph }],
+        trackStatusHistory: [{ at: nowIso, status: 'on_track' }],
+        tireCompound: index < 7 ? 'SOFT' : index < 14 ? 'MEDIUM' : 'HARD',
+        stintLap: 1 + (index % 8),
+      };
+    }),
+    raceControl: [],
+  };
+};
 
 export const evolveSimulatorState = (
   previous: LiveState,
@@ -185,6 +222,7 @@ export const evolveSimulatorState = (
   now = new Date(),
   fixture: LiveSimulatorFixtureEvent[] = LIVE_SIMULATOR_FIXTURE,
 ): SimulatorStepResult => {
+  const nowIso = now.toISOString();
   const currentLap = previous.session.currentLap ?? 0;
   const totalLaps = previous.session.totalLaps ?? 0;
   const lapAdvanced =
@@ -219,6 +257,7 @@ export const evolveSimulatorState = (
 
     let nextStintLap = current.stintLap ?? 1;
     let nextCompoundValue = current.tireCompound ?? 'MEDIUM';
+    let pittedThisTick = false;
 
     if (lapAdvanced) {
       nextStintLap += 1;
@@ -227,7 +266,20 @@ export const evolveSimulatorState = (
     if (lapAdvanced && nextStintLap > 22 && random() > 0.88) {
       nextStintLap = 1;
       nextCompoundValue = rotateCompound(current.tireCompound ?? 'MEDIUM');
+      pittedThisTick = true;
     }
+
+    const nextTrackStatus = pittedThisTick ? 'pit_lane' : 'on_track';
+    const speedHistoryKph = appendSpeedSample(
+      current.speedHistoryKph,
+      nextSpeed,
+      nowIso,
+    );
+    const trackStatusHistory = appendTrackStatusSample(
+      current.trackStatusHistory,
+      nextTrackStatus,
+      nowIso,
+    );
 
     if (index === 0) {
       nextLeaderboard.push({
@@ -237,9 +289,11 @@ export const evolveSimulatorState = (
         bestLapMs: nextBestLap,
         speedKph: nextSpeed,
         topSpeedKph: nextTopSpeed,
-        trackStatus: 'on_track',
+        trackStatus: nextTrackStatus,
         gapToLeaderSec: 0,
         intervalToAheadSec: 0,
+        speedHistoryKph,
+        trackStatusHistory,
         stintLap: nextStintLap,
         tireCompound: nextCompoundValue,
       });
@@ -258,9 +312,11 @@ export const evolveSimulatorState = (
       bestLapMs: nextBestLap,
       speedKph: nextSpeed,
       topSpeedKph: nextTopSpeed,
-      trackStatus: 'on_track',
+      trackStatus: nextTrackStatus,
       gapToLeaderSec: cumulativeGap,
       intervalToAheadSec: roundSecs(interval),
+      speedHistoryKph,
+      trackStatusHistory,
       stintLap: nextStintLap,
       tireCompound: nextCompoundValue,
     });
@@ -314,14 +370,14 @@ export const evolveSimulatorState = (
   }
 
   const nextState: LiveState = {
-    generatedAt: now.toISOString(),
+    generatedAt: nowIso,
     session: {
       ...previous.session,
       phase: isFinished ? 'finished' : 'running',
       flag: nextFlag,
       currentLap: nextLap,
       totalLaps,
-      clockIso: now.toISOString(),
+      clockIso: nowIso,
     },
     leaderboard: nextLeaderboard.map((entry, index) => ({
       ...entry,

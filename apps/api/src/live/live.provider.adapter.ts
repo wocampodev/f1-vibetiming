@@ -9,7 +9,9 @@ import {
   LiveFlagStatus,
   LiveLeaderboardEntry,
   LiveRaceControlMessage,
+  LiveSpeedSample,
   LiveState,
+  LiveTrackStatusSample,
 } from './live.types';
 
 interface SignalrNegotiationResponse {
@@ -23,15 +25,24 @@ interface SignalrHubMessage {
 }
 
 interface FeedEnvelope {
+  rawTopic: string;
   topic: string;
   payload: unknown;
   emittedAt: string;
+  decodeError: boolean;
 }
 
 export interface SignalrFeedMessage {
+  rawTopic: string;
   topic: string;
   payload: unknown;
   emittedAt: string;
+  decodeError: boolean;
+}
+
+export interface SignalrFeedExtractionResult {
+  messages: SignalrFeedMessage[];
+  invalidFrames: number;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -69,6 +80,8 @@ const TIRE_COMPOUNDS = new Set([
 ]);
 
 const MAX_RACE_CONTROL_MESSAGES = 30;
+const MAX_SPEED_HISTORY_POINTS = 16;
+const MAX_TRACK_STATUS_HISTORY_POINTS = 10;
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -311,6 +324,27 @@ const mergeRecords = (
   return merged;
 };
 
+const appendSpeedHistoryPoint = (
+  history: LiveSpeedSample[],
+  point: LiveSpeedSample,
+): LiveSpeedSample[] => {
+  const next = [...history, point];
+  return next.slice(-MAX_SPEED_HISTORY_POINTS);
+};
+
+const appendTrackStatusHistoryPoint = (
+  history: LiveTrackStatusSample[],
+  point: LiveTrackStatusSample,
+): LiveTrackStatusSample[] => {
+  const last = history.at(-1);
+  if (last?.status === point.status) {
+    return history;
+  }
+
+  const next = [...history, point];
+  return next.slice(-MAX_TRACK_STATUS_HISTORY_POINTS);
+};
+
 export const decodeTopicPayload = (
   topic: string,
   payload: unknown,
@@ -325,40 +359,68 @@ export const decodeTopicPayload = (
       ) {
         try {
           return {
+            rawTopic: topic,
             topic,
             payload: JSON.parse(trimmed) as unknown,
             emittedAt,
+            decodeError: false,
           };
         } catch {
-          return { topic, payload, emittedAt };
+          return {
+            rawTopic: topic,
+            topic,
+            payload,
+            emittedAt,
+            decodeError: false,
+          };
         }
       }
     }
 
-    return { topic, payload, emittedAt };
+    return {
+      rawTopic: topic,
+      topic,
+      payload,
+      emittedAt,
+      decodeError: false,
+    };
   }
 
   if (typeof payload !== 'string') {
-    return { topic: topic.replace(/\.z$/, ''), payload, emittedAt };
+    return {
+      rawTopic: topic,
+      topic: topic.replace(/\.z$/, ''),
+      payload,
+      emittedAt,
+      decodeError: true,
+    };
   }
 
   try {
     const compressed = Buffer.from(payload, 'base64');
     const decompressed = inflateRawSync(compressed).toString('utf-8');
     return {
+      rawTopic: topic,
       topic: topic.replace(/\.z$/, ''),
       payload: JSON.parse(decompressed) as unknown,
       emittedAt,
+      decodeError: false,
     };
   } catch {
-    return { topic: topic.replace(/\.z$/, ''), payload, emittedAt };
+    return {
+      rawTopic: topic,
+      topic: topic.replace(/\.z$/, ''),
+      payload,
+      emittedAt,
+      decodeError: true,
+    };
   }
 };
 
-export const extractFeedMessagesFromRawText = (
+export const extractFeedMessagesFromRawTextWithStats = (
   rawText: string,
   hubName: string,
-): SignalrFeedMessage[] => {
+): SignalrFeedExtractionResult => {
   const frames = rawText.includes('\u001e')
     ? rawText
         .split('\u001e')
@@ -367,12 +429,14 @@ export const extractFeedMessagesFromRawText = (
     : [rawText.trim()].filter((value) => value.length > 0);
 
   const messages: SignalrFeedMessage[] = [];
+  let invalidFrames = 0;
 
   for (const frame of frames) {
     let envelope: JsonRecord;
     try {
       envelope = JSON.parse(frame) as JsonRecord;
     } catch {
+      invalidFrames += 1;
       continue;
     }
 
@@ -399,14 +463,26 @@ export const extractFeedMessagesFromRawText = (
       const emittedAt = toIso(args[2], decoded.emittedAt);
 
       messages.push({
+        rawTopic: decoded.rawTopic,
         topic: decoded.topic,
         payload: decoded.payload,
         emittedAt,
+        decodeError: decoded.decodeError,
       });
     }
   }
 
-  return messages;
+  return {
+    messages,
+    invalidFrames,
+  };
+};
+
+export const extractFeedMessagesFromRawText = (
+  rawText: string,
+  hubName: string,
+): SignalrFeedMessage[] => {
+  return extractFeedMessagesFromRawTextWithStats(rawText, hubName).messages;
 };
 
 export class ProviderStateAccumulator {
@@ -416,6 +492,11 @@ export class ProviderStateAccumulator {
   private readonly timingAppByNumber = new Map<string, JsonRecord>();
   private readonly carDataByNumber = new Map<string, JsonRecord>();
   private readonly positionByNumber = new Map<string, JsonRecord>();
+  private readonly speedHistoryByNumber = new Map<string, LiveSpeedSample[]>();
+  private readonly trackStatusHistoryByNumber = new Map<
+    string,
+    LiveTrackStatusSample[]
+  >();
 
   private sessionName: string | null = null;
   private weekendId: string | null = null;
@@ -426,6 +507,26 @@ export class ProviderStateAccumulator {
   private flag: LiveFlagStatus = 'green';
   private clockIso: string | null = null;
   private raceControl: LiveRaceControlMessage[] = [];
+
+  private appendSpeedHistory(number: string, kph: number, at: string): void {
+    const history = this.speedHistoryByNumber.get(number) ?? [];
+    this.speedHistoryByNumber.set(
+      number,
+      appendSpeedHistoryPoint(history, { at, kph }),
+    );
+  }
+
+  private appendTrackStatusHistory(
+    number: string,
+    status: string,
+    at: string,
+  ): void {
+    const history = this.trackStatusHistoryByNumber.get(number) ?? [];
+    this.trackStatusHistoryByNumber.set(
+      number,
+      appendTrackStatusHistoryPoint(history, { at, status }),
+    );
+  }
 
   ingest(topic: string, payload: unknown, emittedAt: string): string[] {
     const changed = new Set<string>(['generatedAt']);
@@ -500,6 +601,8 @@ export class ProviderStateAccumulator {
           continue;
         }
 
+        const telemetryAt = toIso(entry.Utc, emittedAt);
+
         for (const [number, carValue] of Object.entries(cars)) {
           const car = asRecord(carValue);
           if (!car) {
@@ -508,8 +611,14 @@ export class ProviderStateAccumulator {
 
           const current = this.carDataByNumber.get(number) ?? {};
           const merged = mergeRecords(current, car);
-          merged.Utc = toIso(entry.Utc, emittedAt);
+          merged.Utc = telemetryAt;
           this.carDataByNumber.set(number, merged);
+
+          const channels = asRecord(merged.Channels);
+          const speedKph = parseSpeedKph(channels?.['2']);
+          if (speedKph != null) {
+            this.appendSpeedHistory(number, speedKph, telemetryAt);
+          }
         }
       }
 
@@ -526,6 +635,8 @@ export class ProviderStateAccumulator {
           continue;
         }
 
+        const positionAt = toIso(position.Utc ?? position.Timestamp, emittedAt);
+
         for (const [number, entryValue] of Object.entries(entries)) {
           const entry = asRecord(entryValue);
           if (!entry) {
@@ -534,6 +645,11 @@ export class ProviderStateAccumulator {
 
           const current = this.positionByNumber.get(number) ?? {};
           this.positionByNumber.set(number, mergeRecords(current, entry));
+
+          const normalizedStatus = normalizeTrackStatus(entry.Status);
+          if (normalizedStatus) {
+            this.appendTrackStatusHistory(number, normalizedStatus, positionAt);
+          }
         }
       }
 
@@ -695,12 +811,26 @@ export class ProviderStateAccumulator {
         parseLapOrSectorMs(asRecord(timing.BestLapTime)?.Value) ?? statsBestLap;
 
       const channels = asRecord(carData?.Channels);
-      const speedKph = parseSpeedKph(channels?.['2']);
+      const speedHistoryKph = this.speedHistoryByNumber.get(number) ?? [];
+      const speedKph =
+        parseSpeedKph(channels?.['2']) ?? speedHistoryKph.at(-1)?.kph ?? null;
       const topSpeedKph =
         parseTopSpeedKphFromStats(timingStats) ??
         speedKph ??
         parseSpeedKph(asRecord(timingStats?.Speeds)?.ST);
-      const trackStatus = normalizeTrackStatus(positionData?.Status);
+      const trackStatusHistory =
+        this.trackStatusHistoryByNumber.get(number) ?? [];
+      const normalizedTrackStatus = normalizeTrackStatus(positionData?.Status);
+      const resolvedTrackStatusHistory = normalizedTrackStatus
+        ? appendTrackStatusHistoryPoint(trackStatusHistory, {
+            at: emittedAt,
+            status: normalizedTrackStatus,
+          })
+        : trackStatusHistory;
+      const trackStatus =
+        normalizedTrackStatus ??
+        resolvedTrackStatusHistory.at(-1)?.status ??
+        null;
 
       const intervalValue =
         asString(asRecord(timing.IntervalToPositionAhead)?.Value) ??
@@ -748,6 +878,8 @@ export class ProviderStateAccumulator {
         sector3Ms,
         lastLapMs: parseLapOrSectorMs(asRecord(timing.LastLapTime)?.Value),
         bestLapMs,
+        speedHistoryKph,
+        trackStatusHistory: resolvedTrackStatusHistory,
         tireCompound:
           normalizeCompound(latestStint?.Compound) ??
           normalizeCompound(timing.Compound),
@@ -798,13 +930,21 @@ export class LiveProviderAdapter implements LiveAdapter {
 
   private running = false;
   private startedAt: string | null = null;
+  private connectedAt: string | null = null;
   private lastEventAt: string | null = null;
+  private lastFrameAt: string | null = null;
   private publish: LivePublish | null = null;
   private socket: WebSocket | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private invokeId = 1;
+  private framesReceived = 0;
+  private feedMessagesReceived = 0;
+  private frameParseErrors = 0;
+  private topicDecodeErrors = 0;
+  private readonly topicMessageCount = new Map<string, number>();
+  private readonly topicLastSeenAt = new Map<string, string>();
   private initialStatePublished = false;
   private readonly accumulator = new ProviderStateAccumulator();
 
@@ -848,9 +988,17 @@ export class LiveProviderAdapter implements LiveAdapter {
     this.running = true;
     this.publish = publish;
     this.startedAt = new Date().toISOString();
+    this.connectedAt = null;
     this.lastEventAt = this.startedAt;
+    this.lastFrameAt = null;
     this.reconnectAttempt = 0;
     this.invokeId = 1;
+    this.framesReceived = 0;
+    this.feedMessagesReceived = 0;
+    this.frameParseErrors = 0;
+    this.topicDecodeErrors = 0;
+    this.topicMessageCount.clear();
+    this.topicLastSeenAt.clear();
     this.initialStatePublished = false;
 
     publish({
@@ -866,6 +1014,7 @@ export class LiveProviderAdapter implements LiveAdapter {
   stop(): Promise<void> {
     this.running = false;
     this.publish = null;
+    this.connectedAt = null;
     this.clearReconnectTimer();
 
     if (this.heartbeatTimer) {
@@ -884,6 +1033,25 @@ export class LiveProviderAdapter implements LiveAdapter {
   }
 
   getHealth(): LiveAdapterHealth {
+    const topicMessageCount = Object.fromEntries(
+      [...this.topicMessageCount.entries()].sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    );
+    const topicLastSeenAt = Object.fromEntries(
+      [...this.topicLastSeenAt.entries()].sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    );
+    const connectionUptimeSec = this.connectedAt
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.now() - new Date(this.connectedAt).getTime()) / 1000,
+          ),
+        )
+      : null;
+
     return {
       running: this.running,
       startedAt: this.startedAt,
@@ -898,6 +1066,15 @@ export class LiveProviderAdapter implements LiveAdapter {
         topics: this.topics,
         reconnectAttempt: this.reconnectAttempt,
         socketOpen: this.socket?.readyState === WebSocket.OPEN,
+        connectedAt: this.connectedAt,
+        connectionUptimeSec,
+        lastFrameAt: this.lastFrameAt,
+        framesReceived: this.framesReceived,
+        feedMessagesReceived: this.feedMessagesReceived,
+        frameParseErrors: this.frameParseErrors,
+        topicDecodeErrors: this.topicDecodeErrors,
+        topicMessageCount,
+        topicLastSeenAt,
       },
     };
   }
@@ -926,6 +1103,7 @@ export class LiveProviderAdapter implements LiveAdapter {
       this.sendSubscribe();
 
       this.reconnectAttempt = 0;
+      this.connectedAt = new Date().toISOString();
       this.publish?.({
         type: 'status',
         status: 'live',
@@ -1074,6 +1252,10 @@ export class LiveProviderAdapter implements LiveAdapter {
   }
 
   private handleSocketMessage(data: RawData): void {
+    const frameReceivedAt = new Date().toISOString();
+    this.framesReceived += 1;
+    this.lastFrameAt = frameReceivedAt;
+
     const rawText =
       typeof data === 'string'
         ? data
@@ -1089,8 +1271,23 @@ export class LiveProviderAdapter implements LiveAdapter {
               ).toString('utf-8')
             : Buffer.from(data).toString('utf-8');
 
-    const messages = extractFeedMessagesFromRawText(rawText, this.hubName);
-    for (const message of messages) {
+    const extraction = extractFeedMessagesFromRawTextWithStats(
+      rawText,
+      this.hubName,
+    );
+    this.frameParseErrors += extraction.invalidFrames;
+
+    for (const message of extraction.messages) {
+      this.feedMessagesReceived += 1;
+      this.topicMessageCount.set(
+        message.topic,
+        (this.topicMessageCount.get(message.topic) ?? 0) + 1,
+      );
+      this.topicLastSeenAt.set(message.topic, message.emittedAt);
+      if (message.decodeError) {
+        this.topicDecodeErrors += 1;
+      }
+
       const changedFields = this.accumulator.ingest(
         message.topic,
         message.payload,
@@ -1130,6 +1327,8 @@ export class LiveProviderAdapter implements LiveAdapter {
       this.socket.close();
       this.socket = null;
     }
+
+    this.connectedAt = null;
 
     this.reconnectAttempt += 1;
     const delay = Math.min(

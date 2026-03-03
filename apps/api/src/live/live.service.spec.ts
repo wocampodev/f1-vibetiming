@@ -43,6 +43,10 @@ function createLiveState(): LiveState {
         sector3Ms: 30430,
         lastLapMs: 91000,
         bestLapMs: 90800,
+        speedHistoryKph: [{ at: '2026-03-03T00:00:00.000Z', kph: 311 }],
+        trackStatusHistory: [
+          { at: '2026-03-03T00:00:00.000Z', status: 'on_track' },
+        ],
         tireCompound: 'SOFT',
         stintLap: 5,
       },
@@ -103,6 +107,11 @@ function createProviderAdapterMock() {
       heartbeatMs: 0,
       seed: null,
       speedMultiplier: null,
+      details: {
+        framesReceived: 42,
+        feedMessagesReceived: 180,
+        frameParseErrors: 1,
+      },
     })),
   };
 }
@@ -193,6 +202,28 @@ describe('LiveService', () => {
     expect(data.eventType).toBe('status');
     expect(data.source).toBe('provider');
     expect(data.payload.status).toBe('degraded');
+  });
+
+  it('passes adapter diagnostics through the health payload', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getHealth()).toMatchObject({
+      source: 'provider',
+      details: {
+        framesReceived: 42,
+        feedMessagesReceived: 180,
+        frameParseErrors: 1,
+      },
+    });
   });
 
   it('stops adapter on module destroy', async () => {

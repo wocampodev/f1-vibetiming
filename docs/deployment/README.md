@@ -57,3 +57,4 @@ curl http://localhost:3000/standings
 - `api` service runs `prisma db push` at startup before `start:prod`.
 - Product scope is intentionally minimal: live dashboard + championship standings.
 - Runtime should stay provider-first without synthetic fallback data.
+- `/api/live/health` is the primary provider diagnostics endpoint (transport throughput + parser/decode reliability).

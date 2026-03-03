@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-03 (provider-first live runtime)
+Last updated: 2026-03-03 (provider telemetry diagnostics + history)
 
 ## Snapshot
 
@@ -21,14 +21,16 @@ Last updated: 2026-03-03 (provider-first live runtime)
   - `/api/live/health`
 - Provider adapter targets Formula 1 SignalR endpoint family (`livetiming.formula1.com/signalr`).
 - Web dashboard consumes SSE first, then falls back to REST polling when stream degrades.
+- Live leaderboard includes bounded speed history and track-status history for trend rendering.
+- `/api/live/health` includes frame/message counters, parser/decode error counters, and topic throughput snapshots.
 - Standings API includes round and points-gap context.
 
 ## Active Priorities
 
 1. Keep provider normalization locked with fixture-based tests as topic shapes evolve.
-2. Extend live telemetry usage (speed/track status history and reliability diagnostics).
-3. Extend standings from snapshot to round-history with movement deltas.
-4. Keep docs and architecture aligned with provider-first runtime.
+2. Extend standings from snapshot to round-history with movement deltas.
+3. Add standings history persistence by round and expose selector-ready API shape.
+4. Keep docs and architecture aligned with provider-first runtime and diagnostics payloads.
 
 ## Quick Resume
 

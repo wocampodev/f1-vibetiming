@@ -27,6 +27,16 @@ export interface LiveSessionState {
   clockIso: string | null;
 }
 
+export interface LiveSpeedSample {
+  at: string;
+  kph: number;
+}
+
+export interface LiveTrackStatusSample {
+  at: string;
+  status: string;
+}
+
 export interface LiveLeaderboardEntry {
   position: number;
   driverCode: string;
@@ -42,6 +52,8 @@ export interface LiveLeaderboardEntry {
   sector3Ms: number | null;
   lastLapMs: number | null;
   bestLapMs: number | null;
+  speedHistoryKph: LiveSpeedSample[];
+  trackStatusHistory: LiveTrackStatusSample[];
   tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
   stintLap: number | null;
 }

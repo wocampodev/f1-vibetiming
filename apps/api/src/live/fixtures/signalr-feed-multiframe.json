@@ -1,0 +1,9 @@
+{
+  "hubName": "streaming",
+  "frames": [
+    "{\"C\":\"d-1\",\"M\":[{\"H\":\"streaming\",\"M\":\"feed\",\"A\":[\"LapCount\",\"{\\\"CurrentLap\\\":\\\"15\\\",\\\"TotalLaps\\\":\\\"57\\\"}\",\"2026-03-03T00:00:05.000Z\"]}]}",
+    "not-json-frame",
+    "{\"C\":\"d-2\",\"M\":[{\"H\":\"streaming\",\"M\":\"feed\",\"A\":[\"CarData.z\",\"not-base64-data\",\"2026-03-03T00:00:06.000Z\"]}]}",
+    "{\"C\":\"d-3\",\"M\":[{\"H\":\"streaming\",\"M\":\"feed\",\"A\":[\"Position.z\",\"FcSxCoMwFAXQf7lzlGsCDm93bqEZtMUhSIZQjMU8p5B/L8LhVDyPkjQdGfKpmLKeKRZIxXD30qBXgeCR/Rm2LwxmyEDSYIFYkq0Z+LTHomH/QWBpx46uo/Ok3FxP8o22tj8=\",\"2026-03-03T00:00:07.000Z\"]}]}"
+  ]
+}

@@ -62,6 +62,7 @@ F1 VibeTiming is a two-view product:
 - Simulator mode is local opt-in only (`LIVE_SOURCE=simulator`).
 - Web consumes SSE from `/api/live/stream` and falls back to polling `/api/live/state` when needed.
 - Live health diagnostics are exposed at `/api/live/health`.
+- Live leaderboard rows include bounded speed-history and track-status-history arrays for trend visuals.
 
 ## Planning Artifacts
 
