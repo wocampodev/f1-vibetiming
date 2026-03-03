@@ -32,6 +32,7 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - unit tests for ingestion/provider mapping and upsert behavior
 - Frontend routes are implemented:
   - `/`
+  - `/live`
   - `/calendar`
   - `/standings`
   - `/weekend/[eventId]`
@@ -54,6 +55,9 @@ Last updated: 2026-03-02 (phase-2 simulator-first kickoff)
   - simulator-first stream source with status/heartbeat/delta events
   - deterministic simulator replay fixtures + seedable timeline
   - live endpoints (`/api/live/state`, `/api/live/health`, `/api/live/stream`)
+- Phase 2A has started in web:
+  - initial `/live` route consuming live SSE stream
+  - leaderboard + session status + race control UI slice
 
 ## Remaining MVP Items
 

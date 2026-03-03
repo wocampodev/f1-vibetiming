@@ -17,6 +17,7 @@ const body = Source_Sans_3({
 
 const navItems = [
   { href: "/", label: "Dashboard" },
+  { href: "/live", label: "Live" },
   { href: "/calendar", label: "Calendar" },
   { href: "/standings", label: "Standings" },
 ];

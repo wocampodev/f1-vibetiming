@@ -12,6 +12,7 @@ const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const routes = [
   { path: '/', contains: 'F1 VibeTiming weekend tracker' },
+  { path: '/live', contains: 'Live weekend mode' },
   { path: '/calendar', contains: 'Calendar' },
   { path: '/standings', contains: 'Standings' },
   { path: '/weekend/unknown-event', contains: 'Weekend not found' },

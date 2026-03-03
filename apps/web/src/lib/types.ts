@@ -121,3 +121,74 @@ export interface ConstructorStandingsResponse {
   freshness: Freshness;
   standings: ConstructorStandingItem[];
 }
+
+export type LiveStreamStatus = 'connecting' | 'live' | 'degraded' | 'stopped';
+
+export type LiveFlagStatus =
+  | 'green'
+  | 'yellow'
+  | 'red'
+  | 'safety_car'
+  | 'virtual_safety_car'
+  | 'checkered';
+
+export interface LiveSessionState {
+  weekendId: string;
+  sessionId: string;
+  sessionName: string;
+  phase: 'running' | 'finished';
+  flag: LiveFlagStatus;
+  currentLap: number;
+  totalLaps: number;
+  clockIso: string;
+}
+
+export interface LiveLeaderboardEntry {
+  position: number;
+  driverCode: string;
+  driverName: string;
+  teamName: string;
+  gapToLeaderSec: number;
+  intervalToAheadSec: number;
+  lastLapMs: number;
+  bestLapMs: number;
+  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET';
+  stintLap: number;
+}
+
+export interface LiveRaceControlMessage {
+  id: string;
+  emittedAt: string;
+  category: 'flag' | 'control' | 'incident' | 'pit';
+  message: string;
+  flag?: LiveFlagStatus;
+}
+
+export interface LiveState {
+  generatedAt: string;
+  session: LiveSessionState;
+  leaderboard: LiveLeaderboardEntry[];
+  raceControl: LiveRaceControlMessage[];
+}
+
+export interface LiveDeltaPayload {
+  changedFields: string[];
+  state: LiveState;
+}
+
+export interface LiveHeartbeatPayload {
+  at: string;
+}
+
+export interface LiveStatusPayload {
+  status: LiveStreamStatus;
+  message: string;
+}
+
+export interface LiveEnvelope<TPayload> {
+  sequence: number;
+  source: 'simulator' | 'provider';
+  eventType: 'initial_state' | 'delta_update' | 'heartbeat' | 'status';
+  emittedAt: string;
+  payload: TPayload;
+}
