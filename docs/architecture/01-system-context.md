@@ -1,6 +1,6 @@
 # 01. System Context
 
-This diagram shows the external systems and primary boundaries for the MVP.
+This diagram shows the external systems and primary boundaries for current runtime.
 
 ```mermaid
 flowchart LR
@@ -8,7 +8,8 @@ flowchart LR
   browser[Browser]
   web["Web App<br/>Next.js<br/>apps/web"]
   api["API Service<br/>NestJS<br/>apps/api"]
-  provider["Jolpica/Ergast API<br/>api.jolpi.ca/ergast"]
+  standingsProvider["Jolpica/Ergast API<br/>api.jolpi.ca/ergast"]
+  liveProvider["F1 SignalR Live Feed<br/>livetiming.formula1.com/signalr"]
   db[("PostgreSQL<br/>f1_vibetiming")]
   gha[GitHub Actions CI]
   repo[("GitHub Repo<br/>wocampodev/f1-vibetiming")]
@@ -16,7 +17,8 @@ flowchart LR
   user --> browser --> web
   web -->|HTTP JSON| api
   api -->|Read/Write| db
-  api -->|Scheduled fetch| provider
+  api -->|Scheduled fetch| standingsProvider
+  api -->|Live stream transport| liveProvider
   gha -->|Lint/Test/Build| repo
   gha -->|e2e DB service| db
 ```

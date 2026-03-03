@@ -1,9 +1,6 @@
 import {
-  CalendarResponse,
   ConstructorStandingsResponse,
   DriverStandingsResponse,
-  SessionResultsResponse,
-  WeekendResponse,
 } from "./types";
 
 const API_BASE_URL =
@@ -25,19 +22,6 @@ async function fetchFromApi<T>(path: string): Promise<T | null> {
   } catch {
     return null;
   }
-}
-
-export function getCalendar(season?: number) {
-  const query = season ? `?season=${season}` : "";
-  return fetchFromApi<CalendarResponse>(`/calendar${query}`);
-}
-
-export function getWeekend(eventId: string) {
-  return fetchFromApi<WeekendResponse>(`/weekends/${eventId}`);
-}
-
-export function getSessionResults(sessionId: string) {
-  return fetchFromApi<SessionResultsResponse>(`/sessions/${sessionId}/results`);
 }
 
 export function getDriverStandings(season?: number) {

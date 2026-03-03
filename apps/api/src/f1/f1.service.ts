@@ -182,31 +182,48 @@ export class F1Service {
       },
     });
 
+    const leaderPoints = standings.at(0)?.points ?? null;
+    const round = standings.at(0)?.round ?? null;
+
     return {
       season: resolvedSeason,
+      round,
       freshness: await this.getFreshness(),
       meta: this.buildPaginationMeta(total, pagination.page, pagination.limit),
-      standings: standings.map((standing) => ({
-        position: standing.position,
-        points: standing.points,
-        wins: standing.wins,
-        driver: {
-          id: standing.driver.id,
-          externalId: standing.driver.externalId,
-          givenName: standing.driver.givenName,
-          familyName: standing.driver.familyName,
-          code: standing.driver.code,
-          number: standing.driver.number,
-          nationality: standing.driver.nationality,
-        },
-        team: standing.driver.team
-          ? {
-              id: standing.driver.team.id,
-              externalId: standing.driver.team.externalId,
-              name: standing.driver.team.name,
-            }
-          : null,
-      })),
+      standings: standings.map((standing, index) => {
+        const pointsAhead = standings.at(index - 1)?.points ?? null;
+
+        return {
+          round: standing.round,
+          position: standing.position,
+          points: standing.points,
+          wins: standing.wins,
+          gapToLeaderPoints:
+            leaderPoints == null
+              ? null
+              : Number((leaderPoints - standing.points).toFixed(1)),
+          gapToAheadPoints:
+            pointsAhead == null
+              ? null
+              : Number((pointsAhead - standing.points).toFixed(1)),
+          driver: {
+            id: standing.driver.id,
+            externalId: standing.driver.externalId,
+            givenName: standing.driver.givenName,
+            familyName: standing.driver.familyName,
+            code: standing.driver.code,
+            number: standing.driver.number,
+            nationality: standing.driver.nationality,
+          },
+          team: standing.driver.team
+            ? {
+                id: standing.driver.team.id,
+                externalId: standing.driver.team.externalId,
+                name: standing.driver.team.name,
+              }
+            : null,
+        };
+      }),
     };
   }
 
@@ -228,21 +245,38 @@ export class F1Service {
       },
     });
 
+    const leaderPoints = standings.at(0)?.points ?? null;
+    const round = standings.at(0)?.round ?? null;
+
     return {
       season: resolvedSeason,
+      round,
       freshness: await this.getFreshness(),
       meta: this.buildPaginationMeta(total, pagination.page, pagination.limit),
-      standings: standings.map((standing) => ({
-        position: standing.position,
-        points: standing.points,
-        wins: standing.wins,
-        team: {
-          id: standing.team.id,
-          externalId: standing.team.externalId,
-          name: standing.team.name,
-          nationality: standing.team.nationality,
-        },
-      })),
+      standings: standings.map((standing, index) => {
+        const pointsAhead = standings.at(index - 1)?.points ?? null;
+
+        return {
+          round: standing.round,
+          position: standing.position,
+          points: standing.points,
+          wins: standing.wins,
+          gapToLeaderPoints:
+            leaderPoints == null
+              ? null
+              : Number((leaderPoints - standing.points).toFixed(1)),
+          gapToAheadPoints:
+            pointsAhead == null
+              ? null
+              : Number((pointsAhead - standing.points).toFixed(1)),
+          team: {
+            id: standing.team.id,
+            externalId: standing.team.externalId,
+            name: standing.team.name,
+            nationality: standing.team.nationality,
+          },
+        };
+      }),
     };
   }
 

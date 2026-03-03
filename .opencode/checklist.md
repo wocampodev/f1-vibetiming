@@ -1,6 +1,6 @@
 # Next Session Checklist
 
-Use this as a fast start checklist for the next coding block.
+Use this as the quick-start checklist for the next coding block.
 
 ## 1) Context Sync
 
@@ -16,18 +16,18 @@ Use this as a fast start checklist for the next coding block.
 
 ## 3) Current Priorities
 
-- [ ] Phase 2 spike: define live adapter and websocket event contract
-- [ ] Validate deployment flow in a Docker-enabled environment
-- [ ] Keep MVP contracts stable while starting Phase 2 work
+- [ ] Improve live SignalR decoding coverage and normalization tests
+- [ ] Harden web stream resilience and diagnostics behavior
+- [ ] Extend standings toward round-history and movement deltas
 
 ## 4) Validation Gates
 
-- [ ] `pnpm lint`
 - [ ] `pnpm --filter api test`
-- [ ] `pnpm --filter api test:e2e`
+- [ ] `pnpm --filter web lint`
+- [ ] `pnpm --filter web test:smoke`
 - [ ] `pnpm build`
 
 ## 5) Before Handoff
 
 - [ ] Update `BACKLOG.md` checkboxes
-- [ ] Keep `AGENTS.md` aligned with roadmap and locked decisions
+- [ ] Keep `AGENTS.md` aligned with runtime behavior

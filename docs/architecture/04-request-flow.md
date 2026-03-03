@@ -20,6 +20,11 @@ sequenceDiagram
   LivePage->>LiveCtrl: GET /api/live/stream (SSE)
   LiveCtrl->>LiveSvc: stream()
   LiveSvc-->>LivePage: initial_state + delta_update + heartbeat
+  alt Stream degraded
+    LivePage->>LiveCtrl: GET /api/live/state (fallback polling)
+    LiveCtrl->>LiveSvc: getState()
+    LiveSvc-->>LivePage: latest state snapshot
+  end
   LivePage-->>User: Render single live timing table
 
   User->>StandingsPage: Open /standings
@@ -39,7 +44,7 @@ sequenceDiagram
 API contract notes:
 
 - Live stream uses SSE envelopes (`initial_state`, `delta_update`, `heartbeat`, `status`).
-- Standings responses remain backward compatible with MVP fields.
+- Standings responses include round and points-gap context fields.
 - Errors follow a shared envelope (`error.code`, `error.message`, `error.details`).
 
 Source of truth:

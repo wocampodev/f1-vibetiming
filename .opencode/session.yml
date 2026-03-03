@@ -1,23 +1,23 @@
 version: 1
 
 checkpoint:
-  date: 2026-03-02
-  status: mvp_complete
+  date: 2026-03-03
+  status: provider_first_runtime
   repository_url: https://github.com/wocampodev/f1-vibetiming
   release_baseline: passing
 
 current_focus:
-  - Phase 2 discovery: live adapter contract and websocket stream shape
-  - Deployment hardening: validate Docker flow in a Docker-enabled environment
+  - Provider-first live reliability and feed-shape normalization
+  - Standings enrichment (round context, gaps, movement readiness)
 
 resume_order:
-  - Phase 2 discovery
-  - Deployment hardening
+  - Live provider decoding and resilience
+  - Standings historical depth
 
 guardrails:
-  - Keep API response contracts backward compatible
-  - Verify data-source terms before live-feed work
-  - Do not switch package manager from pnpm
+  - Keep product scope to live dashboard + championship standings
+  - Avoid synthetic fallback data in provider runtime
+  - Keep pnpm as the only package manager
 
 next_session_checklist:
   - Read BACKLOG.md

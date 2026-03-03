@@ -3,85 +3,20 @@ export interface Freshness {
   ageSeconds: number | null;
 }
 
-export interface SessionSummary {
-  id: string;
-  name: string;
-  type: string;
-  startsAt: string;
-  status: string;
-}
-
-export interface EventSummary {
-  id: string;
-  season: number;
-  round: number;
-  name: string;
-  circuitName: string;
-  locality: string | null;
-  country: string | null;
-  raceStartTime: string;
-  sessions: SessionSummary[];
-}
-
-export interface CalendarResponse {
-  season: number;
-  freshness: Freshness;
-  events: EventSummary[];
-}
-
-export interface WeekendResponse {
-  freshness: Freshness;
-  event: Omit<EventSummary, "sessions">;
-  sessions: SessionSummary[];
-}
-
-export interface SessionResultItem {
-  position: number | null;
-  grid: number | null;
-  points: number | null;
-  laps: number | null;
-  status: string | null;
-  time: string | null;
-  q1: string | null;
-  q2: string | null;
-  q3: string | null;
-  fastestLapTime: string | null;
-  fastestLapRank: number | null;
-  driver: {
-    id: string;
-    externalId: string;
-    code: string | null;
-    number: number | null;
-    givenName: string;
-    familyName: string;
-  };
-  team: {
-    id: string;
-    externalId: string;
-    name: string;
-  } | null;
-}
-
-export interface SessionResultsResponse {
-  freshness: Freshness;
-  session: {
-    id: string;
-    eventId: string;
-    eventName: string;
-    round: number;
-    season: number;
-    name: string;
-    type: string;
-    startsAt: string;
-    status: string;
-  };
-  results: SessionResultItem[];
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface DriverStandingItem {
+  round: number;
   position: number;
   points: number;
   wins: number;
+  gapToLeaderPoints: number | null;
+  gapToAheadPoints: number | null;
   driver: {
     id: string;
     externalId: string;
@@ -99,9 +34,12 @@ export interface DriverStandingItem {
 }
 
 export interface ConstructorStandingItem {
+  round: number;
   position: number;
   points: number;
   wins: number;
+  gapToLeaderPoints: number | null;
+  gapToAheadPoints: number | null;
   team: {
     id: string;
     externalId: string;
@@ -112,13 +50,17 @@ export interface ConstructorStandingItem {
 
 export interface DriverStandingsResponse {
   season: number;
+  round: number | null;
   freshness: Freshness;
+  meta: PaginationMeta;
   standings: DriverStandingItem[];
 }
 
 export interface ConstructorStandingsResponse {
   season: number;
+  round: number | null;
   freshness: Freshness;
+  meta: PaginationMeta;
   standings: ConstructorStandingItem[];
 }
 
@@ -133,30 +75,30 @@ export type LiveFlagStatus =
   | 'checkered';
 
 export interface LiveSessionState {
-  weekendId: string;
-  sessionId: string;
-  sessionName: string;
-  phase: 'running' | 'finished';
+  weekendId: string | null;
+  sessionId: string | null;
+  sessionName: string | null;
+  phase: 'running' | 'finished' | 'unknown';
   flag: LiveFlagStatus;
-  currentLap: number;
-  totalLaps: number;
-  clockIso: string;
+  currentLap: number | null;
+  totalLaps: number | null;
+  clockIso: string | null;
 }
 
 export interface LiveLeaderboardEntry {
   position: number;
   driverCode: string;
-  driverName: string;
-  teamName: string;
-  gapToLeaderSec: number;
-  intervalToAheadSec: number;
-  sector1Ms: number;
-  sector2Ms: number;
-  sector3Ms: number;
-  lastLapMs: number;
-  bestLapMs: number;
-  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET';
-  stintLap: number;
+  driverName: string | null;
+  teamName: string | null;
+  gapToLeaderSec: number | null;
+  intervalToAheadSec: number | null;
+  sector1Ms: number | null;
+  sector2Ms: number | null;
+  sector3Ms: number | null;
+  lastLapMs: number | null;
+  bestLapMs: number | null;
+  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
+  stintLap: number | null;
 }
 
 export interface LiveRaceControlMessage {

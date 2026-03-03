@@ -106,10 +106,7 @@ function createProviderAdapterMock() {
 
 describe('LiveService', () => {
   it('starts simulator source and exposes current state', async () => {
-    const config = createConfigMock({
-      LIVE_SOURCE: 'simulator',
-      LIVE_PROVIDER_LEGAL_APPROVED: false,
-    });
+    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const service = new LiveService(
@@ -124,39 +121,11 @@ describe('LiveService', () => {
     expect(service.getState()).not.toBeNull();
     expect(service.getHealth()).toMatchObject({
       source: 'simulator',
-      legalGateActive: false,
-      legalGateMessage: null,
     });
   });
 
-  it('keeps provider source behind legal gate and falls back to simulator', async () => {
-    const config = createConfigMock({
-      LIVE_SOURCE: 'provider',
-      LIVE_PROVIDER_LEGAL_APPROVED: false,
-    });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
-    const service = new LiveService(
-      config as never,
-      simulator as never,
-      provider as never,
-    );
-
-    await service.onModuleInit();
-
-    expect(simulator.start).toHaveBeenCalledTimes(1);
-    expect(service.getHealth()).toMatchObject({
-      source: 'simulator',
-      legalGateActive: true,
-    });
-    expect(service.getHealth().legalGateMessage).toContain('legal/compliance');
-  });
-
-  it('uses provider adapter when legal gate is approved', async () => {
-    const config = createConfigMock({
-      LIVE_SOURCE: 'provider',
-      LIVE_PROVIDER_LEGAL_APPROVED: true,
-    });
+  it('uses provider adapter when provider source is configured', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const service = new LiveService(
@@ -171,17 +140,12 @@ describe('LiveService', () => {
     expect(provider.start).toHaveBeenCalledTimes(1);
     expect(service.getHealth()).toMatchObject({
       source: 'provider',
-      legalGateActive: false,
-      legalGateMessage: null,
       status: 'degraded',
     });
   });
 
   it('streams an initial_state envelope when state is available', async () => {
-    const config = createConfigMock({
-      LIVE_SOURCE: 'simulator',
-      LIVE_PROVIDER_LEGAL_APPROVED: false,
-    });
+    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const service = new LiveService(
@@ -205,10 +169,7 @@ describe('LiveService', () => {
   });
 
   it('streams status envelope when provider is degraded without state', async () => {
-    const config = createConfigMock({
-      LIVE_SOURCE: 'provider',
-      LIVE_PROVIDER_LEGAL_APPROVED: true,
-    });
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const service = new LiveService(

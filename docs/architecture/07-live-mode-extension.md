@@ -1,68 +1,48 @@
-# 07. Live Mode Extension (Phase 2)
+# 07. Live Runtime View
 
-This is the target extension path for the simplified product scope (live timing table + championship standings) without breaking current MVP contracts.
-
-Delivery strategy for Phase 2:
-
-- Build and validate the pipeline with a simulator/replay source first.
-- Keep the live-provider adapter behind a legal/compliance gate.
-- Enable real-provider production traffic only after legal sign-off.
+This diagram captures the current provider-first live runtime.
 
 ```mermaid
 flowchart LR
-  providerLive["Live Feed Provider<br/>SignalR or equivalent"]
-  providerSim["Simulator / Replay Source"]
-  legalGate{"Provider Legal Gate"}
-  providerRest["Public REST Provider<br/>Jolpica/Ergast"]
+  signalr["Formula 1 Live SignalR\nlivetiming.formula1.com/signalr"]
+  rest["Jolpica/Ergast REST"]
 
   subgraph Api[API Service]
-    liveAdapter[Live Adapter]
-    pollFallback[Polling Fallback]
-    normalizer[Live Event Normalizer]
+    providerAdapter[SignalR Provider Adapter]
+    normalizer[Live Feed Normalizer]
     streamGateway[SSE Stream Gateway]
-    readApi[Existing REST Read APIs]
+    stateEndpoint[/api/live/state]
+    healthEndpoint[/api/live/health]
+    standingsIngestion[Standings Ingestion]
   end
 
   db[(PostgreSQL)]
-  web[Next.js Web App]
+  web[Next.js Web]
 
-  providerLive --> legalGate
-  legalGate --> liveAdapter
-  providerSim --> liveAdapter
-  providerRest --> pollFallback
-  liveAdapter --> normalizer
-  pollFallback --> normalizer
-  normalizer --> db
+  signalr --> providerAdapter
+  providerAdapter --> normalizer
   normalizer --> streamGateway
-  db --> readApi
+  normalizer --> stateEndpoint
+  normalizer --> healthEndpoint
 
-  web --> readApi
+  rest --> standingsIngestion
+  standingsIngestion --> db
+
+  db --> web
   streamGateway --> web
+  stateEndpoint --> web
+  healthEndpoint --> web
 ```
 
-Design guardrails:
+Implementation notes:
 
-- Keep current REST endpoints backward compatible.
-- Keep provider adapter boundary explicit so sources can be swapped.
-- Use fallback polling whenever live transport is unavailable.
-- Treat legal/provider approval as a release gate for non-simulator live feeds.
+- Live stream transport is SignalR with reconnect/backoff handling in API and web.
+- Web consumes SSE first and uses `/api/live/state` as fallback polling path.
+- Standings remain DB-backed with ingestion freshness metadata.
 
-Execution slices (active planning):
+Source of truth:
 
-- Slice A (`PH2-103`): resilience baseline
-  - reconnect/backoff on web SSE client
-  - fallback polling against `/api/live/state`
-  - stale/recovery diagnostics from `/api/live/health`
-- Slice B (`SCOPE-004`): live table quality
-  - keep leaderboard entries with tire + sector split fields (`S1`, `S2`, `S3`)
-  - keep `/live` UI constrained to one table (no map/radio/timeline panels)
-
-Validation baseline per slice:
-
-- `pnpm --filter web lint`
-- `pnpm --filter web test:smoke`
-- targeted `pnpm --filter api test` for touched live modules
-
-Roadmap source:
-
-- `AGENTS.md`
+- `apps/api/src/live/live.provider.adapter.ts`
+- `apps/api/src/live/live.service.ts`
+- `apps/web/src/components/live-dashboard.tsx`
+- `apps/api/src/ingestion/ingestion.service.ts`

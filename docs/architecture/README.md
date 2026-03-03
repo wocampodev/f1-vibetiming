@@ -1,6 +1,6 @@
 # Architecture Diagrams
 
-This folder documents the current MVP architecture for F1 VibeTiming.
+This folder documents the current runtime architecture for F1 VibeTiming.
 
 Read in this order:
 
@@ -16,4 +16,4 @@ Notes:
 
 - Diagrams are intentionally lightweight and aligned to current code.
 - Update diagrams whenever APIs, ingestion flow, data model, or CI changes.
-- Phase 2 and Phase 3 diagrams are forward-looking and should evolve as implemented.
+- Keep diagrams aligned to live provider runtime and standings read paths.

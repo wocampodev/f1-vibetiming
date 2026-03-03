@@ -17,30 +17,30 @@ export type LiveFlagStatus =
   | 'checkered';
 
 export interface LiveSessionState {
-  weekendId: string;
-  sessionId: string;
-  sessionName: string;
-  phase: 'running' | 'finished';
+  weekendId: string | null;
+  sessionId: string | null;
+  sessionName: string | null;
+  phase: 'running' | 'finished' | 'unknown';
   flag: LiveFlagStatus;
-  currentLap: number;
-  totalLaps: number;
-  clockIso: string;
+  currentLap: number | null;
+  totalLaps: number | null;
+  clockIso: string | null;
 }
 
 export interface LiveLeaderboardEntry {
   position: number;
   driverCode: string;
-  driverName: string;
-  teamName: string;
-  gapToLeaderSec: number;
-  intervalToAheadSec: number;
-  sector1Ms: number;
-  sector2Ms: number;
-  sector3Ms: number;
-  lastLapMs: number;
-  bestLapMs: number;
-  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET';
-  stintLap: number;
+  driverName: string | null;
+  teamName: string | null;
+  gapToLeaderSec: number | null;
+  intervalToAheadSec: number | null;
+  sector1Ms: number | null;
+  sector2Ms: number | null;
+  sector3Ms: number | null;
+  lastLapMs: number | null;
+  bestLapMs: number | null;
+  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
+  stintLap: number | null;
 }
 
 export interface LiveRaceControlMessage {
@@ -94,4 +94,5 @@ export interface LiveAdapterHealth {
   heartbeatMs: number;
   seed: number | null;
   speedMultiplier: number | null;
+  details?: Record<string, unknown>;
 }

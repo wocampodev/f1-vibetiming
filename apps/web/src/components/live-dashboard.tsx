@@ -14,6 +14,12 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
 
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+const FALLBACK_POLL_MS = 5000;
+const HEALTH_POLL_MS = 10000;
+const STALE_THRESHOLD_MS = 40000;
+
 const statusToneByValue: Record<LiveStreamStatus, string> = {
   connecting: "border-amber-400/40 bg-amber-400/10 text-amber-200",
   live: "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
@@ -42,6 +48,16 @@ const positionTone = [
   "from-blue-600 to-blue-700",
 ];
 
+interface LiveHealth {
+  source: string;
+  status: LiveStreamStatus;
+  lastEventAt: string | null;
+  details?: {
+    reconnectAttempt?: number;
+    socketOpen?: boolean;
+  };
+}
+
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
   try {
     return JSON.parse(raw) as LiveEnvelope<TPayload>;
@@ -57,18 +73,36 @@ const formatClock = (value: string): string =>
     second: "2-digit",
   }).format(new Date(value));
 
-const formatLapTime = (milliseconds: number): string => {
+const formatLapTime = (milliseconds: number | null): string => {
+  if (milliseconds == null) {
+    return "-";
+  }
+
   const totalSeconds = milliseconds / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds - minutes * 60;
   return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
 };
 
-const formatSectorTime = (milliseconds: number): string =>
-  `${(milliseconds / 1000).toFixed(3)}`;
+const formatSectorTime = (milliseconds: number | null): string => {
+  if (milliseconds == null) {
+    return "-";
+  }
 
-const formatGap = (seconds: number): string =>
-  seconds === 0 ? "LEADER" : `+${seconds.toFixed(3)}`;
+  return `${(milliseconds / 1000).toFixed(3)}`;
+};
+
+const formatGap = (seconds: number | null, isLeader: boolean): string => {
+  if (isLeader) {
+    return "LEADER";
+  }
+
+  if (seconds == null) {
+    return "-";
+  }
+
+  return `+${seconds.toFixed(3)}`;
+};
 
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
@@ -79,9 +113,17 @@ function SectorCell({
   max,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   max: number;
 }) {
+  if (value == null) {
+    return (
+      <td className="px-2 py-2 font-mono text-lg leading-none text-[#8aa0be]">
+        <span>-</span>
+      </td>
+    );
+  }
+
   const widthPct = Math.max(8, Math.round((value / max) * 100));
 
   return (
@@ -105,6 +147,8 @@ export function LiveDashboard() {
   const [status, setStatus] = useState<LiveStreamStatus>("connecting");
   const [statusMessage, setStatusMessage] = useState("Connecting to live stream");
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
+  const [streamSource, setStreamSource] = useState<string>("provider");
+  const [health, setHealth] = useState<LiveHealth | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -118,90 +162,242 @@ export function LiveDashboard() {
   }, []);
 
   useEffect(() => {
-    const stream = new EventSource(`${API_BASE_URL}/live/stream`);
+    let stream: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let fallbackTimer: number | null = null;
+    let closed = false;
+    let reconnectAttempt = 0;
 
-    stream.onopen = () => {
-      setStatus("live");
-      setStatusMessage("Live stream connected");
-    };
-
-    stream.onerror = () => {
-      setStatus("degraded");
-      setStatusMessage("Connection issue detected, retrying stream");
-    };
-
-    const handleInitial = (event: MessageEvent<string>) => {
-      const envelope = parseEnvelope<LiveState>(event.data);
-      if (!envelope) {
+    const stopFallback = () => {
+      if (!fallbackTimer) {
         return;
       }
 
-      setLiveState(envelope.payload);
+      window.clearInterval(fallbackTimer);
+      fallbackTimer = null;
     };
 
-    const handleDelta = (event: MessageEvent<string>) => {
-      const envelope = parseEnvelope<LiveDeltaPayload>(event.data);
-      if (!envelope) {
+    const pollState = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/live/state`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const state = (await response.json()) as LiveState | null;
+        if (!state) {
+          return;
+        }
+
+        setLiveState(state);
+      } catch {
+        // keep retrying on next interval
+      }
+    };
+
+    const startFallback = () => {
+      if (fallbackTimer) {
         return;
       }
 
-      setLiveState(envelope.payload.state);
+      void pollState();
+      fallbackTimer = window.setInterval(() => {
+        void pollState();
+      }, FALLBACK_POLL_MS);
     };
 
-    const handleStatus = (event: MessageEvent<string>) => {
-      const envelope = parseEnvelope<LiveStatusPayload>(event.data);
-      if (!envelope) {
+    const closeStream = () => {
+      if (!stream) {
         return;
       }
 
-      setStatus(envelope.payload.status);
-      setStatusMessage(envelope.payload.message);
+      stream.close();
+      stream = null;
     };
 
-    const handleHeartbeat = (event: MessageEvent<string>) => {
-      const envelope = parseEnvelope<LiveHeartbeatPayload>(event.data);
-      if (!envelope) {
+    const scheduleReconnect = (reason: string) => {
+      if (closed || reconnectTimer) {
         return;
       }
 
-      setLastHeartbeat(envelope.payload.at);
+      reconnectAttempt += 1;
+      const delayMs = Math.min(
+        RECONNECT_MAX_DELAY_MS,
+        RECONNECT_BASE_DELAY_MS * 2 ** Math.max(0, reconnectAttempt - 1),
+      );
+
+      setStatus("connecting");
+      setStatusMessage(`Reconnecting stream in ${Math.round(delayMs / 1000)}s (${reason})`);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        openStream();
+      }, delayMs);
     };
 
-    stream.addEventListener("initial_state", handleInitial as EventListener);
-    stream.addEventListener("delta_update", handleDelta as EventListener);
-    stream.addEventListener("status", handleStatus as EventListener);
-    stream.addEventListener("heartbeat", handleHeartbeat as EventListener);
+    const openStream = () => {
+      if (closed) {
+        return;
+      }
+
+      closeStream();
+      stream = new EventSource(`${API_BASE_URL}/live/stream`);
+
+      stream.onopen = () => {
+        reconnectAttempt = 0;
+        setStatus("live");
+        setStatusMessage("Live stream connected");
+        stopFallback();
+      };
+
+      stream.onerror = () => {
+        setStatus("degraded");
+        setStatusMessage("Connection issue detected, switching to fallback polling");
+        startFallback();
+        closeStream();
+        scheduleReconnect("SSE error");
+      };
+
+      const handleInitial = (event: MessageEvent<string>) => {
+        const envelope = parseEnvelope<LiveState>(event.data);
+        if (!envelope) {
+          return;
+        }
+
+        setStreamSource(envelope.source);
+        setLiveState(envelope.payload);
+      };
+
+      const handleDelta = (event: MessageEvent<string>) => {
+        const envelope = parseEnvelope<LiveDeltaPayload>(event.data);
+        if (!envelope) {
+          return;
+        }
+
+        setStreamSource(envelope.source);
+        setLiveState(envelope.payload.state);
+      };
+
+      const handleStatus = (event: MessageEvent<string>) => {
+        const envelope = parseEnvelope<LiveStatusPayload>(event.data);
+        if (!envelope) {
+          return;
+        }
+
+        setStreamSource(envelope.source);
+        setStatus(envelope.payload.status);
+        setStatusMessage(envelope.payload.message);
+      };
+
+      const handleHeartbeat = (event: MessageEvent<string>) => {
+        const envelope = parseEnvelope<LiveHeartbeatPayload>(event.data);
+        if (!envelope) {
+          return;
+        }
+
+        setStreamSource(envelope.source);
+        setLastHeartbeat(envelope.payload.at);
+      };
+
+      stream.addEventListener("initial_state", handleInitial as EventListener);
+      stream.addEventListener("delta_update", handleDelta as EventListener);
+      stream.addEventListener("status", handleStatus as EventListener);
+      stream.addEventListener("heartbeat", handleHeartbeat as EventListener);
+    };
+
+    openStream();
 
     return () => {
-      stream.removeEventListener("initial_state", handleInitial as EventListener);
-      stream.removeEventListener("delta_update", handleDelta as EventListener);
-      stream.removeEventListener("status", handleStatus as EventListener);
-      stream.removeEventListener("heartbeat", handleHeartbeat as EventListener);
-      stream.close();
+      closed = true;
+
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
+
+      stopFallback();
+      closeStream();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHealth = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/live/health`, {
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const payload = (await response.json()) as LiveHealth;
+        if (!cancelled) {
+          setHealth(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setHealth(null);
+        }
+      }
+    };
+
+    void loadHealth();
+    const timer = window.setInterval(() => {
+      void loadHealth();
+    }, HEALTH_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
 
   const streamStale = useMemo(() => {
-    if (!lastHeartbeat) {
+    const reference = lastHeartbeat ?? liveState?.generatedAt ?? health?.lastEventAt ?? null;
+    if (!reference) {
       return false;
     }
 
-    return nowMs - new Date(lastHeartbeat).getTime() > 40_000;
-  }, [lastHeartbeat, nowMs]);
+    return nowMs - new Date(reference).getTime() > STALE_THRESHOLD_MS;
+  }, [health?.lastEventAt, lastHeartbeat, liveState?.generatedAt, nowMs]);
+
+  const providerLagSec = (() => {
+    if (!health?.lastEventAt) {
+      return null;
+    }
+
+    return Math.max(0, Math.floor((nowMs - new Date(health.lastEventAt).getTime()) / 1000));
+  })();
 
   const sectorMax = useMemo(() => {
     if (!liveState || liveState.leaderboard.length === 0) {
       return { s1: 1, s2: 1, s3: 1 };
     }
 
+    const s1Values = liveState.leaderboard
+      .map((entry) => entry.sector1Ms)
+      .filter((value): value is number => value != null);
+    const s2Values = liveState.leaderboard
+      .map((entry) => entry.sector2Ms)
+      .filter((value): value is number => value != null);
+    const s3Values = liveState.leaderboard
+      .map((entry) => entry.sector3Ms)
+      .filter((value): value is number => value != null);
+
     return {
-      s1: Math.max(...liveState.leaderboard.map((entry) => entry.sector1Ms)),
-      s2: Math.max(...liveState.leaderboard.map((entry) => entry.sector2Ms)),
-      s3: Math.max(...liveState.leaderboard.map((entry) => entry.sector3Ms)),
+      s1: s1Values.length > 0 ? Math.max(...s1Values) : 1,
+      s2: s2Values.length > 0 ? Math.max(...s2Values) : 1,
+      s3: s3Values.length > 0 ? Math.max(...s3Values) : 1,
     };
   }, [liveState]);
 
   const rows: LiveLeaderboardEntry[] = liveState?.leaderboard ?? [];
+  const lapLabel =
+    liveState?.session.currentLap != null && liveState.session.totalLaps != null
+      ? `L${liveState.session.currentLap}/${liveState.session.totalLaps}`
+      : "L-/-";
 
   return (
     <section className="panel overflow-hidden p-0">
@@ -210,7 +406,7 @@ export function LiveDashboard() {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Timing Feed</p>
             <p className="text-3xl font-bold leading-tight text-[#f4f9ff]">
-              {liveState?.session.sessionName ?? "Loading session"}
+              {liveState?.session.sessionName ?? "Formula 1 Live Timing"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -219,11 +415,12 @@ export function LiveDashboard() {
             >
               {status}
             </span>
-            {liveState ? (
-              <span className="rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#d3e1f5]">
-                L{liveState.session.currentLap}/{liveState.session.totalLaps}
-              </span>
-            ) : null}
+            <span className="rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#d3e1f5]">
+              {lapLabel}
+            </span>
+            <span className="rounded-full border border-[#2f4c69] bg-[#102034] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#9ec5e8]">
+              Source {streamSource}
+            </span>
           </div>
         </div>
 
@@ -231,18 +428,22 @@ export function LiveDashboard() {
           <span>{statusMessage}</span>
           {lastHeartbeat ? <span>Heartbeat {formatClock(lastHeartbeat)}</span> : null}
           {liveState ? <span>Updated {formatClock(liveState.generatedAt)}</span> : null}
+          {providerLagSec != null ? <span>Provider lag {providerLagSec}s</span> : null}
+          {typeof health?.details?.reconnectAttempt === "number" ? (
+            <span>Reconnect attempts {health.details.reconnectAttempt}</span>
+          ) : null}
         </div>
 
         {streamStale ? (
           <p className="mt-2 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
-            Stream heartbeat is stale. Values may lag while reconnecting.
+            Stream is stale. Dashboard is using latest known data while reconnecting.
           </p>
         ) : null}
       </div>
 
       {liveState ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1160px] bg-[#070d15] text-sm">
+          <table className="w-full min-w-[1240px] bg-[#070d15] text-sm">
             <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
               <tr>
                 <th className="px-2 py-2">Pos</th>
@@ -253,6 +454,7 @@ export function LiveDashboard() {
                 <th className="px-2 py-2">S2</th>
                 <th className="px-2 py-2">S3</th>
                 <th className="px-2 py-2">Lap</th>
+                <th className="px-2 py-2">Best</th>
                 <th className="px-2 py-2">Gap</th>
                 <th className="px-2 py-2">Int</th>
               </tr>
@@ -272,16 +474,21 @@ export function LiveDashboard() {
                       <span className="rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-xl font-bold tracking-wide text-[#d7ebff]">
                         {entry.driverCode}
                       </span>
-                      <span className="text-xs text-[var(--muted)]">{entry.driverName}</span>
+                      <span className="text-xs text-[var(--muted)]">{entry.driverName ?? "-"}</span>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName}</td>
+                  <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
                   <td className="px-2 py-2">
-                    <span
-                      className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tireToneByValue[entry.tireCompound] ?? tireToneByValue.HARD}`}
-                    >
-                      {entry.tireCompound} L{entry.stintLap}
-                    </span>
+                    {entry.tireCompound ? (
+                      <span
+                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tireToneByValue[entry.tireCompound] ?? tireToneByValue.HARD}`}
+                      >
+                        {entry.tireCompound}
+                        {entry.stintLap != null ? ` L${entry.stintLap}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[#8aa0be]">-</span>
+                    )}
                   </td>
                   <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
                   <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
@@ -289,11 +496,18 @@ export function LiveDashboard() {
                   <td className="px-2 py-2 font-mono text-[1.65rem] leading-none text-[#f1f7ff]">
                     {formatLapTime(entry.lastLapMs)}
                   </td>
+                  <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
+                    {formatLapTime(entry.bestLapMs)}
+                  </td>
                   <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
-                    {formatGap(entry.gapToLeaderSec)}
+                    {formatGap(entry.gapToLeaderSec, entry.position === 1)}
                   </td>
                   <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                    {entry.position === 1 ? "-" : `+${entry.intervalToAheadSec.toFixed(3)}`}
+                    {entry.position === 1
+                      ? "-"
+                      : entry.intervalToAheadSec == null
+                        ? "-"
+                        : `+${entry.intervalToAheadSec.toFixed(3)}`}
                   </td>
                 </tr>
               ))}
@@ -302,7 +516,7 @@ export function LiveDashboard() {
         </div>
       ) : (
         <p className="px-5 py-4 text-sm text-[var(--muted)]">
-          Waiting for initial snapshot from live stream.
+          Waiting for live provider snapshot.
         </p>
       )}
     </section>

@@ -32,8 +32,6 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   private adapter: LiveAdapter;
   private currentState: LiveState | null = null;
   private currentStatus: LiveStreamStatus = 'connecting';
-  private legalGateActive = false;
-  private legalGateMessage: string | null = null;
   private sequence = 0;
 
   constructor(
@@ -91,8 +89,6 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     return {
       source: this.adapter.source,
       status: this.currentStatus,
-      legalGateActive: this.legalGateActive,
-      legalGateMessage: this.legalGateMessage,
       running: adapterHealth.running,
       startedAt: adapterHealth.startedAt,
       lastEventAt: adapterHealth.lastEventAt,
@@ -100,20 +96,11 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       heartbeatMs: adapterHealth.heartbeatMs,
       seed: adapterHealth.seed,
       speedMultiplier: adapterHealth.speedMultiplier,
+      details: adapterHealth.details ?? null,
     };
   }
 
   private async startAdapter(): Promise<void> {
-    if (this.legalGateActive && this.legalGateMessage) {
-      this.currentStatus = 'degraded';
-      this.streamSubject.next(
-        this.wrapEnvelope('status', {
-          status: 'degraded',
-          message: this.legalGateMessage,
-        }),
-      );
-    }
-
     try {
       await this.adapter.start((event) => {
         if (event.type === 'initial_state') {
@@ -164,28 +151,11 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveAdapter(): LiveAdapter {
-    const source = this.configService.get<string>('LIVE_SOURCE', 'simulator');
-    const legalApproved = this.configService.get<boolean>(
-      'LIVE_PROVIDER_LEGAL_APPROVED',
-      false,
-    );
+    const source = this.configService.get<string>('LIVE_SOURCE', 'provider');
 
     if (source === 'simulator') {
-      this.legalGateActive = false;
-      this.legalGateMessage = null;
       return this.simulatorAdapter;
     }
-
-    if (!legalApproved) {
-      this.legalGateActive = true;
-      this.legalGateMessage =
-        'Provider source disabled: legal/compliance approval is required. Using simulator.';
-      this.logger.warn(this.legalGateMessage);
-      return this.simulatorAdapter;
-    }
-
-    this.legalGateActive = false;
-    this.legalGateMessage = null;
     return this.providerAdapter;
   }
 

@@ -1,6 +1,6 @@
 # API App
 
-This is the NestJS backend for the F1 VibeTiming MVP.
+NestJS backend for F1 VibeTiming.
 
 Run from repository root:
 
@@ -8,7 +8,7 @@ Run from repository root:
 pnpm dev
 ```
 
-Or run only the API app:
+Run only API app:
 
 ```bash
 pnpm --filter api start:dev
@@ -24,21 +24,24 @@ pnpm --filter api test:e2e
 pnpm --filter api build
 ```
 
-Live mode foundation endpoints (simulator-first):
+Live endpoints:
 
 - `GET /api/live/state`
 - `GET /api/live/health`
 - `GET /api/live/stream` (SSE)
 
-Live mode environment variables:
+Live runtime environment variables:
 
-- `LIVE_SOURCE` (`simulator` default; provider path is gated)
-- `LIVE_SIMULATOR_TICK_MS` (default `2000`)
-- `LIVE_SIMULATOR_SPEED_MULTIPLIER` (default `1`; supports `0.25` to `8`)
+- `LIVE_SOURCE` (`provider` default; set `simulator` for local opt-in)
+- `LIVE_SIGNALR_BASE_URL` (default `https://livetiming.formula1.com/signalr`)
+- `LIVE_SIGNALR_HUB` (default `streaming`)
+- `LIVE_SIGNALR_TOPICS` (comma-separated topic list)
+- `LIVE_SIGNALR_RECONNECT_MIN_MS` (default `1000`)
+- `LIVE_SIGNALR_RECONNECT_MAX_MS` (default `30000`)
 - `LIVE_HEARTBEAT_MS` (default `15000`)
-- `LIVE_SIMULATOR_SEED` (default `2026`, keeps simulator timing deterministic)
-- `LIVE_PROVIDER_LEGAL_APPROVED` (default `false`; required before provider mode)
 
-Deterministic replay fixture source:
+Simulator-only tuning env vars:
 
-- `apps/api/src/live/live.simulator.fixture.ts`
+- `LIVE_SIMULATOR_TICK_MS`
+- `LIVE_SIMULATOR_SPEED_MULTIPLIER`
+- `LIVE_SIMULATOR_SEED`

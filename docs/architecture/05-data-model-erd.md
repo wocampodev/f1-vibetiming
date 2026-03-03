@@ -1,6 +1,6 @@
 # 05. Data Model ERD
 
-This ERD captures the current Prisma schema used by MVP ingestion and read APIs.
+This ERD captures the current Prisma schema used by ingestion and read APIs.
 
 ```mermaid
 erDiagram

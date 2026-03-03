@@ -2,88 +2,50 @@
 
 Last updated: 2026-03-03
 
-## Compact Session Snapshot
+## Product Focus
 
-- Completed: MVP-001 to MVP-025
-- Open MVP work: none
-- Product scope is simplified: Live Dashboard + Championship Standings only
-- Post-MVP scope is trimmed to reliability and table quality for live/standings views
-- Release baseline validated locally (lint + unit + e2e + build all passing)
-- Repository is public at `https://github.com/wocampodev/f1-vibetiming`
+- Live dashboard at `/` and `/live` powered by real upstream live timing data.
+- Championship standings at `/standings` with actionable context (round, gaps, freshness).
+- No synthetic runtime fallback data in default application behavior.
 
-## Week 1 - Data + API Foundation
+## Current Delivery Tracks
 
-- [x] MVP-001 Initialize monorepo and apps
-- [x] MVP-002 Configure CI for lint/test/build
-- [x] MVP-003 Add local Postgres compose setup
-- [x] MVP-004 Add environment validation in NestJS
-- [x] MVP-005 Design database schema and migrations
-- [x] MVP-006 Create Option 1 provider client module
-- [x] MVP-007 Implement calendar ingestion cron
-- [x] MVP-008 Implement results and standings ingestion cron
-- [x] MVP-009 Add ingestion health and freshness endpoint
-- [x] MVP-010 Build `GET /api/calendar`
-- [x] MVP-011 Build `GET /api/weekends/:eventId`
-- [x] MVP-012 Build `GET /api/sessions/:sessionId/results`
-- [x] MVP-013 Build standings endpoints
-- [x] MVP-014 Standardize API errors, caching, and pagination
+### Track 1 - Live Provider Runtime
 
-## Week 2 - UI + Integration + Deploy
+- [x] LIVE-001 Keep simulator available only as explicit local-dev opt-in.
+- [x] LIVE-002 Make provider source the default live runtime path.
+- [x] LIVE-003 Remove runtime approval gate from adapter selection.
+- [x] LIVE-004 Add SignalR provider transport bootstrap (`negotiate`/`connect`/`start`).
+- [x] LIVE-005 Add provider reconnect/backoff and heartbeat loop.
+- [x] LIVE-006 Normalize provider feed updates into live state envelopes.
+- [ ] LIVE-007 Harden topic decoding coverage for additional upstream message variants.
+- [ ] LIVE-008 Add integration-style tests for provider message normalization.
 
-- [x] MVP-015 Create frontend app shell and design tokens
-- [x] MVP-016 Build home dashboard page
-- [x] MVP-017 Build season calendar page
-- [x] MVP-018 Build weekend detail page
-- [x] MVP-019 Build session results page
-- [x] MVP-020 Build standings page with chart
-- [x] MVP-021 Add unit tests for provider mapping and ingestion
-- [x] MVP-022 Add API integration tests for core endpoints
-- [x] MVP-023 Add frontend smoke tests for critical routes
-- [x] MVP-024 Set up deployment for web and API
-- [x] MVP-025 Write README and runbook
+### Track 2 - Live Dashboard Quality
 
-## Immediate Next Steps
+- [x] DASH-001 Add stream lifecycle state machine (connect/reconnect/degraded).
+- [x] DASH-002 Add fallback polling from `/api/live/state` during stream disruption.
+- [x] DASH-003 Add health diagnostics paneling from `/api/live/health`.
+- [x] DASH-004 Render partial/null-safe timing data without synthetic placeholders.
+- [ ] DASH-005 Add race-control strip and flag timeline panel.
 
-- [x] SCOPE-001 Simplify web UX to live dashboard + championship standings only
-- [x] SCOPE-002 Remove calendar/weekend/session routes from frontend
-- [x] SCOPE-003 Simplify `/live` to a single driver timing table
-- [x] SCOPE-004 Add sector timing columns (S1/S2/S3) to live leaderboard model
-- [x] SCOPE-005 Apply broadcast-style dark timing-board visual language
-- [ ] LEGAL-001 Complete provider terms and licensing review for live data sources
-- [x] LEGAL-002 Publish a data-usage policy (allowed usage, attribution, retention, caching)
-- [ ] LEGAL-003 Add compliance checklist gate to release process for real-provider rollout
-- [x] PH2-001 Define simulator-first live adapter contract + normalized event schema
-- [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)
-- [x] PH2-003 Implement local replay/simulator source for deterministic development
-- [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
-- [ ] PH2-004 Decide deployment target (single-host Docker vs cloud split for web/api)
+### Track 3 - Standings Depth
 
-## Phase 2 - Live Weekend Mode (Post-MVP)
+- [x] STAND-001 Enrich standings API with round and points-gap context.
+- [x] STAND-002 Upgrade standings UI with gap-to-leader and gap-to-ahead columns.
+- [ ] STAND-003 Add standings round selector and previous-round delta movement.
+- [ ] STAND-004 Add standings history persistence by round.
 
-### Track A - Build First (Simulator)
+### Track 4 - Cleanup and Documentation
 
-- [ ] PH2-101 Implement ingest orchestrator (adapter + normalizer + publisher)
-- [x] PH2-102 Implement API stream gateway for live updates
-- [ ] PH2-103 Add reconnect/backoff strategy + REST fallback polling
-- [x] PH2-104 Add live leaderboard with tire + sector + gap columns
-- [x] PH2-105 Add session state timeline (green/yellow/red/checkered) (de-scoped from UI)
-- [x] PH2-106 Add tire strategy view (compound + stint length) (de-scoped from UI)
-- [ ] PH2-107 Add sector comparison and mini pace chart (cancelled for simplified scope)
-- [ ] PH2-108 Add race control + team radio live feed panels (cancelled for simplified scope)
-- [x] PH2-109 Add track map v1 with car position updates (de-scoped from UI)
-- [x] PH2-110 Add simulator fixtures/replay tests for live flows
+- [x] CLEAN-001 Remove old scope references from web client types/API helpers.
+- [x] CLEAN-002 Remove deprecated planning tracks and approval-gate docs references.
+- [x] CLEAN-003 Align handoff docs with current runtime strategy.
+- [ ] CLEAN-004 Final pass: remove stale architecture terms after provider soak testing.
 
-### Track B - Compliance Gate (Required Before Real Provider)
+## Validation Gates
 
-- [ ] PH2-901 Verify provider terms allow intended app usage
-- [ ] PH2-902 Verify legal attribution/disclaimer requirements in UI/docs
-- [ ] PH2-903 Verify retention/rate-limit rules and enforce in code/config
-- [ ] PH2-904 Get explicit sign-off before enabling non-simulator provider in production
-
-## Phase 3 - Analytics (Post-MVP)
-
-- [ ] Qualifying delta analysis by phase and segment
-- [ ] Race pace degradation analytics
-- [ ] Overtake/incident event timeline
-- [ ] Driver consistency index
-- [ ] Team pit stop performance metrics
+- `pnpm --filter api test`
+- `pnpm --filter web lint`
+- `pnpm --filter web test:smoke`
+- `pnpm build`

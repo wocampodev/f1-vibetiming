@@ -1,6 +1,6 @@
 # Deployment Setup
 
-This document captures the MVP deployment baseline for F1 VibeTiming.
+Deployment baseline for F1 VibeTiming.
 
 ## Targets
 
@@ -12,11 +12,9 @@ This document captures the MVP deployment baseline for F1 VibeTiming.
 
 - API image build: `apps/api/Dockerfile`
 - Web image build: `apps/web/Dockerfile`
-- Single compose file: `compose.yml` (uses `app` profile for API + web)
+- Compose file: `compose.yml` (`app` profile for API + web)
 
 ## Local Deploy-Like Run
-
-From repo root:
 
 ```bash
 docker compose --profile app up -d --build
@@ -32,6 +30,7 @@ Health checks:
 
 ```bash
 curl http://localhost:4000/api/health/data
+curl http://localhost:4000/api/live/health
 curl http://localhost:3000
 curl http://localhost:3000/standings
 ```
@@ -42,39 +41,19 @@ curl http://localhost:3000/standings
 
 - `API_PORT`: HTTP port (default `4000`)
 - `DATABASE_URL`: Postgres DSN
-- `ERGAST_BASE_URL`: provider base URL (`https://api.jolpi.ca/ergast`)
+- `ERGAST_BASE_URL`: standings/results provider base URL
+- `LIVE_SOURCE`: `provider` (default) or `simulator`
+- `LIVE_SIGNALR_BASE_URL`: SignalR base URL
+- `LIVE_SIGNALR_HUB`: SignalR hub name
+- `LIVE_SIGNALR_TOPICS`: live topic subscription list
 
 ### Web
 
 - `F1_API_BASE_URL`: API base URL used by server-side fetches
-- `NEXT_PUBLIC_API_BASE_URL`: optional browser-visible API base URL
-
-## CI/CD Image Pipeline
-
-The workflow `.github/workflows/deploy-images.yml` builds API and web Docker images.
-
-- Trigger mode: manual only (`workflow_dispatch`)
-- Default behavior: build without push
-- Optional: set `publish=true` when manually dispatching to push to GHCR
-
-Published image names:
-
-- `ghcr.io/<owner>/f1-vibetiming-api`
-- `ghcr.io/<owner>/f1-vibetiming-web`
+- `NEXT_PUBLIC_API_BASE_URL`: browser-visible API base URL
 
 ## Notes
 
-- Keep API contract backward compatible for existing web routes.
-- For production, use managed Postgres credentials and secure secrets.
-- If moving toward live mode, verify provider licensing/terms before enabling live adapters.
 - `api` service runs `prisma db push` at startup before `start:prod`.
-- Current web product scope is intentionally minimal: live table + championship standings only.
-
-## Infra-Only Local Mode
-
-For local API/web development outside containers:
-
-```bash
-docker compose up -d
-docker compose down
-```
+- Product scope is intentionally minimal: live dashboard + championship standings.
+- Runtime should stay provider-first without synthetic fallback data.

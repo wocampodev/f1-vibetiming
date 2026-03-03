@@ -12,16 +12,17 @@ repository:
   url: https://github.com/wocampodev/f1-vibetiming
   visibility: public
 
-mvp:
-  data_source: api.jolpi.ca/ergast
-  status: complete
-  open_items: []
+runtime:
+  live_source_default: provider
+  live_source_opt_in:
+    - simulator
+  standings_source: api.jolpi.ca/ergast
 
 decisions:
   - Keep backend on NestJS
-  - Keep MVP on public REST data source
   - Keep pnpm as only package manager
-  - Preserve provider-adapter path for live mode
+  - Keep product scope to live dashboard and standings
+  - Prefer provider-first live runtime without synthetic fallback
 
 artifacts:
   backlog: BACKLOG.md
@@ -30,11 +31,7 @@ artifacts:
 ci:
   workflow_file: .github/workflows/ci.yml
   gates:
-    - lint
-    - unit
-    - e2e
+    - api_test
+    - web_lint
+    - web_smoke
     - build
-
-roadmap:
-  phase_2: Live Weekend Mode
-  phase_3: Analytics

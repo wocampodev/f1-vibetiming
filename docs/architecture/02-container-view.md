@@ -14,7 +14,7 @@ flowchart TB
   end
 
   subgraph Api["API Container"]
-    f1Controller["F1 Controller<br/>standings + session result APIs"]
+    f1Controller["F1 Controller<br/>standings APIs"]
     liveController["Live Controller<br/>/api/live/state|health|stream"]
     healthController["Health Controller<br/>/api/health/data"]
     f1Service["F1 Service<br/>read/query shaping"]
@@ -22,7 +22,8 @@ flowchart TB
     healthService["Health Service<br/>ingestion freshness checks"]
     ingestionScheduler["Ingestion Scheduler<br/>cron jobs"]
     ingestionService["Ingestion Service<br/>startup + refresh + upsert"]
-    jolpicaClient["Jolpica Client<br/>provider adapter"]
+    jolpicaClient["Jolpica Client<br/>standings/results ingestion"]
+    signalrProvider["SignalR Provider Adapter<br/>live transport"]
     exceptionFilter["Global API Exception Filter"]
   end
 
@@ -37,6 +38,7 @@ flowchart TB
 
   f1Controller --> f1Service
   liveController --> liveService
+  liveService --> signalrProvider
   healthController --> healthService
   f1Service --> db
   liveService --> db

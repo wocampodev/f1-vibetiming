@@ -90,8 +90,8 @@ export const resolveSimulatorTickMs = (
 };
 
 const rotateCompound = (
-  current: LiveLeaderboardEntry['tireCompound'],
-): LiveLeaderboardEntry['tireCompound'] => {
+  current: NonNullable<LiveLeaderboardEntry['tireCompound']>,
+): NonNullable<LiveLeaderboardEntry['tireCompound']> => {
   if (current === 'SOFT') {
     return 'MEDIUM';
   }
@@ -156,10 +156,7 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => ({
         ? 0
         : roundSecs(1.2 + index * 1.22 + (index % 3 === 0 ? 0.25 : 0));
     const lastLapMs = 92000 + index * 175;
-    const sectors = splitLapIntoSectors(
-      lastLapMs,
-      () => ((index % 6) + 1) / 8,
-    );
+    const sectors = splitLapIntoSectors(lastLapMs, () => ((index % 6) + 1) / 8);
 
     return {
       position: index + 1,
@@ -185,9 +182,10 @@ export const evolveSimulatorState = (
   now = new Date(),
   fixture: LiveSimulatorFixtureEvent[] = LIVE_SIMULATOR_FIXTURE,
 ): SimulatorStepResult => {
+  const currentLap = previous.session.currentLap ?? 0;
+  const totalLaps = previous.session.totalLaps ?? 0;
   const lapAdvanced =
-    tick % LAP_ADVANCE_INTERVAL === 0 &&
-    previous.session.currentLap < previous.session.totalLaps;
+    tick % LAP_ADVANCE_INTERVAL === 0 && currentLap < totalLaps;
 
   const changedFields = new Set<string>(['leaderboard', 'generatedAt']);
 
@@ -196,19 +194,21 @@ export const evolveSimulatorState = (
 
   for (let index = 0; index < previous.leaderboard.length; index += 1) {
     const current = previous.leaderboard[index];
+    const currentLastLap = current.lastLapMs ?? 92000;
+    const currentBestLap = current.bestLapMs ?? currentLastLap;
     const noise = roundMillis((random() - 0.5) * 520);
     const paceBias = index * 14;
     const nextLastLap = clampNumber(
-      current.lastLapMs + noise + paceBias,
+      currentLastLap + noise + paceBias,
       86000,
       111000,
     );
 
-    const nextBestLap = Math.min(current.bestLapMs, nextLastLap);
+    const nextBestLap = Math.min(currentBestLap, nextLastLap);
     const sectors = splitLapIntoSectors(nextLastLap, random);
 
-    let nextStintLap = current.stintLap;
-    let nextCompoundValue = current.tireCompound;
+    let nextStintLap = current.stintLap ?? 1;
+    let nextCompoundValue = current.tireCompound ?? 'MEDIUM';
 
     if (lapAdvanced) {
       nextStintLap += 1;
@@ -216,7 +216,7 @@ export const evolveSimulatorState = (
 
     if (lapAdvanced && nextStintLap > 22 && random() > 0.88) {
       nextStintLap = 1;
-      nextCompoundValue = rotateCompound(current.tireCompound);
+      nextCompoundValue = rotateCompound(current.tireCompound ?? 'MEDIUM');
     }
 
     if (index === 0) {
@@ -273,10 +273,8 @@ export const evolveSimulatorState = (
     }
   }
 
-  const nextLap = lapAdvanced
-    ? previous.session.currentLap + 1
-    : previous.session.currentLap;
-  const isFinished = nextLap >= previous.session.totalLaps;
+  const nextLap = lapAdvanced ? currentLap + 1 : currentLap;
+  const isFinished = totalLaps > 0 && nextLap >= totalLaps;
 
   if (lapAdvanced) {
     changedFields.add('session.currentLap');
@@ -306,6 +304,7 @@ export const evolveSimulatorState = (
       phase: isFinished ? 'finished' : 'running',
       flag: nextFlag,
       currentLap: nextLap,
+      totalLaps,
       clockIso: now.toISOString(),
     },
     leaderboard: nextLeaderboard.map((entry, index) => ({
