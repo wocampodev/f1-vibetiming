@@ -13,3 +13,9 @@ Or run only the web app:
 ```bash
 pnpm --filter web dev
 ```
+
+Smoke-test critical routes:
+
+```bash
+pnpm --filter web test:smoke
+```
