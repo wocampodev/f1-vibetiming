@@ -30,9 +30,13 @@ sequenceDiagram
   end
   Svc->>Runs: record RESULTS run
 
-  Svc->>Provider: fetchDriverStandings(season)
-  Svc->>Provider: fetchConstructorStandings(season)
-  Svc->>DB: replace standings tables for season
+  Svc->>Provider: fetchDriverStandings(season) // latest round probe
+  Svc->>Provider: fetchConstructorStandings(season) // latest round probe
+  loop round 1..latestRound
+    Svc->>Provider: fetchDriverStandings(season, round)
+    Svc->>Provider: fetchConstructorStandings(season, round)
+    Svc->>DB: persist standings rows by season + round
+  end
   Svc->>Runs: record STANDINGS run
   Svc->>DB: mark past scheduled sessions as COMPLETED
 

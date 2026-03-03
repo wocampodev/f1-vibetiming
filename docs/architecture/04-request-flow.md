@@ -28,9 +28,9 @@ sequenceDiagram
   LivePage-->>User: Render single live timing table
 
   User->>StandingsPage: Open /standings
-  StandingsPage->>WebApi: getDriverStandings() + getConstructorStandings()
-  WebApi->>F1Ctrl: GET /api/standings/drivers
-  WebApi->>F1Ctrl: GET /api/standings/constructors
+  StandingsPage->>WebApi: getDriverStandings(round?) + getConstructorStandings(round?)
+  WebApi->>F1Ctrl: GET /api/standings/drivers?round=
+  WebApi->>F1Ctrl: GET /api/standings/constructors?round=
   F1Ctrl->>F1Svc: getDriverStandings() + getConstructorStandings()
   F1Svc->>Prisma: standings queries
   Prisma->>DB: SQL queries
@@ -44,7 +44,7 @@ sequenceDiagram
 API contract notes:
 
 - Live stream uses SSE envelopes (`initial_state`, `delta_update`, `heartbeat`, `status`).
-- Standings responses include round and points-gap context fields.
+- Standings responses include available rounds, previous-round references, movement deltas, and points-gap context fields.
 - Errors follow a shared envelope (`error.code`, `error.message`, `error.details`).
 
 Source of truth:

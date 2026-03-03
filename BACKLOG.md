@@ -46,7 +46,7 @@ Last updated: 2026-03-03
 - [x] CLEAN-001 Remove old scope references from web client types/API helpers.
 - [x] CLEAN-002 Remove deprecated planning tracks and approval-gate docs references.
 - [x] CLEAN-003 Align handoff docs with current runtime strategy.
-- [ ] CLEAN-004 Final pass: remove stale architecture terms after provider soak testing.
+- [x] CLEAN-004 Final pass: remove stale architecture terms after provider soak testing.
 
 ## Validation Gates
 
