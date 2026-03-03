@@ -44,7 +44,7 @@ Last updated: 2026-03-02
 ## Immediate Next Steps
 
 - [ ] LEGAL-001 Complete provider terms and licensing review for live data sources
-- [ ] LEGAL-002 Publish a data-usage policy (allowed usage, attribution, retention, caching)
+- [x] LEGAL-002 Publish a data-usage policy (allowed usage, attribution, retention, caching)
 - [ ] LEGAL-003 Add compliance checklist gate to release process for real-provider rollout
 - [x] PH2-001 Define simulator-first live adapter contract + normalized event schema
 - [x] PH2-002 Define stream envelope (`initial_state`, `delta_update`, `heartbeat`, `status`)

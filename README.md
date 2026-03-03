@@ -92,3 +92,4 @@ Hero tagline options:
 - Local assistant session configs: `.opencode/`
 - Architecture diagrams: `docs/architecture/README.md`
 - Deployment setup and env mapping: `docs/deployment/README.md`
+- Provider compliance gate checklist: `docs/legal/provider-readiness-checklist.md`

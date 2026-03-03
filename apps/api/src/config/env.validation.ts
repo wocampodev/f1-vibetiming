@@ -15,4 +15,5 @@ export const envValidationSchema = Joi.object({
   LIVE_SIMULATOR_TICK_MS: Joi.number().integer().min(250).default(2000),
   LIVE_HEARTBEAT_MS: Joi.number().integer().min(1000).default(15000),
   LIVE_SIMULATOR_SEED: Joi.number().integer().min(1).default(2026),
+  LIVE_PROVIDER_LEGAL_APPROVED: Joi.boolean().default(false),
 });

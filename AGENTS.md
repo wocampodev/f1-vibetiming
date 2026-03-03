@@ -112,6 +112,7 @@ pnpm dev
 - Check `BACKLOG.md` first for checkbox status
 - Keep API responses backward compatible for existing web routes
 - Verify provider terms/licensing before any live-feed work
+- Track provider legal readiness with `docs/legal/provider-readiness-checklist.md`
 - Compose file strategy: one `compose.yml` with `app` profile for full stack and default infra-only startup
 - Image publish workflow is manual-only; `publish` input must be true to push to GHCR
 

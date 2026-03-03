@@ -36,6 +36,7 @@ Live mode environment variables:
 - `LIVE_SIMULATOR_TICK_MS` (default `2000`)
 - `LIVE_HEARTBEAT_MS` (default `15000`)
 - `LIVE_SIMULATOR_SEED` (default `2026`, keeps simulator timing deterministic)
+- `LIVE_PROVIDER_LEGAL_APPROVED` (default `false`; required before provider mode)
 
 Deterministic replay fixture source:
 
