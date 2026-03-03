@@ -2,6 +2,8 @@ import {
   createSeededRandom,
   createSimulatorInitialState,
   evolveSimulatorState,
+  normalizeSpeedMultiplier,
+  resolveSimulatorTickMs,
 } from './live.simulator.adapter';
 import { LIVE_SIMULATOR_FIXTURE } from './live.simulator.fixture';
 
@@ -101,5 +103,19 @@ describe('LiveSimulatorAdapter helpers', () => {
     const rightValues = [right(), right(), right(), right()];
 
     expect(leftValues).toEqual(rightValues);
+  });
+
+  it('normalizes speed multiplier within supported bounds', () => {
+    expect(normalizeSpeedMultiplier(-1)).toBe(1);
+    expect(normalizeSpeedMultiplier(0.1)).toBe(0.25);
+    expect(normalizeSpeedMultiplier(2)).toBe(2);
+    expect(normalizeSpeedMultiplier(20)).toBe(8);
+  });
+
+  it('resolves effective simulator tick based on speed', () => {
+    expect(resolveSimulatorTickMs(2000, 1)).toBe(2000);
+    expect(resolveSimulatorTickMs(2000, 2)).toBe(1000);
+    expect(resolveSimulatorTickMs(2000, 0.25)).toBe(8000);
+    expect(resolveSimulatorTickMs(2000, 100)).toBe(250);
   });
 });

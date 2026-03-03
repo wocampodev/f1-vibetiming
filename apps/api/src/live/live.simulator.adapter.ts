@@ -55,6 +55,7 @@ const SIMULATOR_DRIVERS: DriverSeed[] = [
 
 const LAP_ADVANCE_INTERVAL = 5;
 const MAX_RACE_CONTROL_MESSAGES = 25;
+const MIN_EFFECTIVE_TICK_MS = 100;
 
 const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -70,6 +71,22 @@ export const createSeededRandom = (seed: number): (() => number) => {
     state = (state * 1664525 + 1013904223) >>> 0;
     return state / 2 ** 32;
   };
+};
+
+export const normalizeSpeedMultiplier = (value: number): number => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 1;
+  }
+
+  return clampNumber(value, 0.25, 8);
+};
+
+export const resolveSimulatorTickMs = (
+  baseTickMs: number,
+  speedMultiplier: number,
+): number => {
+  const multiplier = normalizeSpeedMultiplier(speedMultiplier);
+  return Math.max(MIN_EFFECTIVE_TICK_MS, Math.round(baseTickMs / multiplier));
 };
 
 const rotateCompound = (
@@ -284,7 +301,9 @@ export const evolveSimulatorState = (
 export class LiveSimulatorAdapter implements LiveAdapter {
   readonly source: LiveFeedSource = 'simulator';
 
+  private readonly baseTickMs: number;
   private readonly tickMs: number;
+  private readonly speedMultiplier: number;
   private readonly heartbeatMs: number;
   private readonly seed: number;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -297,10 +316,14 @@ export class LiveSimulatorAdapter implements LiveAdapter {
   private running = false;
 
   constructor(private readonly configService: ConfigService) {
-    this.tickMs = this.configService.get<number>(
+    this.baseTickMs = this.configService.get<number>(
       'LIVE_SIMULATOR_TICK_MS',
       2000,
     );
+    this.speedMultiplier = normalizeSpeedMultiplier(
+      this.configService.get<number>('LIVE_SIMULATOR_SPEED_MULTIPLIER', 1),
+    );
+    this.tickMs = resolveSimulatorTickMs(this.baseTickMs, this.speedMultiplier);
     this.heartbeatMs = this.configService.get<number>(
       'LIVE_HEARTBEAT_MS',
       15000,
@@ -387,6 +410,7 @@ export class LiveSimulatorAdapter implements LiveAdapter {
       tickMs: this.tickMs,
       heartbeatMs: this.heartbeatMs,
       seed: this.seed,
+      speedMultiplier: this.speedMultiplier,
     };
   }
 }

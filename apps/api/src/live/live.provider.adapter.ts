@@ -43,6 +43,7 @@ export class LiveProviderAdapter implements LiveAdapter {
       tickMs: 0,
       heartbeatMs: 0,
       seed: null,
+      speedMultiplier: null,
     };
   }
 }

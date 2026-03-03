@@ -72,6 +72,7 @@ function createSimulatorAdapterMock() {
       tickMs: 2000,
       heartbeatMs: 15000,
       seed: 2026,
+      speedMultiplier: 1,
     })),
   };
 }
@@ -95,6 +96,7 @@ function createProviderAdapterMock() {
       tickMs: 0,
       heartbeatMs: 0,
       seed: null,
+      speedMultiplier: null,
     })),
   };
 }

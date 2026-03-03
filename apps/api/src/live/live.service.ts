@@ -99,6 +99,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       tickMs: adapterHealth.tickMs,
       heartbeatMs: adapterHealth.heartbeatMs,
       seed: adapterHealth.seed,
+      speedMultiplier: adapterHealth.speedMultiplier,
     };
   }
 

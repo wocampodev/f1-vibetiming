@@ -90,4 +90,5 @@ export interface LiveAdapterHealth {
   tickMs: number;
   heartbeatMs: number;
   seed: number | null;
+  speedMultiplier: number | null;
 }
