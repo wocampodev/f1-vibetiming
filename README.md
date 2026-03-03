@@ -70,3 +70,4 @@ Hero tagline options:
 - Session handoff and future phases: `AGENTS.md`
 - Pause/resume log: `SESSION_NOTES.md`
 - Local assistant session configs: `.opencode/`
+- Architecture diagrams: `docs/architecture/README.md`

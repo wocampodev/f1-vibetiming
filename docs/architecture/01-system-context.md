@@ -1,0 +1,32 @@
+# 01. System Context
+
+This diagram shows the external systems and primary boundaries for the MVP.
+
+```mermaid
+flowchart LR
+  user[Fan / User]
+  browser[Browser]
+  web[Web App\nNext.js\napps/web]
+  api[API Service\nNestJS\napps/api]
+  provider[Jolpica/Ergast API\napi.jolpi.ca/ergast]
+  db[(PostgreSQL\nf1_vibetiming)]
+  cache[(Redis)]
+  gha[GitHub Actions CI]
+  repo[(GitHub Repo\nwocampodev/f1-vibetiming)]
+
+  user --> browser --> web
+  web -->|HTTP JSON| api
+  api -->|Read/Write| db
+  api -->|Scheduled fetch| provider
+  api --> cache
+  gha -->|Lint/Test/Build| repo
+  gha -->|e2e DB service| db
+```
+
+Source of truth:
+
+- `apps/api/src/app.module.ts`
+- `apps/api/src/ingestion/ingestion.service.ts`
+- `apps/web/src/lib/api.ts`
+- `compose.yml`
+- `.github/workflows/ci.yml`
