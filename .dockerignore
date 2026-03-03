@@ -1,0 +1,13 @@
+.git
+.github
+.opencode/node_modules
+.opencode/package.json
+.opencode/bun.lock
+node_modules
+apps/*/node_modules
+apps/*/.next
+apps/*/dist
+dist
+coverage
+.env
+.env.local

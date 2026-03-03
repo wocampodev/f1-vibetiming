@@ -8,6 +8,10 @@ bootstrap:
 dev:
   - pnpm dev
 
+deploy:
+  stack_up: pnpm stack:up
+  stack_down: pnpm stack:down
+
 test:
   api_unit: pnpm --filter api test
   api_e2e: pnpm --filter api test:e2e

@@ -10,3 +10,8 @@ apps/*/dist/
 apps/*/coverage/
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
+
+# Local OpenCode runtime artifacts
+.opencode/node_modules/
+.opencode/package.json
+.opencode/bun.lock

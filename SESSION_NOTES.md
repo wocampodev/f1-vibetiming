@@ -150,7 +150,7 @@ Use this file as a quick pause/resume log between coding sessions.
 - Implemented MVP-024 deployment baseline:
   - `apps/api/Dockerfile`
   - `apps/web/Dockerfile`
-  - `compose.deploy.yml`
+  - `compose.yml` (single compose with `app` profile)
   - `docs/deployment/README.md`
   - `.github/workflows/deploy-images.yml`
 
@@ -175,3 +175,41 @@ Use this file as a quick pause/resume log between coding sessions.
 
 - Smoke tests, lint, unit tests, and build passed in this environment
 - Docker remains unavailable here, so deploy compose/image flow could not be executed locally
+
+## 2026-03-02 (Docker Validation)
+
+### Done
+
+- Validated Docker availability and tested full stack deploy flow locally
+- Consolidated to one compose file by removing `compose.deploy.yml` and expanding `compose.yml`
+- Added `app` profile in `compose.yml` so full stack uses one command while keeping infra-only default startup
+- Added root `.dockerignore` to reduce context and exclude local `.opencode` artifacts from image builds
+- Fixed API/Web Dockerfiles so runtime containers include required workspace `node_modules` links
+- Added stack scripts in root `package.json`:
+  - `pnpm stack:up`
+  - `pnpm stack:down`
+- Switched image workflow to manual-only; GHCR push now requires explicit `publish=true`
+- Verified full stack via single compose (`pnpm stack:up`) with:
+  - API `200` on `/api/health/data`
+  - Web `200` on `/`
+
+### In Progress
+
+- Post-MVP planning for Phase 2 live mode
+
+### Next
+
+1. Keep this single-compose strategy as the default path in docs and onboarding
+2. Start Phase 2 technical spike for live adapter + websocket contracts
+3. Optionally add compose healthchecks for web/api to improve orchestrator readiness visibility
+
+### Commands
+
+- `pnpm stack:up`
+- `pnpm stack:down`
+- `pnpm db:up`
+- `pnpm db:down`
+
+### Notes / Risks
+
+- One transient BuildKit snapshot error occurred once during rebuild; immediate retry succeeded

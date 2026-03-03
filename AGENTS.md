@@ -2,7 +2,7 @@
 
 Persistent handoff for future sessions.
 
-Last updated: 2026-03-02 (MVP completion checkpoint)
+Last updated: 2026-03-02 (deploy validation + single-compose checkpoint)
 
 ## Snapshot
 
@@ -47,7 +47,7 @@ Last updated: 2026-03-02 (MVP completion checkpoint)
 - MVP-023 is done:
   - frontend smoke tests for critical routes (`apps/web/scripts/smoke-routes.mjs`)
 - MVP-024 is done:
-  - deployment setup/docs (`apps/api/Dockerfile`, `apps/web/Dockerfile`, `compose.deploy.yml`, `docs/deployment/README.md`)
+  - deployment setup/docs (`apps/api/Dockerfile`, `apps/web/Dockerfile`, `compose.yml`, `docs/deployment/README.md`)
   - container image workflow (`.github/workflows/deploy-images.yml`)
 
 ## Remaining MVP Items
@@ -59,6 +59,7 @@ Last updated: 2026-03-02 (MVP completion checkpoint)
 - Local runtime validated (`pnpm dev`): API `200` on `/api/health/data`, web `200` on `/`
 - Quality gates passed locally: `pnpm lint`, `pnpm --filter api test`, `pnpm --filter web test:smoke`, `pnpm build`
 - Infra naming aligned to VibeTiming (`f1_vibetiming` database and compose service naming)
+- Full stack deployment validated locally via single compose (`pnpm stack:up`): API `200` and web `200`
 
 ## Roadmap (Do Not Lose)
 
@@ -97,4 +98,5 @@ pnpm dev
 - Check `BACKLOG.md` first for checkbox status
 - Keep API responses backward compatible for existing web routes
 - Verify provider terms/licensing before any live-feed work
-- Docker was unavailable in this environment for end-to-end deploy validation; smoke tests and lint/unit/build were validated locally
+- Compose file strategy: one `compose.yml` with `app` profile for full stack and default infra-only startup
+- Image publish workflow is manual-only; `publish` input must be true to push to GHCR

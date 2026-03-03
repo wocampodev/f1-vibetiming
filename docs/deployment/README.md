@@ -12,20 +12,14 @@ This document captures the MVP deployment baseline for F1 VibeTiming.
 
 - API image build: `apps/api/Dockerfile`
 - Web image build: `apps/web/Dockerfile`
-- End-to-end deploy compose: `compose.deploy.yml`
+- Single compose file: `compose.yml` (uses `app` profile for API + web)
 
 ## Local Deploy-Like Run
 
 From repo root:
 
 ```bash
-docker compose -f compose.deploy.yml up -d --build
-```
-
-Then initialize schema:
-
-```bash
-pnpm --filter api prisma:push
+pnpm stack:up
 ```
 
 Health checks:
@@ -52,8 +46,9 @@ curl http://localhost:3000
 
 The workflow `.github/workflows/deploy-images.yml` builds API and web Docker images.
 
-- On pull requests: build validation only (no push)
-- On `main` and manual dispatch: push images to GHCR
+- Trigger mode: manual only (`workflow_dispatch`)
+- Default behavior: build without push
+- Optional: set `publish=true` when manually dispatching to push to GHCR
 
 Published image names:
 
@@ -65,3 +60,4 @@ Published image names:
 - Keep API contract backward compatible for existing web routes.
 - For production, use managed Postgres credentials and secure secrets.
 - If moving toward live mode, verify provider licensing/terms before enabling live adapters.
+- `api` service runs `prisma db push` at startup before `start:prod`.

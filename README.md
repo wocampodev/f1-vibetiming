@@ -57,7 +57,7 @@ Hero tagline options:
 
 ## Deployment (MVP)
 
-- Local deploy-like compose: `docker compose -f compose.deploy.yml up -d --build`
+- Local full stack via single compose: `pnpm stack:up`
 - Deployment docs: `docs/deployment/README.md`
 
 ## Key Endpoints

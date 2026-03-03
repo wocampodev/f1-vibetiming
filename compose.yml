@@ -11,6 +11,11 @@ services:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d f1_vibetiming']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -20,6 +25,41 @@ services:
       - '6379:6379'
     volumes:
       - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: f1-vibetiming-api
+    restart: unless-stopped
+    profiles: ['app']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >-
+      sh -c "pnpm --filter api exec prisma db push &&
+      pnpm --filter api start:prod"
+    environment:
+      API_PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/f1_vibetiming?schema=public
+      ERGAST_BASE_URL: https://api.jolpi.ca/ergast
+    ports:
+      - '4000:4000'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: f1-vibetiming-web
+    restart: unless-stopped
+    profiles: ['app']
+    depends_on:
+      - api
+    environment:
+      F1_API_BASE_URL: http://api:4000/api
+      NEXT_PUBLIC_API_BASE_URL: http://api:4000/api
+    ports:
+      - '3000:3000'
 
 volumes:
   postgres_data:
