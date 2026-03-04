@@ -1,5 +1,5 @@
 import { LiveService } from './live.service';
-import { LiveState } from './live.types';
+import { LivePublicState, LiveState } from './live.types';
 import { firstValueFrom } from 'rxjs';
 
 function createConfigMock(values: Record<string, unknown>) {
@@ -130,7 +130,13 @@ describe('LiveService', () => {
     await service.onModuleInit();
 
     expect(simulator.start).toHaveBeenCalledTimes(1);
-    expect(service.getState()).not.toBeNull();
+    const state = service.getState();
+    expect(state).not.toBeNull();
+    expect(state?.leaderboard[0]).not.toHaveProperty('trackStatus');
+    expect(state?.leaderboard[0]).not.toHaveProperty('speedKph');
+    expect(state?.leaderboard[0]).not.toHaveProperty('topSpeedKph');
+    expect(state?.leaderboard[0]).not.toHaveProperty('tireCompound');
+    expect(state?.leaderboard[0]).not.toHaveProperty('stintLap');
     expect(service.getHealth()).toMatchObject({
       source: 'simulator',
     });
@@ -171,13 +177,18 @@ describe('LiveService', () => {
     const data = event.data as {
       eventType: string;
       source: string;
-      payload: LiveState;
+      payload: LivePublicState;
     };
 
     expect(event.type).toBe('initial_state');
     expect(data.eventType).toBe('initial_state');
     expect(data.source).toBe('simulator');
     expect(data.payload.session.sessionName).toContain('Simulator');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('trackStatus');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('speedKph');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('topSpeedKph');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('tireCompound');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('stintLap');
   });
 
   it('streams status envelope when provider is degraded without state', async () => {

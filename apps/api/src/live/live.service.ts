@@ -14,6 +14,7 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LivePublicState,
   LiveState,
   LiveStatusPayload,
   LiveStreamEventType,
@@ -25,7 +26,10 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LiveService.name);
   private readonly streamSubject = new Subject<
     LiveEnvelope<
-      LiveState | LiveDeltaPayload | LiveHeartbeatPayload | LiveStatusPayload
+      | LivePublicState
+      | LiveDeltaPayload
+      | LiveHeartbeatPayload
+      | LiveStatusPayload
     >
   >();
 
@@ -54,9 +58,10 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   stream(): Observable<MessageEvent> {
     return new Observable<MessageEvent>((subscriber) => {
       if (this.currentState) {
+        const publicState = this.toPublicState(this.currentState);
         subscriber.next({
           type: 'initial_state',
-          data: this.wrapEnvelope('initial_state', this.currentState),
+          data: this.wrapEnvelope('initial_state', publicState),
         });
       } else {
         subscriber.next({
@@ -79,8 +84,8 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  getState(): LiveState | null {
-    return this.currentState;
+  getState(): LivePublicState | null {
+    return this.currentState ? this.toPublicState(this.currentState) : null;
   }
 
   getHealth() {
@@ -105,8 +110,9 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       await this.adapter.start((event) => {
         if (event.type === 'initial_state') {
           this.currentState = event.state;
+          const publicState = this.toPublicState(event.state);
           this.streamSubject.next(
-            this.wrapEnvelope('initial_state', this.currentState),
+            this.wrapEnvelope('initial_state', publicState),
           );
           return;
         }
@@ -115,7 +121,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
           this.currentState = event.state;
           this.streamSubject.next(
             this.wrapEnvelope('delta_update', {
-              state: event.state,
+              state: this.toPublicState(event.state),
               changedFields: event.changedFields,
             }),
           );
@@ -161,7 +167,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   private wrapEnvelope<
     TPayload extends
-      | LiveState
+      | LivePublicState
       | LiveDeltaPayload
       | LiveHeartbeatPayload
       | LiveStatusPayload,
@@ -172,6 +178,31 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       eventType,
       emittedAt: new Date().toISOString(),
       payload,
+    };
+  }
+
+  private toPublicState(state: LiveState): LivePublicState {
+    return {
+      generatedAt: state.generatedAt,
+      session: state.session,
+      leaderboard: state.leaderboard.map((entry) => {
+        return {
+          position: entry.position,
+          driverCode: entry.driverCode,
+          driverName: entry.driverName,
+          teamName: entry.teamName,
+          gapToLeaderSec: entry.gapToLeaderSec,
+          intervalToAheadSec: entry.intervalToAheadSec,
+          sector1Ms: entry.sector1Ms,
+          sector2Ms: entry.sector2Ms,
+          sector3Ms: entry.sector3Ms,
+          lastLapMs: entry.lastLapMs,
+          bestLapMs: entry.bestLapMs,
+          speedHistoryKph: entry.speedHistoryKph,
+          trackStatusHistory: entry.trackStatusHistory,
+        };
+      }),
+      raceControl: state.raceControl,
     };
   }
 }

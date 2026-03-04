@@ -34,7 +34,7 @@ services:
       API_PORT: 4000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/f1_vibetiming?schema=public
       ERGAST_BASE_URL: https://api.jolpi.ca/ergast
-      LIVE_SOURCE: provider
+      LIVE_SOURCE: simulator
       LIVE_SIGNALR_BASE_URL: https://livetiming.formula1.com/signalr
     ports:
       - '4000:4000'

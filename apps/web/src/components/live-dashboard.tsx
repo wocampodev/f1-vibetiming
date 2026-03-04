@@ -36,14 +36,6 @@ const flagToneByValue: Record<string, string> = {
   checkered: "border-zinc-200/50 bg-zinc-300/10 text-zinc-100",
 };
 
-const tireToneByValue: Record<string, string> = {
-  SOFT: "border-red-400/40 bg-red-400/10 text-red-200",
-  MEDIUM: "border-amber-400/40 bg-amber-400/10 text-amber-200",
-  HARD: "border-zinc-300/40 bg-zinc-300/10 text-zinc-100",
-  INTERMEDIATE: "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
-  WET: "border-blue-400/40 bg-blue-400/10 text-blue-200",
-};
-
 const positionTone = [
   "from-red-500 to-red-600",
   "from-orange-500 to-orange-600",
@@ -125,62 +117,8 @@ const formatGap = (seconds: number | null, isLeader: boolean): string => {
 const formatFlagLabel = (value: string): string =>
   value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 
-const formatTrackStatus = (value: string | null): string => {
-  if (!value) {
-    return "-";
-  }
-
-  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-};
-
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
-
-const SPARKLINE_POINTS = 10;
-
-const getSpeedTrendDelta = (
-  history: LiveLeaderboardEntry["speedHistoryKph"],
-): number | null => {
-  if (history.length < 2) {
-    return null;
-  }
-
-  const window = history.slice(-SPARKLINE_POINTS);
-  return window[window.length - 1].kph - window[0].kph;
-};
-
-function SpeedSparkline({
-  history,
-}: {
-  history: LiveLeaderboardEntry["speedHistoryKph"];
-}) {
-  if (history.length < 2) {
-    return null;
-  }
-
-  const window = history.slice(-SPARKLINE_POINTS);
-  const values = window.map((point) => point.kph);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(1, max - min);
-
-  return (
-    <div className="mt-1 flex h-5 items-end gap-0.5" aria-label="Speed trend">
-      {window.map((point, index) => {
-        const pct = (point.kph - min) / range;
-        const heightPx = Math.max(3, Math.round(3 + pct * 14));
-
-        return (
-          <span
-            key={`${point.at}-${index}`}
-            className="w-1 rounded-sm bg-gradient-to-t from-[#2b9cff] to-[#67d6ff]"
-            style={{ height: `${heightPx}px` }}
-          />
-        );
-      })}
-    </div>
-  );
-}
 
 function SectorCell({
   label,
@@ -602,16 +540,12 @@ export function LiveDashboard() {
       {liveState ? (
         <div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1380px] bg-[#070d15] text-sm">
+            <table className="w-full min-w-[1080px] bg-[#070d15] text-sm">
               <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
                 <tr>
                   <th className="px-2 py-2">Pos</th>
                   <th className="px-2 py-2">Driver</th>
                   <th className="px-2 py-2">Team</th>
-                  <th className="px-2 py-2">Track</th>
-                  <th className="px-2 py-2">Speed</th>
-                  <th className="px-2 py-2">VMax</th>
-                  <th className="px-2 py-2">Tire</th>
                   <th className="px-2 py-2">S1</th>
                   <th className="px-2 py-2">S2</th>
                   <th className="px-2 py-2">S3</th>
@@ -623,11 +557,6 @@ export function LiveDashboard() {
               </thead>
               <tbody>
                 {rows.map((entry) => {
-                  const speedHistory = entry.speedHistoryKph ?? [];
-                  const trackStatusHistory = entry.trackStatusHistory ?? [];
-                  const speedTrendDelta = getSpeedTrendDelta(speedHistory);
-                  const recentTrackHistory = trackStatusHistory.slice(-3);
-
                   return (
                     <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
                     <td className="px-2 py-2">
@@ -646,51 +575,6 @@ export function LiveDashboard() {
                       </div>
                     </td>
                     <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
-                    <td className="px-2 py-2 text-xs text-[var(--muted)]">
-                      <div className="flex flex-col gap-1">
-                        <span>{formatTrackStatus(entry.trackStatus)}</span>
-                        {recentTrackHistory.length > 1 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {recentTrackHistory.map((sample, index) => (
-                              <span
-                                key={`${sample.at}-${index}`}
-                                className="rounded border border-[#2f4c69] bg-[#102034] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#9ec5e8]"
-                              >
-                                {formatTrackStatus(sample.status)}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
-                      <div className="flex flex-col">
-                        <span>{entry.speedKph == null ? "-" : `${entry.speedKph}`}</span>
-                        <SpeedSparkline history={speedHistory} />
-                        {speedTrendDelta != null ? (
-                          <span
-                            className={`text-[10px] uppercase tracking-wide ${speedTrendDelta > 0 ? "text-emerald-300" : speedTrendDelta < 0 ? "text-amber-300" : "text-[#8aa0be]"}`}
-                          >
-                            {speedTrendDelta > 0 ? `+${speedTrendDelta}` : speedTrendDelta} trend
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                      {entry.topSpeedKph == null ? "-" : `${entry.topSpeedKph}`}
-                    </td>
-                    <td className="px-2 py-2">
-                      {entry.tireCompound ? (
-                        <span
-                          className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tireToneByValue[entry.tireCompound] ?? tireToneByValue.HARD}`}
-                        >
-                          {entry.tireCompound}
-                          {entry.stintLap != null ? ` L${entry.stintLap}` : ""}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[#8aa0be]">-</span>
-                      )}
-                    </td>
                     <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
                     <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
                     <SectorCell label="S3" value={entry.sector3Ms} max={sectorMax.s3} />
@@ -745,7 +629,7 @@ export function LiveDashboard() {
         </div>
       ) : (
         <p className="px-5 py-4 text-sm text-[var(--muted)]">
-          Waiting for live provider snapshot.
+          Waiting for live snapshot.
         </p>
       )}
     </section>

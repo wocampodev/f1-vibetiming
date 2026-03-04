@@ -110,9 +110,6 @@ export interface LiveLeaderboardEntry {
   driverCode: string;
   driverName: string | null;
   teamName: string | null;
-  trackStatus: string | null;
-  speedKph: number | null;
-  topSpeedKph: number | null;
   gapToLeaderSec: number | null;
   intervalToAheadSec: number | null;
   sector1Ms: number | null;
@@ -122,8 +119,6 @@ export interface LiveLeaderboardEntry {
   bestLapMs: number | null;
   speedHistoryKph: LiveSpeedSample[];
   trackStatusHistory: LiveTrackStatusSample[];
-  tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
-  stintLap: number | null;
 }
 
 export interface LiveRaceControlMessage {

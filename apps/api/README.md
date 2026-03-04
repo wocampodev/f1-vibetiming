@@ -37,7 +37,7 @@ Standings endpoints:
 
 Live runtime environment variables:
 
-- `LIVE_SOURCE` (`provider` default; set `simulator` for local opt-in)
+- `LIVE_SOURCE` (`simulator` default for local dev; set `provider` to use real live feed)
 - `LIVE_SIGNALR_BASE_URL` (default `https://livetiming.formula1.com/signalr`)
 - `LIVE_SIGNALR_HUB` (default `streaming`)
 - `LIVE_SIGNALR_TOPICS` (comma-separated topic list)

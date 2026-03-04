@@ -58,6 +58,11 @@ export interface LiveLeaderboardEntry {
   stintLap: number | null;
 }
 
+export type LivePublicLeaderboardEntry = Omit<
+  LiveLeaderboardEntry,
+  'trackStatus' | 'speedKph' | 'topSpeedKph' | 'tireCompound' | 'stintLap'
+>;
+
 export interface LiveRaceControlMessage {
   id: string;
   emittedAt: string;
@@ -73,9 +78,16 @@ export interface LiveState {
   raceControl: LiveRaceControlMessage[];
 }
 
+export interface LivePublicState {
+  generatedAt: string;
+  session: LiveSessionState;
+  leaderboard: LivePublicLeaderboardEntry[];
+  raceControl: LiveRaceControlMessage[];
+}
+
 export interface LiveDeltaPayload {
   changedFields: string[];
-  state: LiveState;
+  state: LivePublicState;
 }
 
 export interface LiveHeartbeatPayload {
