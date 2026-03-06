@@ -7,7 +7,6 @@ import {
   LiveHeartbeatPayload,
   LiveLeaderboardEntry,
   LiveState,
-  LiveStatusPayload,
   LiveStreamStatus,
 } from "@/lib/types";
 
@@ -19,13 +18,7 @@ const RECONNECT_MAX_DELAY_MS = 30000;
 const FALLBACK_POLL_MS = 5000;
 const HEALTH_POLL_MS = 10000;
 const STALE_THRESHOLD_MS = 40000;
-
-const statusToneByValue: Record<LiveStreamStatus, string> = {
-  connecting: "border-amber-400/40 bg-amber-400/10 text-amber-200",
-  live: "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
-  degraded: "border-orange-400/40 bg-orange-400/10 text-orange-200",
-  stopped: "border-zinc-400/40 bg-zinc-400/10 text-zinc-200",
-};
+const NO_FEED_NOTICE_THRESHOLD_SEC = 20;
 
 const flagToneByValue: Record<string, string> = {
   green: "border-emerald-400/50 bg-emerald-400/10 text-emerald-200",
@@ -48,25 +41,6 @@ const positionTone = [
   "from-indigo-500 to-indigo-600",
   "from-blue-600 to-blue-700",
 ];
-
-interface LiveHealth {
-  source: string;
-  status: LiveStreamStatus;
-  lastEventAt: string | null;
-  details?: {
-    reconnectAttempt?: number;
-    socketOpen?: boolean;
-    connectedAt?: string | null;
-    connectionUptimeSec?: number | null;
-    lastFrameAt?: string | null;
-    framesReceived?: number;
-    feedMessagesReceived?: number;
-    frameParseErrors?: number;
-    topicDecodeErrors?: number;
-    topicMessageCount?: Record<string, number>;
-    topicLastSeenAt?: Record<string, string>;
-  } | null;
-}
 
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
   try {
@@ -120,6 +94,15 @@ const formatFlagLabel = (value: string): string =>
 const getPositionTone = (position: number): string =>
   positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
 
+interface LiveHealth {
+  status: LiveStreamStatus;
+  details?: {
+    socketOpen?: boolean;
+    connectionUptimeSec?: number | null;
+    feedMessagesReceived?: number;
+  } | null;
+}
+
 function SectorCell({
   label,
   value,
@@ -157,12 +140,43 @@ function SectorCell({
 
 export function LiveDashboard() {
   const [liveState, setLiveState] = useState<LiveState | null>(null);
-  const [status, setStatus] = useState<LiveStreamStatus>("connecting");
-  const [statusMessage, setStatusMessage] = useState("Connecting to live stream");
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
-  const [streamSource, setStreamSource] = useState<string>("provider");
   const [health, setHealth] = useState<LiveHealth | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHealth = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/live/health`, {
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const payload = (await response.json()) as LiveHealth;
+        if (!cancelled) {
+          setHealth(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setHealth(null);
+        }
+      }
+    };
+
+    void loadHealth();
+    const timer = window.setInterval(() => {
+      void loadHealth();
+    }, HEALTH_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -230,7 +244,7 @@ export function LiveDashboard() {
       stream = null;
     };
 
-    const scheduleReconnect = (reason: string) => {
+    const scheduleReconnect = () => {
       if (closed || reconnectTimer) {
         return;
       }
@@ -241,8 +255,6 @@ export function LiveDashboard() {
         RECONNECT_BASE_DELAY_MS * 2 ** Math.max(0, reconnectAttempt - 1),
       );
 
-      setStatus("connecting");
-      setStatusMessage(`Reconnecting stream in ${Math.round(delayMs / 1000)}s (${reason})`);
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
         openStream();
@@ -259,17 +271,13 @@ export function LiveDashboard() {
 
       stream.onopen = () => {
         reconnectAttempt = 0;
-        setStatus("live");
-        setStatusMessage("Live stream connected");
         stopFallback();
       };
 
       stream.onerror = () => {
-        setStatus("degraded");
-        setStatusMessage("Connection issue detected, switching to fallback polling");
         startFallback();
         closeStream();
-        scheduleReconnect("SSE error");
+        scheduleReconnect();
       };
 
       const handleInitial = (event: MessageEvent<string>) => {
@@ -278,7 +286,6 @@ export function LiveDashboard() {
           return;
         }
 
-        setStreamSource(envelope.source);
         setLiveState(envelope.payload);
       };
 
@@ -288,19 +295,7 @@ export function LiveDashboard() {
           return;
         }
 
-        setStreamSource(envelope.source);
         setLiveState(envelope.payload.state);
-      };
-
-      const handleStatus = (event: MessageEvent<string>) => {
-        const envelope = parseEnvelope<LiveStatusPayload>(event.data);
-        if (!envelope) {
-          return;
-        }
-
-        setStreamSource(envelope.source);
-        setStatus(envelope.payload.status);
-        setStatusMessage(envelope.payload.message);
       };
 
       const handleHeartbeat = (event: MessageEvent<string>) => {
@@ -309,13 +304,11 @@ export function LiveDashboard() {
           return;
         }
 
-        setStreamSource(envelope.source);
         setLastHeartbeat(envelope.payload.at);
       };
 
       stream.addEventListener("initial_state", handleInitial as EventListener);
       stream.addEventListener("delta_update", handleDelta as EventListener);
-      stream.addEventListener("status", handleStatus as EventListener);
       stream.addEventListener("heartbeat", handleHeartbeat as EventListener);
     };
 
@@ -333,84 +326,14 @@ export function LiveDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadHealth = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/live/health`, {
-          cache: "no-store",
-        });
-        if (!response.ok || cancelled) {
-          return;
-        }
-
-        const payload = (await response.json()) as LiveHealth;
-        if (!cancelled) {
-          setHealth(payload);
-        }
-      } catch {
-        if (!cancelled) {
-          setHealth(null);
-        }
-      }
-    };
-
-    void loadHealth();
-    const timer = window.setInterval(() => {
-      void loadHealth();
-    }, HEALTH_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
   const streamStale = useMemo(() => {
-    const reference = lastHeartbeat ?? liveState?.generatedAt ?? health?.lastEventAt ?? null;
+    const reference = lastHeartbeat ?? liveState?.generatedAt ?? null;
     if (!reference) {
       return false;
     }
 
     return nowMs - new Date(reference).getTime() > STALE_THRESHOLD_MS;
-  }, [health?.lastEventAt, lastHeartbeat, liveState?.generatedAt, nowMs]);
-
-  const providerLagSec = (() => {
-    if (!health?.lastEventAt) {
-      return null;
-    }
-
-    return Math.max(0, Math.floor((nowMs - new Date(health.lastEventAt).getTime()) / 1000));
-  })();
-
-  const feedMessagesPerMinute = useMemo(() => {
-    const totalMessages = health?.details?.feedMessagesReceived;
-    const uptimeSec = health?.details?.connectionUptimeSec;
-    if (
-      typeof totalMessages !== "number" ||
-      typeof uptimeSec !== "number" ||
-      uptimeSec <= 0
-    ) {
-      return null;
-    }
-
-    return Math.round((totalMessages / uptimeSec) * 60);
-  }, [health?.details?.connectionUptimeSec, health?.details?.feedMessagesReceived]);
-
-  const topicLeaders = useMemo(() => {
-    const topicMessageCount = health?.details?.topicMessageCount;
-    if (!topicMessageCount) {
-      return [];
-    }
-
-    return Object.entries(topicMessageCount)
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 4);
-  }, [health?.details?.topicMessageCount]);
-
-  const parserIssues =
-    (health?.details?.frameParseErrors ?? 0) + (health?.details?.topicDecodeErrors ?? 0);
+  }, [lastHeartbeat, liveState?.generatedAt, nowMs]);
 
   const sectorMax = useMemo(() => {
     if (!liveState || liveState.leaderboard.length === 0) {
@@ -436,6 +359,12 @@ export function LiveDashboard() {
 
   const rows: LiveLeaderboardEntry[] = liveState?.leaderboard ?? [];
   const raceControl = liveState?.raceControl ?? [];
+  const partialLeaderboard = rows.length > 0 && rows[0].position > 1;
+  const noFeedYet =
+    !liveState &&
+    health?.details?.socketOpen === true &&
+    (health.details.connectionUptimeSec ?? 0) >= NO_FEED_NOTICE_THRESHOLD_SEC &&
+    (health.details.feedMessagesReceived ?? 0) === 0;
   const lapLabel =
     liveState?.session.currentLap != null && liveState.session.totalLaps != null
       ? `L${liveState.session.currentLap}/${liveState.session.totalLaps}`
@@ -452,100 +381,45 @@ export function LiveDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusToneByValue[status]}`}
-            >
-              {status}
-            </span>
             <span className="rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#d3e1f5]">
               {lapLabel}
             </span>
             {liveState ? (
               <span
                 className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${flagToneByValue[liveState.session.flag] ?? "border-zinc-400/40 bg-zinc-400/10 text-zinc-200"}`}
-              >
-                {formatFlagLabel(liveState.session.flag)}
-              </span>
-            ) : null}
-            <span className="rounded-full border border-[#2f4c69] bg-[#102034] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#9ec5e8]">
-              Source {streamSource}
-            </span>
+                >
+                  {formatFlagLabel(liveState.session.flag)}
+                </span>
+              ) : null}
           </div>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
-          <span>{statusMessage}</span>
-          {lastHeartbeat ? <span>Heartbeat {formatClock(lastHeartbeat)}</span> : null}
           {liveState ? <span>Updated {formatClock(liveState.generatedAt)}</span> : null}
-          {providerLagSec != null ? <span>Provider lag {providerLagSec}s</span> : null}
-          {typeof health?.details?.connectionUptimeSec === "number" ? (
-            <span>Connected {health.details.connectionUptimeSec}s</span>
-          ) : null}
-          {health?.details?.lastFrameAt ? (
-            <span>Last frame {formatClock(health.details.lastFrameAt)}</span>
-          ) : null}
-          {typeof health?.details?.reconnectAttempt === "number" ? (
-            <span>Reconnect attempts {health.details.reconnectAttempt}</span>
-          ) : null}
+          {liveState?.session.clockIso ? <span>Clock {formatClock(liveState.session.clockIso)}</span> : null}
         </div>
 
         {streamStale ? (
           <p className="mt-2 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
-            Stream is stale. Dashboard is using latest known data while reconnecting.
+            Feed is stale. Showing latest available timing data.
           </p>
         ) : null}
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Socket</p>
-            <p className="mt-1 text-sm text-[#e5eefc]">
-              {health?.details?.socketOpen ? "Open" : "Closed"}
-            </p>
-          </div>
-          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Frames / Messages</p>
-            <p className="mt-1 text-sm text-[#e5eefc]">
-              {health?.details?.framesReceived ?? 0} / {health?.details?.feedMessagesReceived ?? 0}
-            </p>
-          </div>
-          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Message Rate</p>
-            <p className="mt-1 text-sm text-[#e5eefc]">
-              {feedMessagesPerMinute == null ? "-" : `${feedMessagesPerMinute}/min`}
-            </p>
-          </div>
-          <div className="rounded-md border border-[var(--line)] bg-[#0e1827] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-[#8aa0be]">Parse Issues</p>
-            <p className={`mt-1 text-sm ${parserIssues > 0 ? "text-orange-300" : "text-[#e5eefc]"}`}>
-              {parserIssues}
-            </p>
-          </div>
-        </div>
-
-        {topicLeaders.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-            <span className="uppercase tracking-wide text-[#8aa0be]">Top topics</span>
-            {topicLeaders.map(([topic, count]) => (
-              <span
-                key={topic}
-                className="rounded-full border border-[#2f4c69] bg-[#102034] px-2 py-1 font-mono text-[11px] text-[#c9e2ff]"
-              >
-                {topic} {count}
-              </span>
-            ))}
-          </div>
+        {partialLeaderboard ? (
+          <p className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+            Showing available timing rows while full order data is still arriving.
+          </p>
         ) : null}
       </div>
 
       {liveState ? (
         <div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] bg-[#070d15] text-sm">
+            <table className="w-full min-w-[980px] bg-[#070d15] text-sm">
               <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
                 <tr>
                   <th className="px-2 py-2">Pos</th>
                   <th className="px-2 py-2">Driver</th>
-                  <th className="px-2 py-2">Team</th>
                   <th className="px-2 py-2">S1</th>
                   <th className="px-2 py-2">S2</th>
                   <th className="px-2 py-2">S3</th>
@@ -571,10 +445,11 @@ export function LiveDashboard() {
                         <span className="rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-xl font-bold tracking-wide text-[#d7ebff]">
                           {entry.driverCode}
                         </span>
-                        <span className="text-xs text-[var(--muted)]">{entry.driverName ?? "-"}</span>
+                        {entry.driverName ? (
+                          <span className="text-xs text-[var(--muted)]">{entry.driverName}</span>
+                        ) : null}
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-sm text-[var(--muted)]">{entry.teamName ?? "-"}</td>
                     <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
                     <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
                     <SectorCell label="S3" value={entry.sector3Ms} max={sectorMax.s3} />
@@ -628,9 +503,15 @@ export function LiveDashboard() {
           </div>
         </div>
       ) : (
-        <p className="px-5 py-4 text-sm text-[var(--muted)]">
-          Waiting for live snapshot.
-        </p>
+        <div className="space-y-3 px-5 py-4">
+          <p className="text-sm text-[var(--muted)]">Waiting for live snapshot.</p>
+          {noFeedYet ? (
+            <p className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+              Provider is connected but no timing updates are being published yet. This usually
+              means there is no active official live session at the moment.
+            </p>
+          ) : null}
+        </div>
       )}
     </section>
   );

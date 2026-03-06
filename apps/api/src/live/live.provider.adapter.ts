@@ -45,6 +45,10 @@ export interface SignalrFeedExtractionResult {
   invalidFrames: number;
 }
 
+interface LiveLeaderboardDraftEntry extends LiveLeaderboardEntry {
+  explicitPosition: number | null;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 const DEFAULT_TOPICS = [
@@ -88,6 +92,30 @@ const isRecord = (value: unknown): value is JsonRecord =>
 
 const asRecord = (value: unknown): JsonRecord | null =>
   isRecord(value) ? value : null;
+
+const unwrapValueNode = (value: unknown): unknown => {
+  const record = asRecord(value);
+  if (!record) {
+    return value;
+  }
+
+  return (
+    record.Value ??
+    record.value ??
+    record.PreviousValue ??
+    record.previousValue ??
+    value
+  );
+};
+
+const asTextValue = (value: unknown): string | null => {
+  const direct = asString(value);
+  if (direct) {
+    return direct;
+  }
+
+  return asString(unwrapValueNode(value));
+};
 
 const asString = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
@@ -137,9 +165,18 @@ const toIso = (value: unknown, fallback = new Date().toISOString()): string => {
 };
 
 const parseLapOrSectorMs = (value: unknown): number | null => {
-  const raw = asString(value);
+  const raw = asTextValue(value);
   if (!raw) {
-    return null;
+    const numeric = asNumber(unwrapValueNode(value));
+    if (numeric == null) {
+      return null;
+    }
+
+    if (numeric > 1000) {
+      return Math.round(numeric);
+    }
+
+    return Math.round(numeric * 1000);
   }
 
   const trimmed = raw.trim();
@@ -169,9 +206,9 @@ const parseLapOrSectorMs = (value: unknown): number | null => {
 };
 
 const parseGapSeconds = (value: unknown): number | null => {
-  const raw = asString(value);
+  const raw = asTextValue(value);
   if (!raw) {
-    return null;
+    return asNumber(unwrapValueNode(value));
   }
 
   const trimmed = raw.trim();
@@ -301,8 +338,67 @@ const parseTimingStatsSector = (
   }
 
   const bestSectors = asRecordArray(timingStats.BestSectors);
-  const node = bestSectors.at(index);
-  return node ? parseLapOrSectorMs(node.Value) : null;
+  if (bestSectors.length > 0) {
+    const node = bestSectors.at(index);
+    return node ? parseLapOrSectorMs(node.Value ?? node) : null;
+  }
+
+  const bestSectorsRecord = asRecord(timingStats.BestSectors);
+  if (!bestSectorsRecord) {
+    return null;
+  }
+
+  const hasZeroBasedIndex = Object.prototype.hasOwnProperty.call(
+    bestSectorsRecord,
+    '0',
+  );
+  const preferredKey = hasZeroBasedIndex ? String(index) : String(index + 1);
+  const secondaryKey = hasZeroBasedIndex ? String(index + 1) : String(index);
+  const directNode =
+    bestSectorsRecord[preferredKey] ?? bestSectorsRecord[secondaryKey];
+  if (directNode !== undefined) {
+    return parseLapOrSectorMs(directNode);
+  }
+
+  const numericNodes = Object.entries(bestSectorsRecord)
+    .filter(([key]) => /^\d+$/.test(key))
+    .sort(
+      ([left], [right]) =>
+        Number.parseInt(left, 10) - Number.parseInt(right, 10),
+    );
+
+  return parseLapOrSectorMs(numericNodes[index]?.[1]);
+};
+
+const parseTimingStatsBestLap = (
+  timingStats: JsonRecord | undefined,
+): number | null => {
+  if (!timingStats) {
+    return null;
+  }
+
+  return (
+    parseLapOrSectorMs(timingStats.PersonalBestLapTime) ??
+    parseLapOrSectorMs(timingStats.BestLapTime)
+  );
+};
+
+const parseTimingGapField = (
+  timing: JsonRecord | undefined,
+  fieldNames: string[],
+): number | null => {
+  if (!timing) {
+    return null;
+  }
+
+  for (const fieldName of fieldNames) {
+    const parsed = parseGapSeconds(timing[fieldName]);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+
+  return null;
 };
 
 const mergeRecords = (
@@ -821,7 +917,7 @@ export class ProviderStateAccumulator {
       ...this.timingByNumber.keys(),
     ]);
 
-    const leaderboard: LiveLeaderboardEntry[] = [];
+    const draftLeaderboard: LiveLeaderboardDraftEntry[] = [];
 
     for (const number of numbers) {
       const driver = this.driverByNumber.get(number);
@@ -835,30 +931,41 @@ export class ProviderStateAccumulator {
         continue;
       }
 
-      const position = toInt(timing.Position) ?? toInt(timing.Line);
-      if (position == null) {
-        continue;
-      }
+      const explicitPosition =
+        toInt(timing.Position) ??
+        toInt(timing.Line) ??
+        toInt(timingApp?.Line) ??
+        toInt(driver?.Line);
 
       const sectors = asRecord(timing.Sectors);
       const sector1 = asRecord(sectors?.['0']);
       const sector2 = asRecord(sectors?.['1']);
       const sector3 = asRecord(sectors?.['2']);
       const sector1Ms =
-        parseLapOrSectorMs(sector1?.Value) ??
-        parseTimingStatsSector(timingStats, 0);
+        parseLapOrSectorMs(sector1) ?? parseTimingStatsSector(timingStats, 0);
       const sector2Ms =
-        parseLapOrSectorMs(sector2?.Value) ??
-        parseTimingStatsSector(timingStats, 1);
-      const sector3Ms =
-        parseLapOrSectorMs(sector3?.Value) ??
-        parseTimingStatsSector(timingStats, 2);
+        parseLapOrSectorMs(sector2) ?? parseTimingStatsSector(timingStats, 1);
+      let sector3Ms =
+        parseLapOrSectorMs(sector3) ?? parseTimingStatsSector(timingStats, 2);
 
-      const statsBestLap = parseLapOrSectorMs(
-        asRecord(timingStats?.PersonalBestLapTime)?.Value,
-      );
+      const lastLapMs = parseLapOrSectorMs(timing.LastLapTime);
+
+      if (
+        sector3Ms == null &&
+        sector1Ms != null &&
+        sector2Ms != null &&
+        lastLapMs != null
+      ) {
+        const derivedSector3Ms = lastLapMs - sector1Ms - sector2Ms;
+        if (derivedSector3Ms > 0) {
+          sector3Ms = derivedSector3Ms;
+        }
+      }
+
       const bestLapMs =
-        parseLapOrSectorMs(asRecord(timing.BestLapTime)?.Value) ?? statsBestLap;
+        parseLapOrSectorMs(timing.BestLapTime) ??
+        parseTimingStatsBestLap(timingStats) ??
+        lastLapMs;
 
       const channels = asRecord(carData?.Channels);
       const speedHistoryKph = this.speedHistoryByNumber.get(number) ?? [];
@@ -882,9 +989,18 @@ export class ProviderStateAccumulator {
         resolvedTrackStatusHistory.at(-1)?.status ??
         null;
 
-      const intervalValue =
-        asString(asRecord(timing.IntervalToPositionAhead)?.Value) ??
-        asString(timing.IntervalToPositionAhead);
+      const gapToLeaderSec = parseTimingGapField(timing, [
+        'GapToLeader',
+        'TimeDiffToFastest',
+        'TimeDiffToFirst',
+      ]);
+
+      const intervalToAheadSec = parseTimingGapField(timing, [
+        'IntervalToPositionAhead',
+        'TimeDiffToPositionAhead',
+        'GapToPositionAhead',
+        'TimeDiffToCarAhead',
+      ]);
 
       const rawStints = timingApp ? timingApp.Stints : null;
       const stints: unknown[] = Array.isArray(rawStints)
@@ -909,8 +1025,8 @@ export class ProviderStateAccumulator {
         .join(' ')
         .trim();
 
-      leaderboard.push({
-        position,
+      draftLeaderboard.push({
+        position: explicitPosition ?? 0,
         driverCode:
           asString(driver?.Tla) ?? asString(driver?.RacingNumber) ?? number,
         driverName:
@@ -921,12 +1037,12 @@ export class ProviderStateAccumulator {
         trackStatus,
         speedKph,
         topSpeedKph,
-        gapToLeaderSec: parseGapSeconds(timing.GapToLeader),
-        intervalToAheadSec: parseGapSeconds(intervalValue),
+        gapToLeaderSec,
+        intervalToAheadSec,
         sector1Ms,
         sector2Ms,
         sector3Ms,
-        lastLapMs: parseLapOrSectorMs(asRecord(timing.LastLapTime)?.Value),
+        lastLapMs,
         bestLapMs,
         speedHistoryKph,
         trackStatusHistory: resolvedTrackStatusHistory,
@@ -934,10 +1050,117 @@ export class ProviderStateAccumulator {
           normalizeCompound(latestStint?.Compound) ??
           normalizeCompound(timing.Compound),
         stintLap: toInt(latestStint?.TotalLaps),
+        explicitPosition,
+      });
+    }
+
+    const explicitPositions = draftLeaderboard
+      .map((entry) => entry.explicitPosition)
+      .filter(
+        (position): position is number => position != null && position > 0,
+      );
+    const hasExplicitOrder = explicitPositions.length > 0;
+
+    draftLeaderboard.sort((left, right) => {
+      if (hasExplicitOrder) {
+        if (
+          left.explicitPosition != null &&
+          right.explicitPosition != null &&
+          left.explicitPosition !== right.explicitPosition
+        ) {
+          return left.explicitPosition - right.explicitPosition;
+        }
+
+        if (left.explicitPosition != null && right.explicitPosition == null) {
+          return -1;
+        }
+
+        if (left.explicitPosition == null && right.explicitPosition != null) {
+          return 1;
+        }
+      }
+
+      const leftBestLap = left.bestLapMs ?? Number.MAX_SAFE_INTEGER;
+      const rightBestLap = right.bestLapMs ?? Number.MAX_SAFE_INTEGER;
+      if (leftBestLap !== rightBestLap) {
+        return leftBestLap - rightBestLap;
+      }
+
+      const leftLastLap = left.lastLapMs ?? Number.MAX_SAFE_INTEGER;
+      const rightLastLap = right.lastLapMs ?? Number.MAX_SAFE_INTEGER;
+      if (leftLastLap !== rightLastLap) {
+        return leftLastLap - rightLastLap;
+      }
+
+      return left.driverCode.localeCompare(right.driverCode);
+    });
+
+    const leaderboard: LiveLeaderboardEntry[] = [];
+    const assignedPositions = new Set<number>();
+    let nextFallbackPosition = 1;
+
+    for (const entry of draftLeaderboard) {
+      let resolvedPosition: number;
+
+      if (
+        hasExplicitOrder &&
+        entry.explicitPosition != null &&
+        entry.explicitPosition > 0 &&
+        !assignedPositions.has(entry.explicitPosition)
+      ) {
+        resolvedPosition = entry.explicitPosition;
+      } else {
+        while (assignedPositions.has(nextFallbackPosition)) {
+          nextFallbackPosition += 1;
+        }
+        resolvedPosition = nextFallbackPosition;
+      }
+
+      assignedPositions.add(resolvedPosition);
+      const leaderboardEntry = {
+        ...entry,
+      } as LiveLeaderboardEntry & { explicitPosition?: number | null };
+      delete leaderboardEntry.explicitPosition;
+      leaderboard.push({
+        ...leaderboardEntry,
+        position: resolvedPosition,
       });
     }
 
     leaderboard.sort((a, b) => a.position - b.position);
+
+    const leader = leaderboard.at(0);
+    if (leader?.lastLapMs != null) {
+      for (let index = 1; index < leaderboard.length; index += 1) {
+        const current = leaderboard[index];
+        if (!current) {
+          continue;
+        }
+
+        if (current.gapToLeaderSec == null && current.lastLapMs != null) {
+          const fallbackGapSec = Number(
+            ((current.lastLapMs - leader.lastLapMs) / 1000).toFixed(3),
+          );
+          if (fallbackGapSec >= 0) {
+            current.gapToLeaderSec = fallbackGapSec;
+          }
+        }
+
+        const previous = leaderboard[index - 1];
+        if (
+          current.intervalToAheadSec == null &&
+          current.lastLapMs != null &&
+          previous?.lastLapMs != null
+        ) {
+          const fallbackIntervalSec = Number(
+            ((current.lastLapMs - previous.lastLapMs) / 1000).toFixed(3),
+          );
+          if (fallbackIntervalSec >= 0) {
+            current.intervalToAheadSec = fallbackIntervalSec;
+          }
+        }
+      }
+    }
 
     const hasSessionInfo =
       this.sessionName !== null ||

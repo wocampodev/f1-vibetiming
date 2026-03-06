@@ -548,4 +548,194 @@ describe('ProviderStateAccumulator', () => {
       sector3Ms: 31900,
     });
   });
+
+  it('supports object-based BestSectors payloads in TimingStats', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '44': {
+            Position: '2',
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingStats',
+      {
+        Lines: {
+          '44': {
+            PersonalBestLapTime: { Value: '1:33.200' },
+            BestSectors: {
+              '1': { Value: '30.100' },
+              '2': { Value: '31.200' },
+              '3': { Value: '31.900' },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 2,
+      bestLapMs: 93200,
+      sector1Ms: 30100,
+      sector2Ms: 31200,
+      sector3Ms: 31900,
+    });
+  });
+
+  it('maps alternative provider gap fields to gap and interval values', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:20.000' },
+            TimeDiffToFastest: '+0.000',
+          },
+          '2': {
+            Position: '2',
+            LastLapTime: { Value: '1:21.250' },
+            TimeDiffToFastest: '+1.250',
+            TimeDiffToPositionAhead: '+1.250',
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[1]).toMatchObject({
+      position: 2,
+      gapToLeaderSec: 1.25,
+      intervalToAheadSec: 1.25,
+    });
+  });
+
+  it('derives missing sector3, best lap, and gaps from lap timings when needed', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:20.000' },
+          },
+          '2': {
+            Position: '2',
+            LastLapTime: { Value: '1:21.500' },
+            Sectors: {
+              '0': { Value: '30.000' },
+              '1': { Value: '31.000' },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+
+    expect(state?.leaderboard[1]).toMatchObject({
+      position: 2,
+      bestLapMs: 81500,
+      sector1Ms: 30000,
+      sector2Ms: 31000,
+      sector3Ms: 20500,
+      gapToLeaderSec: 1.5,
+      intervalToAheadSec: 1.5,
+    });
+  });
+
+  it('reads sector times from previousValue nodes when live value is absent', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '81': {
+            Position: '1',
+            LastLapTime: { Value: '1:20.941' },
+            Sectors: {
+              '0': { previousValue: '28.260' },
+              '1': { previousValue: '18.020' },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      sector1Ms: 28260,
+      sector2Ms: 18020,
+      sector3Ms: 34661,
+      lastLapMs: 80941,
+      bestLapMs: 80941,
+    });
+  });
+
+  it('builds leaderboard rows when timing updates do not include explicit positions', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '81': {
+            LastLapTime: { Value: '1:20.000' },
+            BestLapTime: { Value: '1:19.500' },
+          },
+          '16': {
+            LastLapTime: { Value: '1:21.000' },
+            BestLapTime: { Value: '1:20.500' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+    expect(state?.leaderboard).toHaveLength(2);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '81',
+      bestLapMs: 79500,
+    });
+    expect(state?.leaderboard[1]).toMatchObject({
+      position: 2,
+      driverCode: '16',
+      bestLapMs: 80500,
+      gapToLeaderSec: 1,
+      intervalToAheadSec: 1,
+    });
+  });
 });
