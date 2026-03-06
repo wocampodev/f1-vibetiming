@@ -3,10 +3,27 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   decodeTopicPayload,
+  extractCookieJarEntries,
   extractFeedMessagesFromRawText,
   extractFeedMessagesFromRawTextWithStats,
   ProviderStateAccumulator,
 } from './live.provider.adapter';
+
+describe('extractCookieJarEntries', () => {
+  it('keeps only cookie pairs and deduplicates by cookie name', () => {
+    const entries = extractCookieJarEntries([
+      'AWSALB=first; Expires=Fri, 13 Mar 2026 02:28:16 GMT; Path=/',
+      'invalid',
+      'AWSALBCORS=first; Expires=Fri, 13 Mar 2026 02:28:16 GMT; Path=/; SameSite=None; Secure',
+      'AWSALB=second; Expires=Fri, 13 Mar 2026 02:29:16 GMT; Path=/',
+    ]);
+
+    expect(entries).toEqual([
+      ['AWSALB', 'second'],
+      ['AWSALBCORS', 'first'],
+    ]);
+  });
+});
 
 describe('decodeTopicPayload', () => {
   it('parses plain JSON payload when topic is not compressed', () => {

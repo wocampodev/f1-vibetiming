@@ -1,15 +1,12 @@
 # .opencode
 
-Local assistant session config for this repository.
+Minimal local assistant config for this repository.
 
 Files:
 
-- `config.yml`: project snapshot, locked decisions, roadmap pointers
-- `commands.yml`: bootstrap/dev/test/quality commands
-- `session.yml`: current focus, resume order, and guardrails
-- `checklist.md`: next-session execution and validation checklist
+- `config.yml`: stable project/runtime facts
+- `commands.yml`: bootstrap/dev/test/quality command catalog
 
-Primary planning docs remain:
+Canonical planning doc:
 
-- `BACKLOG.md`
 - `AGENTS.md`

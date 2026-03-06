@@ -67,7 +67,7 @@ F1 VibeTiming is a two-view product:
 
 ## Planning Artifacts
 
-- Backlog tracker: `BACKLOG.md`
-- Session handoff: `AGENTS.md`
+- Session handoff (canonical): `AGENTS.md`
+- Command catalog: `.opencode/commands.yml`
 - Architecture docs: `docs/architecture/README.md`
 - Deployment notes: `docs/deployment/README.md`

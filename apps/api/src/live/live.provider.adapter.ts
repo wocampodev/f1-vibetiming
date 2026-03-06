@@ -345,6 +345,56 @@ const appendTrackStatusHistoryPoint = (
   return next.slice(-MAX_TRACK_STATUS_HISTORY_POINTS);
 };
 
+const parseCookiePair = (setCookieValue: string): [string, string] | null => {
+  const firstPart = setCookieValue.split(';', 1)[0]?.trim() ?? '';
+  if (firstPart.length === 0) {
+    return null;
+  }
+
+  const separatorIndex = firstPart.indexOf('=');
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const name = firstPart.slice(0, separatorIndex).trim();
+  const value = firstPart.slice(separatorIndex + 1).trim();
+  if (name.length === 0 || value.length === 0) {
+    return null;
+  }
+
+  return [name, value];
+};
+
+export const extractCookieJarEntries = (
+  setCookieValues: string[],
+): Array<[string, string]> => {
+  const jar = new Map<string, string>();
+
+  for (const setCookieValue of setCookieValues) {
+    const parsed = parseCookiePair(setCookieValue);
+    if (!parsed) {
+      continue;
+    }
+
+    jar.set(parsed[0], parsed[1]);
+  }
+
+  return [...jar.entries()];
+};
+
+const readSetCookieValues = (headers: Headers): string[] => {
+  const withGetSetCookie = headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+
+  if (typeof withGetSetCookie.getSetCookie === 'function') {
+    return withGetSetCookie.getSetCookie();
+  }
+
+  const singleHeader = headers.get('set-cookie');
+  return singleHeader ? [singleHeader] : [];
+};
+
 export const decodeTopicPayload = (
   topic: string,
   payload: unknown,
@@ -943,6 +993,7 @@ export class LiveProviderAdapter implements LiveAdapter {
   private feedMessagesReceived = 0;
   private frameParseErrors = 0;
   private topicDecodeErrors = 0;
+  private readonly cookieJar = new Map<string, string>();
   private readonly topicMessageCount = new Map<string, number>();
   private readonly topicLastSeenAt = new Map<string, string>();
   private initialStatePublished = false;
@@ -997,6 +1048,7 @@ export class LiveProviderAdapter implements LiveAdapter {
     this.feedMessagesReceived = 0;
     this.frameParseErrors = 0;
     this.topicDecodeErrors = 0;
+    this.cookieJar.clear();
     this.topicMessageCount.clear();
     this.topicLastSeenAt.clear();
     this.initialStatePublished = false;
@@ -1073,6 +1125,9 @@ export class LiveProviderAdapter implements LiveAdapter {
         feedMessagesReceived: this.feedMessagesReceived,
         frameParseErrors: this.frameParseErrors,
         topicDecodeErrors: this.topicDecodeErrors,
+        cookieNames: [...this.cookieJar.keys()].sort((left, right) =>
+          left.localeCompare(right),
+        ),
         topicMessageCount,
         topicLastSeenAt,
       },
@@ -1155,9 +1210,42 @@ export class LiveProviderAdapter implements LiveAdapter {
     return url.toString();
   }
 
+  private getCookieHeader(): string | null {
+    if (this.cookieJar.size === 0) {
+      return null;
+    }
+
+    return [...this.cookieJar.entries()]
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ');
+  }
+
+  private getRequestHeaders(): Record<string, string> | undefined {
+    const cookieHeader = this.getCookieHeader();
+    if (!cookieHeader) {
+      return undefined;
+    }
+
+    return {
+      Cookie: cookieHeader,
+    };
+  }
+
+  private updateCookieJarFromHeaders(headers: Headers): void {
+    const setCookieValues = readSetCookieValues(headers);
+    const entries = extractCookieJarEntries(setCookieValues);
+
+    for (const [name, value] of entries) {
+      this.cookieJar.set(name, value);
+    }
+  }
+
   private async negotiate(): Promise<SignalrNegotiationResponse> {
     const url = this.buildHttpUrl('negotiate');
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: this.getRequestHeaders(),
+    });
+    this.updateCookieJarFromHeaders(response.headers);
     if (!response.ok) {
       throw new Error(`negotiate failed (${response.status})`);
     }
@@ -1176,9 +1264,13 @@ export class LiveProviderAdapter implements LiveAdapter {
 
   private async openWebSocket(connectionToken: string): Promise<WebSocket> {
     const url = this.buildWebSocketUrl(connectionToken);
+    const requestHeaders = this.getRequestHeaders();
 
     return new Promise<WebSocket>((resolve, reject) => {
-      const socket = new WebSocket(url);
+      const socket = new WebSocket(url, {
+        handshakeTimeout: 15_000,
+        headers: requestHeaders,
+      });
       const timeout = setTimeout(() => {
         socket.removeAllListeners();
         socket.terminate();
@@ -1206,7 +1298,10 @@ export class LiveProviderAdapter implements LiveAdapter {
 
   private async startSignalrTransport(connectionToken: string): Promise<void> {
     const url = this.buildHttpUrl('start', connectionToken);
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: this.getRequestHeaders(),
+    });
+    this.updateCookieJarFromHeaders(response.headers);
     if (!response.ok) {
       throw new Error(`start failed (${response.status})`);
     }
