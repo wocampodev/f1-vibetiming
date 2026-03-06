@@ -20,6 +20,12 @@ Deployment baseline for F1 VibeTiming.
 docker compose --profile app up -d --build
 ```
 
+Run in provider mode (without an override file):
+
+```bash
+LIVE_SOURCE=provider docker compose --profile app up -d --build
+```
+
 Stop stack:
 
 ```bash
@@ -42,7 +48,7 @@ curl http://localhost:3000/standings
 - `API_PORT`: HTTP port (default `4000`)
 - `DATABASE_URL`: Postgres DSN
 - `ERGAST_BASE_URL`: standings/results provider base URL
-- `LIVE_SOURCE`: `provider` (default) or `simulator`
+- `LIVE_SOURCE`: `simulator` by default in `compose.yml`; set `provider` to use real live feed
 - `LIVE_SIGNALR_BASE_URL`: SignalR base URL
 - `LIVE_SIGNALR_HUB`: SignalR hub name
 - `LIVE_SIGNALR_TOPICS`: live topic subscription list

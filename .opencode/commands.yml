@@ -10,6 +10,7 @@ dev:
 
 deploy:
   stack_up: docker compose --profile app up -d --build
+  stack_up_provider: LIVE_SOURCE=provider docker compose --profile app up -d --build
   stack_down: docker compose --profile app down
 
 test:

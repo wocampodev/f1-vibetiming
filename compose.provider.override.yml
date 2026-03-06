@@ -1,4 +1,0 @@
-services:
-  api:
-    environment:
-      LIVE_SOURCE: provider
