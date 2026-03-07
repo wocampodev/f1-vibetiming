@@ -1,37 +1,33 @@
 version: 1
 
 bootstrap:
-  - pnpm install
-  - docker compose up -d
-  - pnpm --filter api prisma:push
+  - make bootstrap
 
 dev:
-  - pnpm dev
+  - make dev
 
 deploy:
-  stack_up: docker compose --profile app up -d --build
-  stack_up_provider: LIVE_SOURCE=provider docker compose --profile app up -d --build
-  stack_up_provider_capture: LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=true LIVE_PROVIDER_LOG_MESSAGES=true docker compose --profile app up -d --build
-  stack_down: docker compose --profile app down
-  provider_logs: docker logs -f f1-vibetiming-api
-  backup_now: docker exec f1-vibetiming-postgres-backup sh /usr/local/bin/postgres-backup.sh
-  provider_capture_inspect: sh scripts/live-provider-inspect.sh
-  provider_capture_timingdata: sh scripts/live-provider-inspect.sh TimingData
-  provider_capture_export: node scripts/live-provider-export.mjs
+  stack_up: make stack-up
+  stack_up_provider: make stack-up-provider
+  stack_up_provider_capture: make stack-up-provider-capture
+  stack_up_provider_verbose: make stack-up-provider-verbose
+  stack_down: make stack-down
+  provider_logs: make logs-api
+  health: make health
+  backup_now: make backup-now
+  provider_capture_inspect: make provider-inspect
+  provider_capture_timingdata: make provider-inspect-topic TOPIC=TimingData
+  provider_capture_export: make provider-export
 
 test:
-  api_unit: pnpm --filter api test
-  api_e2e: pnpm --filter api test:e2e
-  web_smoke: pnpm --filter web test:smoke
+  api_unit: make test-api
+  api_e2e: make test-api-e2e
+  web_smoke: make test-web-smoke
 
 quality:
-  lint: pnpm lint
-  build: pnpm build
+  lint: make lint
+  build: make build
+  test_all: make test-all
 
 recommended_resume_flow:
-  - pnpm install
-  - docker compose up -d
-  - pnpm --filter api prisma:push
-  - pnpm --filter web test:smoke
-  - pnpm --filter api test:e2e
-  - pnpm dev
+  - make resume

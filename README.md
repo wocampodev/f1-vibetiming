@@ -14,47 +14,58 @@ F1 VibeTiming is a two-view product:
 
 ## Quick Start
 
-1. Install dependencies:
+Primary command surface:
 
-   ```bash
-   pnpm install
-   ```
+- run `make help`
+- use the `Makefile` at the repo root as the main place to discover local actions
+- `.opencode/commands.yml` now wraps those same `make` targets
 
-2. Copy environment variables:
+Recommended local bootstrap:
 
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+make bootstrap
+make dev
+```
 
-3. Start infrastructure:
+This will:
 
-   ```bash
-   docker compose up -d
-   ```
+- install dependencies
+- create `.env` from `.env.example` if needed
+- start local infrastructure
+- push the Prisma schema
 
-4. Push Prisma schema:
+Open:
 
-   ```bash
-   pnpm --filter api prisma:push
-   ```
+- Live dashboard: `http://localhost:3000/`
+- Championship standings: `http://localhost:3000/standings`
 
-5. Start apps:
+## Common Actions
 
-   ```bash
-   pnpm dev
-   ```
+Use `make help` for the full list. Most-used targets:
 
-6. Open:
+- `make bootstrap`
+- `make dev`
+- `make lint`
+- `make test-all`
+- `make stack-up-provider-capture`
+- `make logs-api`
+- `make provider-inspect`
+- `make provider-export`
+- `make backup-now`
 
-   - Live dashboard: `http://localhost:3000/`
-   - Championship standings: `http://localhost:3000/standings`
+## Branching Workflow
+
+- Ongoing development now happens on `develop`
+- Stabilized work should go from `develop` to `main` through pull requests
+- Local refactors and validation can continue without live provider traffic by using the captured data and automated tests
 
 ## Quality Checks
 
-- `pnpm lint`
-- `pnpm --filter api test`
-- `pnpm --filter web test:smoke`
-- `pnpm build`
+- `make lint`
+- `make test-api`
+- `make test-web-smoke`
+- `make build`
+- `make test-all`
 
 ## Live Runtime Notes
 
@@ -70,7 +81,8 @@ F1 VibeTiming is a two-view product:
 ## Planning Artifacts
 
 - Session handoff (canonical): `AGENTS.md`
-- Command catalog: `.opencode/commands.yml`
+- Primary command catalog: `Makefile`
+- OpenCode wrapper catalog: `.opencode/commands.yml`
 - Architecture docs: `docs/architecture/README.md`
 - Deployment notes: `docs/deployment/README.md`
 - Provider analysis docs: `docs/live-provider/README.md`
