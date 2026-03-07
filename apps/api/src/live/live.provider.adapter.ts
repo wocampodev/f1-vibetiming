@@ -48,7 +48,9 @@ export interface SignalrFeedExtractionResult {
 }
 
 interface LiveLeaderboardDraftEntry extends LiveLeaderboardEntry {
+  driverNumber: string;
   explicitPosition: number | null;
+  previousResolvedPosition: number | null;
 }
 
 interface DisplayedSectorTimes {
@@ -718,6 +720,7 @@ export class ProviderStateAccumulator {
     string,
     DisplayedSectorTimes
   >();
+  private readonly resolvedPositionByNumber = new Map<string, number>();
   private readonly speedHistoryByNumber = new Map<string, LiveSpeedSample[]>();
   private readonly trackStatusHistoryByNumber = new Map<
     string,
@@ -1022,11 +1025,9 @@ export class ProviderStateAccumulator {
         continue;
       }
 
-      const explicitPosition =
-        toInt(timing.Position) ??
-        toInt(timing.Line) ??
-        toInt(timingApp?.Line) ??
-        toInt(driver?.Line);
+      const explicitPosition = toInt(timing.Position);
+      const previousResolvedPosition =
+        this.resolvedPositionByNumber.get(number) ?? null;
 
       const sectors = asRecord(timing.Sectors);
       const sector1 = asRecord(sectors?.['0']);
@@ -1138,6 +1139,7 @@ export class ProviderStateAccumulator {
       const rosterEntry = LIVE_DRIVER_ROSTER_BY_NUMBER[number];
 
       draftLeaderboard.push({
+        driverNumber: number,
         position: explicitPosition ?? 0,
         driverCode:
           asString(driver?.Tla) ?? asString(driver?.RacingNumber) ?? number,
@@ -1168,6 +1170,7 @@ export class ProviderStateAccumulator {
           normalizeCompound(timing.Compound),
         stintLap: toInt(latestStint?.TotalLaps),
         explicitPosition,
+        previousResolvedPosition,
       });
     }
 
@@ -1197,6 +1200,28 @@ export class ProviderStateAccumulator {
         }
       }
 
+      if (
+        left.previousResolvedPosition != null &&
+        right.previousResolvedPosition != null &&
+        left.previousResolvedPosition !== right.previousResolvedPosition
+      ) {
+        return left.previousResolvedPosition - right.previousResolvedPosition;
+      }
+
+      if (
+        left.previousResolvedPosition != null &&
+        right.previousResolvedPosition == null
+      ) {
+        return -1;
+      }
+
+      if (
+        left.previousResolvedPosition == null &&
+        right.previousResolvedPosition != null
+      ) {
+        return 1;
+      }
+
       const leftBestLap = left.bestLapMs ?? Number.MAX_SAFE_INTEGER;
       const rightBestLap = right.bestLapMs ?? Number.MAX_SAFE_INTEGER;
       if (leftBestLap !== rightBestLap) {
@@ -1213,6 +1238,7 @@ export class ProviderStateAccumulator {
     });
 
     const leaderboard: LiveLeaderboardEntry[] = [];
+    const nextResolvedPositions = new Map<string, number>();
     const assignedPositions = new Set<number>();
     let nextFallbackPosition = 1;
 
@@ -1226,6 +1252,12 @@ export class ProviderStateAccumulator {
         !assignedPositions.has(entry.explicitPosition)
       ) {
         resolvedPosition = entry.explicitPosition;
+      } else if (
+        entry.previousResolvedPosition != null &&
+        entry.previousResolvedPosition > 0 &&
+        !assignedPositions.has(entry.previousResolvedPosition)
+      ) {
+        resolvedPosition = entry.previousResolvedPosition;
       } else {
         while (assignedPositions.has(nextFallbackPosition)) {
           nextFallbackPosition += 1;
@@ -1236,12 +1268,23 @@ export class ProviderStateAccumulator {
       assignedPositions.add(resolvedPosition);
       const leaderboardEntry = {
         ...entry,
-      } as LiveLeaderboardEntry & { explicitPosition?: number | null };
+      } as LiveLeaderboardEntry & {
+        driverNumber?: string;
+        explicitPosition?: number | null;
+        previousResolvedPosition?: number | null;
+      };
       delete leaderboardEntry.explicitPosition;
+      delete leaderboardEntry.previousResolvedPosition;
       leaderboard.push({
         ...leaderboardEntry,
         position: resolvedPosition,
       });
+      nextResolvedPositions.set(entry.driverNumber, resolvedPosition);
+    }
+
+    this.resolvedPositionByNumber.clear();
+    for (const [number, resolvedPosition] of nextResolvedPositions.entries()) {
+      this.resolvedPositionByNumber.set(number, resolvedPosition);
     }
 
     leaderboard.sort((a, b) => a.position - b.position);
