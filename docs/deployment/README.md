@@ -19,41 +19,44 @@ Deployment baseline for F1 VibeTiming.
 ## Local Deploy-Like Run
 
 ```bash
-docker compose --profile app up -d --build
+make stack-up
 ```
 
 Run in provider mode (without an override file):
 
 ```bash
-LIVE_SOURCE=provider docker compose --profile app up -d --build
+make stack-up-provider
 ```
 
 Run in provider mode with container-visible provider frame and payload logs:
 
 ```bash
-LIVE_SOURCE=provider LIVE_PROVIDER_LOG_FRAMES=true LIVE_PROVIDER_LOG_MESSAGES=true docker compose --profile app up -d --build
-docker logs -f f1-vibetiming-api
+make stack-up-provider-verbose
+make logs-api
 ```
 
 Run in provider mode with capture enabled and ready for later analysis:
 
 ```bash
-LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
+make stack-up-provider-capture
 ```
 
 Stop stack:
 
 ```bash
-docker compose --profile app down
+make stack-down
 ```
 
 Health checks:
 
 ```bash
-curl http://localhost:4000/api/health/data
-curl http://localhost:4000/api/live/health
-curl http://localhost:3000
-curl http://localhost:3000/standings
+make health
+```
+
+See all supported operational commands:
+
+```bash
+make help
 ```
 
 ## Environment Mapping
@@ -92,13 +95,13 @@ curl http://localhost:3000/standings
 Run an immediate backup on demand:
 
 ```bash
-docker exec f1-vibetiming-postgres-backup sh /usr/local/bin/postgres-backup.sh
+make backup-now
 ```
 
 Restore from a backup file:
 
 ```bash
-gunzip -c ./.data/backups/<backup-file>.sql.gz | docker exec -i f1-vibetiming-postgres psql -U postgres -d f1_vibetiming
+make backup-restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
 ```
 
 ### Web

@@ -5,23 +5,29 @@ NestJS backend for F1 VibeTiming.
 Run from repository root:
 
 ```bash
-pnpm dev
+make dev
 ```
 
 Run only API app:
 
 ```bash
-pnpm --filter api start:dev
+make dev-api
 ```
 
 Common commands:
 
 ```bash
-pnpm --filter api prisma:push
-pnpm --filter api prisma:generate
-pnpm --filter api test
-pnpm --filter api test:e2e
-pnpm --filter api build
+make db-push
+make db-generate
+make test-api
+make test-api-e2e
+make build
+```
+
+Full local command catalog:
+
+```bash
+make help
 ```
 
 Live endpoints:

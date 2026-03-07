@@ -26,41 +26,47 @@ This folder tracks how the local provider capture pipeline is intended to work a
 
 ## Local Runbook
 
+Primary operational entrypoint:
+
+```bash
+make help
+```
+
 Start provider capture locally:
 
 ```bash
-LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
-docker logs -f f1-vibetiming-api
+make stack-up-provider-capture
+make logs-api
 ```
 
 Force an immediate SQL backup:
 
 ```bash
-docker exec f1-vibetiming-postgres-backup sh /usr/local/bin/postgres-backup.sh
+make backup-now
 ```
 
 Inspect the current capture summary from the repo root:
 
 ```bash
-sh scripts/live-provider-inspect.sh
+make provider-inspect
 ```
 
 Inspect the latest payloads for a specific topic:
 
 ```bash
-sh scripts/live-provider-inspect.sh TimingData
+make provider-inspect-topic TOPIC=TimingData
 ```
 
 Export the current DB-backed capture summary into repo-readable reports:
 
 ```bash
-node scripts/live-provider-export.mjs
+make provider-export
 ```
 
 Inspect the latest capture rows:
 
 ```bash
-docker exec -it f1-vibetiming-postgres psql -U postgres -d f1_vibetiming
+make provider-psql
 ```
 
 Suggested SQL checks:
