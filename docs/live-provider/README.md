@@ -97,6 +97,7 @@ order by lastSeenAt desc;
 - The first real capture has now observed `SessionInfo`, `SessionStatus`, `TrackStatus`, `DriverList`, `TimingData`, `TimingStats`, `TimingAppData`, `RaceControlMessages`, and `ExtrapolatedClock`.
 - `LapCount`, `CarData.z`, and `Position.z` still have not appeared in the initial qualifying window.
 - Real traffic already confirmed that `RaceControlMessages.Messages` can be either an array or a keyed object.
+- The API now has a `LiveReplayService` foundation for replaying one persisted session and auditing risky ranking inputs from `live_provider_event` rows.
 
 ## Future Follow-Up
 
