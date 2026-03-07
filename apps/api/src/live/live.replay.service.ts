@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { LiveCaptureSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProviderStateAccumulator } from './live.provider.adapter';
-import { LiveState } from './live.types';
+import {
+  LivePositionConfidence,
+  LivePositionSource,
+  LiveState,
+} from './live.types';
 
 interface ReplayEventRow {
   topic: string;
@@ -25,6 +29,32 @@ export interface LiveRankingAuditResult {
   timingDataLineOnlyHints: number;
   timingAppLineHints: number;
   driverListLineOnlyHints: number;
+  projectionSamples: number;
+  projectedPositionSourceCounts: Array<{
+    source: LivePositionSource;
+    count: number;
+  }>;
+  projectedPositionConfidenceCounts: Array<{
+    confidence: LivePositionConfidence;
+    count: number;
+  }>;
+  riskyLeaderSamples: Array<{
+    driverCode: string;
+    driverName: string | null;
+    source: LivePositionSource;
+    confidence: LivePositionConfidence;
+    count: number;
+    firstSeenAt: string;
+    lastSeenAt: string;
+  }>;
+  finalLeaderboard: Array<{
+    position: number;
+    driverCode: string;
+    driverName: string | null;
+    positionSource: LivePositionSource;
+    positionConfidence: LivePositionConfidence;
+    positionUpdatedAt: string | null;
+  }>;
   leadingLineHints: Array<{
     topic: string;
     driverNumber: string;
@@ -53,9 +83,46 @@ const toInt = (value: unknown): number | null => {
   return Number.isInteger(parsed) ? parsed : null;
 };
 
+const incrementCount = <T extends string>(
+  map: Map<T, number>,
+  key: T,
+): void => {
+  map.set(key, (map.get(key) ?? 0) + 1);
+};
+
 @Injectable()
 export class LiveReplayService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async replayLatestProviderSession(
+    maxAgeSec?: number,
+  ): Promise<LiveSessionReplayResult | null> {
+    const latestEvent = await this.prisma.liveProviderEvent.findFirst({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+      },
+      orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
+      select: {
+        sessionKey: true,
+        emittedAt: true,
+      },
+    });
+
+    if (!latestEvent?.sessionKey) {
+      return null;
+    }
+
+    if (maxAgeSec != null) {
+      const ageSec = Math.floor(
+        (Date.now() - latestEvent.emittedAt.getTime()) / 1000,
+      );
+      if (ageSec > maxAgeSec) {
+        return null;
+      }
+    }
+
+    return this.replayProviderSession(latestEvent.sessionKey);
+  }
 
   async replayProviderSession(
     sessionKey: string,
@@ -99,34 +166,108 @@ export class LiveReplayService {
     let timingAppLineHints = 0;
     let driverListLineOnlyHints = 0;
     const leadingLineHintCounts = new Map<string, number>();
+    const projectedPositionSourceCounts = new Map<LivePositionSource, number>();
+    const projectedPositionConfidenceCounts = new Map<
+      LivePositionConfidence,
+      number
+    >();
+    const riskyLeaderSampleCounts = new Map<
+      string,
+      {
+        driverCode: string;
+        driverName: string | null;
+        source: LivePositionSource;
+        confidence: LivePositionConfidence;
+        count: number;
+        firstSeenAt: string;
+        lastSeenAt: string;
+      }
+    >();
+    let projectionSamples = 0;
+    let latestState: LiveState | null = null;
+    const accumulator = new ProviderStateAccumulator();
 
     for (const event of events) {
-      if (!isRecord(event.payload)) {
-        continue;
-      }
+      if (isRecord(event.payload)) {
+        if (event.topic === 'TimingData') {
+          const lines = isRecord(event.payload.Lines)
+            ? event.payload.Lines
+            : null;
 
-      if (event.topic === 'TimingData') {
-        const lines = isRecord(event.payload.Lines)
-          ? event.payload.Lines
-          : null;
-        if (!lines) {
-          continue;
+          if (lines) {
+            for (const [driverNumber, lineValue] of Object.entries(lines)) {
+              if (!isRecord(lineValue)) {
+                continue;
+              }
+
+              const hasTrustedPosition = asString(lineValue.Position) != null;
+              const lineHint = toInt(lineValue.Line);
+
+              if (hasTrustedPosition) {
+                timingDataPositionFields += 1;
+              }
+
+              if (!hasTrustedPosition && lineHint != null) {
+                timingDataLineOnlyHints += 1;
+                if (lineHint === 1) {
+                  const key = `${event.topic}:${driverNumber}`;
+                  leadingLineHintCounts.set(
+                    key,
+                    (leadingLineHintCounts.get(key) ?? 0) + 1,
+                  );
+                }
+              }
+            }
+          }
         }
 
-        for (const [driverNumber, lineValue] of Object.entries(lines)) {
-          if (!isRecord(lineValue)) {
-            continue;
+        if (event.topic === 'TimingAppData') {
+          const lines = isRecord(event.payload.Lines)
+            ? event.payload.Lines
+            : null;
+
+          if (lines) {
+            for (const [driverNumber, lineValue] of Object.entries(lines)) {
+              if (!isRecord(lineValue)) {
+                continue;
+              }
+
+              const lineHint = toInt(lineValue.Line);
+              if (lineHint == null) {
+                continue;
+              }
+
+              timingAppLineHints += 1;
+              if (lineHint === 1) {
+                const key = `${event.topic}:${driverNumber}`;
+                leadingLineHintCounts.set(
+                  key,
+                  (leadingLineHintCounts.get(key) ?? 0) + 1,
+                );
+              }
+            }
           }
+        }
 
-          const hasTrustedPosition = asString(lineValue.Position) != null;
-          const lineHint = toInt(lineValue.Line);
+        if (event.topic === 'DriverList') {
+          for (const [driverNumber, lineValue] of Object.entries(
+            event.payload,
+          )) {
+            if (!isRecord(lineValue)) {
+              continue;
+            }
 
-          if (hasTrustedPosition) {
-            timingDataPositionFields += 1;
-          }
+            const lineHint = toInt(lineValue.Line);
+            if (lineHint == null) {
+              continue;
+            }
 
-          if (!hasTrustedPosition && lineHint != null) {
-            timingDataLineOnlyHints += 1;
+            const keys = Object.keys(lineValue);
+            const lineOnly = keys.length === 1 && keys[0] === 'Line';
+            if (lineOnly) {
+              driverListLineOnlyHints += 1;
+            }
+
             if (lineHint === 1) {
               const key = `${event.topic}:${driverNumber}`;
               leadingLineHintCounts.set(
@@ -138,59 +279,52 @@ export class LiveReplayService {
         }
       }
 
-      if (event.topic === 'TimingAppData') {
-        const lines = isRecord(event.payload.Lines)
-          ? event.payload.Lines
-          : null;
-        if (!lines) {
-          continue;
-        }
-
-        for (const [driverNumber, lineValue] of Object.entries(lines)) {
-          if (!isRecord(lineValue)) {
-            continue;
-          }
-
-          const lineHint = toInt(lineValue.Line);
-          if (lineHint == null) {
-            continue;
-          }
-
-          timingAppLineHints += 1;
-          if (lineHint === 1) {
-            const key = `${event.topic}:${driverNumber}`;
-            leadingLineHintCounts.set(
-              key,
-              (leadingLineHintCounts.get(key) ?? 0) + 1,
-            );
-          }
-        }
+      accumulator.ingest(
+        event.topic,
+        event.payload as unknown,
+        event.emittedAt.toISOString(),
+      );
+      const state = accumulator.buildState(event.emittedAt.toISOString());
+      if (!state) {
+        continue;
       }
 
-      if (event.topic === 'DriverList') {
-        for (const [driverNumber, lineValue] of Object.entries(event.payload)) {
-          if (!isRecord(lineValue)) {
-            continue;
-          }
+      latestState = state;
+      projectionSamples += 1;
 
-          const lineHint = toInt(lineValue.Line);
-          if (lineHint == null) {
-            continue;
-          }
+      for (const entry of state.leaderboard) {
+        incrementCount(projectedPositionSourceCounts, entry.positionSource);
+        incrementCount(
+          projectedPositionConfidenceCounts,
+          entry.positionConfidence,
+        );
+      }
 
-          const keys = Object.keys(lineValue);
-          const lineOnly = keys.length === 1 && keys[0] === 'Line';
-          if (lineOnly) {
-            driverListLineOnlyHints += 1;
-          }
-
-          if (lineHint === 1) {
-            const key = `${event.topic}:${driverNumber}`;
-            leadingLineHintCounts.set(
-              key,
-              (leadingLineHintCounts.get(key) ?? 0) + 1,
-            );
-          }
+      const leader = state.leaderboard[0];
+      if (
+        leader &&
+        (leader.positionSource !== 'timing_data' ||
+          leader.positionConfidence !== 'high')
+      ) {
+        const key = [
+          leader.driverCode,
+          leader.positionSource,
+          leader.positionConfidence,
+        ].join(':');
+        const existing = riskyLeaderSampleCounts.get(key);
+        if (existing) {
+          existing.count += 1;
+          existing.lastSeenAt = state.generatedAt;
+        } else {
+          riskyLeaderSampleCounts.set(key, {
+            driverCode: leader.driverCode,
+            driverName: leader.driverName,
+            source: leader.positionSource,
+            confidence: leader.positionConfidence,
+            count: 1,
+            firstSeenAt: state.generatedAt,
+            lastSeenAt: state.generatedAt,
+          });
         }
       }
     }
@@ -210,6 +344,36 @@ export class LiveReplayService {
       )
       .slice(0, 10);
 
+    const projectionSourceCounts = [...projectedPositionSourceCounts.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .sort(
+        (left, right) =>
+          right.count - left.count || left.source.localeCompare(right.source),
+      );
+
+    const confidenceOrder: LivePositionConfidence[] = ['high', 'medium', 'low'];
+    const projectionConfidenceCounts = confidenceOrder
+      .map((confidence) => ({
+        confidence,
+        count: projectedPositionConfidenceCounts.get(confidence) ?? 0,
+      }))
+      .filter((entry) => entry.count > 0);
+
+    const riskyLeaderSamples = [...riskyLeaderSampleCounts.values()].sort(
+      (left, right) =>
+        right.count - left.count ||
+        left.driverCode.localeCompare(right.driverCode),
+    );
+
+    const finalLeaderboard = (latestState?.leaderboard ?? []).map((entry) => ({
+      position: entry.position,
+      driverCode: entry.driverCode,
+      driverName: entry.driverName,
+      positionSource: entry.positionSource,
+      positionConfidence: entry.positionConfidence,
+      positionUpdatedAt: entry.positionUpdatedAt,
+    }));
+
     return {
       sessionKey,
       eventCount: events.length,
@@ -217,6 +381,11 @@ export class LiveReplayService {
       timingDataLineOnlyHints,
       timingAppLineHints,
       driverListLineOnlyHints,
+      projectionSamples,
+      projectedPositionSourceCounts: projectionSourceCounts,
+      projectedPositionConfidenceCounts: projectionConfidenceCounts,
+      riskyLeaderSamples,
+      finalLeaderboard,
       leadingLineHints,
     };
   }

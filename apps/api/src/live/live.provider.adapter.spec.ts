@@ -243,6 +243,9 @@ describe('ProviderStateAccumulator', () => {
       bestSector3Ms: 31000,
       tireCompound: 'SOFT',
       stintLap: 12,
+      positionSource: 'timing_data',
+      positionUpdatedAt: emittedAt,
+      positionConfidence: 'high',
     });
   });
 
@@ -868,6 +871,9 @@ describe('ProviderStateAccumulator', () => {
       position: 1,
       driverCode: '81',
       bestLapMs: 79500,
+      positionSource: 'best_lap',
+      positionUpdatedAt: emittedAt,
+      positionConfidence: 'low',
     });
     expect(state?.leaderboard[1]).toMatchObject({
       position: 2,
@@ -875,6 +881,9 @@ describe('ProviderStateAccumulator', () => {
       bestLapMs: 80500,
       gapToLeaderSec: 1,
       intervalToAheadSec: 1,
+      positionSource: 'best_lap',
+      positionUpdatedAt: emittedAt,
+      positionConfidence: 'low',
     });
   });
 
@@ -989,6 +998,9 @@ describe('ProviderStateAccumulator', () => {
     expect(updatedState?.leaderboard[1]).toMatchObject({
       position: 2,
       driverCode: '81',
+      positionSource: 'timing_data',
+      positionUpdatedAt: emittedAt,
+      positionConfidence: 'medium',
     });
   });
 });

@@ -218,6 +218,9 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => {
         trackStatusHistory: [{ at: nowIso, status: 'on_track' }],
         tireCompound: index < 7 ? 'SOFT' : index < 14 ? 'MEDIUM' : 'HARD',
         stintLap: 1 + (index % 8),
+        positionSource: 'simulator',
+        positionUpdatedAt: nowIso,
+        positionConfidence: 'high',
       };
     }),
     raceControl: [],
@@ -409,6 +412,9 @@ export const evolveSimulatorState = (
     leaderboard: nextLeaderboard.map((entry, index) => ({
       ...entry,
       position: index + 1,
+      positionSource: 'simulator',
+      positionUpdatedAt: nowIso,
+      positionConfidence: 'high',
     })),
     raceControl: nextRaceControl,
   };

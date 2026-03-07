@@ -10,6 +10,7 @@ import { Observable, Subject } from 'rxjs';
 import { LiveAdapter } from './live.adapter';
 import { LiveCaptureService } from './live.capture.service';
 import { LiveProviderAdapter } from './live.provider.adapter';
+import { LiveReplayService } from './live.replay.service';
 import { LiveSimulatorAdapter } from './live.simulator.adapter';
 import {
   LiveDeltaPayload,
@@ -44,6 +45,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     private readonly simulatorAdapter: LiveSimulatorAdapter,
     private readonly providerAdapter: LiveProviderAdapter,
     private readonly liveCaptureService: LiveCaptureService,
+    private readonly liveReplayService: LiveReplayService,
   ) {
     this.adapter = this.resolveAdapter();
   }
@@ -113,9 +115,32 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async restorePersistedState(): Promise<void> {
-    const restoredState = await this.liveCaptureService.loadLatestSnapshot(
-      this.adapter.source,
-    );
+    let restoredState: LiveState | null = null;
+
+    if (this.adapter.source === 'provider') {
+      const restoreMaxAgeSec = this.configService.get<number>(
+        'LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC',
+        6 * 60 * 60,
+      );
+      const replay =
+        await this.liveReplayService.replayLatestProviderSession(
+          restoreMaxAgeSec,
+        );
+      restoredState = replay?.state ?? null;
+
+      if (restoredState) {
+        this.logger.log(
+          `Replayed persisted provider events for ${replay?.sessionKey ?? 'unknown session'}`,
+        );
+      }
+    }
+
+    if (!restoredState) {
+      restoredState = await this.liveCaptureService.loadLatestSnapshot(
+        this.adapter.source,
+      );
+    }
+
     if (!restoredState) {
       return;
     }
@@ -130,7 +155,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
     this.currentState = restoredState;
     this.logger.log(
-      `Restored persisted live snapshot for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
+      `Restored persisted live state for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
     );
   }
 

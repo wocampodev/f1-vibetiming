@@ -5,6 +5,16 @@ function createPrismaMock(events: Array<Record<string, unknown>>) {
   return {
     liveProviderEvent: {
       findMany: jest.fn(() => Promise.resolve(events)),
+      findFirst: jest.fn(() =>
+        Promise.resolve(
+          events.length > 0
+            ? {
+                sessionKey: 'provider:australia:qualifying',
+                emittedAt: (events.at(-1)?.emittedAt as Date) ?? new Date(),
+              }
+            : null,
+        ),
+      ),
     },
   };
 }
@@ -73,6 +83,60 @@ describe('LiveReplayService', () => {
     expect(replay?.state?.leaderboard[1]).toMatchObject({ position: 2 });
   });
 
+  it('replays the latest provider session within the allowed age window', async () => {
+    const emittedAt = new Date();
+    const prisma = createPrismaMock([
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '1': {
+              Position: '1',
+            },
+          },
+        },
+        emittedAt,
+      },
+    ]);
+
+    const service = new LiveReplayService(prisma as never);
+    const replay = await service.replayLatestProviderSession(300);
+
+    expect(prisma.liveProviderEvent.findFirst).toHaveBeenCalledWith({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+      },
+      orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
+      select: {
+        sessionKey: true,
+        emittedAt: true,
+      },
+    });
+    expect(replay).not.toBeNull();
+    expect(replay?.sessionKey).toBe('provider:australia:qualifying');
+  });
+
+  it('returns null when the latest provider session is too old to restore', async () => {
+    const emittedAt = new Date('2026-03-01T00:00:00.000Z');
+    const prisma = createPrismaMock([
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '1': {
+              Position: '1',
+            },
+          },
+        },
+        emittedAt,
+      },
+    ]);
+
+    const service = new LiveReplayService(prisma as never);
+    await expect(service.replayLatestProviderSession(1)).resolves.toBeNull();
+    expect(prisma.liveProviderEvent.findMany).not.toHaveBeenCalled();
+  });
+
   it('audits risky line-hint ranking inputs from persisted events', async () => {
     const prisma = createPrismaMock([
       {
@@ -116,13 +180,35 @@ describe('LiveReplayService', () => {
       'provider:australia:qualifying',
     );
 
-    expect(audit).toEqual({
+    expect(audit).toMatchObject({
       sessionKey: 'provider:australia:qualifying',
       eventCount: 3,
       timingDataPositionFields: 1,
       timingDataLineOnlyHints: 1,
       timingAppLineHints: 1,
       driverListLineOnlyHints: 1,
+      projectionSamples: 3,
+      projectedPositionSourceCounts: [
+        {
+          source: 'driver_code',
+          count: 3,
+        },
+        {
+          source: 'timing_data',
+          count: 3,
+        },
+      ],
+      projectedPositionConfidenceCounts: [
+        {
+          confidence: 'high',
+          count: 3,
+        },
+        {
+          confidence: 'low',
+          count: 3,
+        },
+      ],
+      riskyLeaderSamples: [],
       leadingLineHints: [
         {
           topic: 'DriverList',
@@ -140,6 +226,88 @@ describe('LiveReplayService', () => {
           count: 1,
         },
       ],
+    });
+    expect(audit?.finalLeaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '1',
+      positionSource: 'timing_data',
+      positionConfidence: 'high',
+      positionUpdatedAt: '2026-03-03T00:00:01.000Z',
+    });
+    expect(audit?.finalLeaderboard[1]).toMatchObject({
+      position: 2,
+      driverCode: '81',
+      driverName: 'Oscar Piastri',
+      positionSource: 'driver_code',
+      positionConfidence: 'low',
+      positionUpdatedAt: null,
+    });
+  });
+
+  it('audits risky projected leaders when replay relies on best-lap ordering', async () => {
+    const prisma = createPrismaMock([
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '81': {
+              LastLapTime: { Value: '1:20.000' },
+              BestLapTime: { Value: '1:19.500' },
+            },
+            '16': {
+              LastLapTime: { Value: '1:21.000' },
+              BestLapTime: { Value: '1:20.500' },
+            },
+          },
+        },
+        emittedAt: new Date('2026-03-03T00:00:01.000Z'),
+      },
+    ]);
+
+    const service = new LiveReplayService(prisma as never);
+    const audit = await service.auditProviderRanking(
+      'provider:australia:qualifying',
+    );
+
+    expect(audit).toMatchObject({
+      sessionKey: 'provider:australia:qualifying',
+      eventCount: 1,
+      timingDataPositionFields: 0,
+      timingDataLineOnlyHints: 0,
+      timingAppLineHints: 0,
+      driverListLineOnlyHints: 0,
+      projectionSamples: 1,
+      projectedPositionSourceCounts: [
+        {
+          source: 'best_lap',
+          count: 2,
+        },
+      ],
+      projectedPositionConfidenceCounts: [
+        {
+          confidence: 'low',
+          count: 2,
+        },
+      ],
+      riskyLeaderSamples: [
+        {
+          driverCode: '81',
+          driverName: 'Oscar Piastri',
+          source: 'best_lap',
+          confidence: 'low',
+          count: 1,
+          firstSeenAt: '2026-03-03T00:00:01.000Z',
+          lastSeenAt: '2026-03-03T00:00:01.000Z',
+        },
+      ],
+    });
+    expect(audit?.finalLeaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '81',
+      driverName: 'Oscar Piastri',
+      positionSource: 'best_lap',
+      positionConfidence: 'low',
+      positionUpdatedAt: '2026-03-03T00:00:01.000Z',
     });
   });
 
