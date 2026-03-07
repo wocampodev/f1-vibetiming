@@ -50,6 +50,12 @@ interface LiveLeaderboardDraftEntry extends LiveLeaderboardEntry {
   explicitPosition: number | null;
 }
 
+interface DisplayedSectorTimes {
+  sector1Ms: number | null;
+  sector2Ms: number | null;
+  sector3Ms: number | null;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 const DEFAULT_TOPICS = [
@@ -707,6 +713,10 @@ export class ProviderStateAccumulator {
   private readonly timingAppByNumber = new Map<string, JsonRecord>();
   private readonly carDataByNumber = new Map<string, JsonRecord>();
   private readonly positionByNumber = new Map<string, JsonRecord>();
+  private readonly displayedSectorTimesByNumber = new Map<
+    string,
+    DisplayedSectorTimes
+  >();
   private readonly speedHistoryByNumber = new Map<string, LiveSpeedSample[]>();
   private readonly trackStatusHistoryByNumber = new Map<
     string,
@@ -1010,29 +1020,43 @@ export class ProviderStateAccumulator {
       const sector1 = asRecord(sectors?.['0']);
       const sector2 = asRecord(sectors?.['1']);
       const sector3 = asRecord(sectors?.['2']);
-      const sector1Ms =
-        parseLapOrSectorMs(sector1) ?? parseTimingStatsSector(timingStats, 0);
-      const sector2Ms =
-        parseLapOrSectorMs(sector2) ?? parseTimingStatsSector(timingStats, 1);
-      let sector3Ms =
-        parseLapOrSectorMs(sector3) ?? parseTimingStatsSector(timingStats, 2);
-      const bestSector1Ms = parseTimingStatsSector(timingStats, 0) ?? sector1Ms;
-      const bestSector2Ms = parseTimingStatsSector(timingStats, 1) ?? sector2Ms;
-      const bestSector3Ms = parseTimingStatsSector(timingStats, 2) ?? sector3Ms;
+      const cachedSectorTimes = this.displayedSectorTimesByNumber.get(number);
+      const parsedSector1Ms = parseLapOrSectorMs(sector1);
+      const parsedSector2Ms = parseLapOrSectorMs(sector2);
+      let parsedSector3Ms = parseLapOrSectorMs(sector3);
+      const statsSector1Ms = parseTimingStatsSector(timingStats, 0);
+      const statsSector2Ms = parseTimingStatsSector(timingStats, 1);
+      const statsSector3Ms = parseTimingStatsSector(timingStats, 2);
 
       const lastLapMs = parseLapOrSectorMs(timing.LastLapTime);
 
       if (
-        sector3Ms == null &&
-        sector1Ms != null &&
-        sector2Ms != null &&
+        parsedSector3Ms == null &&
+        parsedSector1Ms != null &&
+        parsedSector2Ms != null &&
         lastLapMs != null
       ) {
-        const derivedSector3Ms = lastLapMs - sector1Ms - sector2Ms;
+        const derivedSector3Ms = lastLapMs - parsedSector1Ms - parsedSector2Ms;
         if (derivedSector3Ms > 0) {
-          sector3Ms = derivedSector3Ms;
+          parsedSector3Ms = derivedSector3Ms;
         }
       }
+
+      const sector1Ms =
+        parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? statsSector1Ms;
+      const sector2Ms =
+        parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? statsSector2Ms;
+      const sector3Ms =
+        parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? statsSector3Ms;
+      const bestSector1Ms = statsSector1Ms ?? sector1Ms;
+      const bestSector2Ms = statsSector2Ms ?? sector2Ms;
+      const bestSector3Ms = statsSector3Ms ?? sector3Ms;
+
+      this.displayedSectorTimesByNumber.set(number, {
+        sector1Ms: parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? null,
+        sector2Ms: parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? null,
+        sector3Ms: parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? null,
+      });
 
       const bestLapMs =
         parseLapOrSectorMs(timing.BestLapTime) ??

@@ -29,19 +29,6 @@ const flagToneByValue: Record<string, string> = {
   checkered: "border-zinc-200/50 bg-zinc-300/10 text-zinc-100",
 };
 
-const positionTone = [
-  "from-red-500 to-red-600",
-  "from-orange-500 to-orange-600",
-  "from-blue-500 to-blue-600",
-  "from-cyan-500 to-cyan-600",
-  "from-sky-500 to-sky-600",
-  "from-slate-500 to-slate-600",
-  "from-pink-500 to-pink-600",
-  "from-teal-500 to-teal-600",
-  "from-indigo-500 to-indigo-600",
-  "from-blue-600 to-blue-700",
-];
-
 type SectorTone = "overall_best" | "personal_best" | "off_best" | "neutral";
 
 interface SectorScale {
@@ -170,9 +157,6 @@ const formatGap = (seconds: number | null, isLeader: boolean): string => {
 
 const formatFlagLabel = (value: string): string =>
   value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-
-const getPositionTone = (position: number): string =>
-  positionTone[(position - 1) % positionTone.length] ?? "from-slate-500 to-slate-600";
 
 interface LiveHealth {
   status: LiveStreamStatus;
@@ -551,7 +535,7 @@ export function LiveDashboard() {
                     <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
                     <td className="px-2 py-2">
                       <span
-                        className={`inline-flex min-w-11 items-center justify-center rounded-md bg-gradient-to-r px-2 py-1 text-base font-bold text-white ${getPositionTone(entry.position)}`}
+                        className="inline-flex min-w-11 items-center justify-center rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-1 text-base font-bold text-[#f4f9ff]"
                       >
                         {entry.position}
                       </span>

@@ -292,6 +292,35 @@ describe('ProviderStateAccumulator', () => {
       sector2Ms: 31000,
       sector3Ms: 32500,
     });
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '44': {
+            Sectors: {
+              '0': { Value: '' },
+              '1': { Value: '' },
+              '2': {
+                Segments: {
+                  '0': { Status: '1' },
+                },
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const updatedState = accumulator.buildState(emittedAt);
+    expect(updatedState).not.toBeNull();
+    expect(updatedState?.leaderboard[0]).toMatchObject({
+      position: 2,
+      sector1Ms: 30000,
+      sector2Ms: 31000,
+      sector3Ms: 32500,
+    });
   });
 
   it('falls back to the local roster when provider driver identity is missing', () => {
