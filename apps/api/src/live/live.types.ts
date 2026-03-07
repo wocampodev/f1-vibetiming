@@ -37,6 +37,15 @@ export interface LiveTrackStatusSample {
   status: string;
 }
 
+export type LivePositionSource =
+  | 'simulator'
+  | 'timing_data'
+  | 'best_lap'
+  | 'last_lap'
+  | 'driver_code';
+
+export type LivePositionConfidence = 'high' | 'medium' | 'low';
+
 export interface LiveLeaderboardEntry {
   position: number;
   driverCode: string;
@@ -59,11 +68,21 @@ export interface LiveLeaderboardEntry {
   trackStatusHistory: LiveTrackStatusSample[];
   tireCompound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
   stintLap: number | null;
+  positionSource: LivePositionSource;
+  positionUpdatedAt: string | null;
+  positionConfidence: LivePositionConfidence;
 }
 
 export type LivePublicLeaderboardEntry = Omit<
   LiveLeaderboardEntry,
-  'trackStatus' | 'speedKph' | 'topSpeedKph' | 'tireCompound' | 'stintLap'
+  | 'trackStatus'
+  | 'speedKph'
+  | 'topSpeedKph'
+  | 'tireCompound'
+  | 'stintLap'
+  | 'positionSource'
+  | 'positionUpdatedAt'
+  | 'positionConfidence'
 >;
 
 export interface LiveRaceControlMessage {

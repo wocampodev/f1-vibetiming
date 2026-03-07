@@ -24,7 +24,7 @@ Recommended local bootstrap:
 
 ```bash
 make bootstrap
-make dev
+make run
 ```
 
 This will:
@@ -33,6 +33,12 @@ This will:
 - create `.env` from `.env.example` if needed
 - start local infrastructure
 - push the Prisma schema
+
+The default Docker runtime is provider mode with attached logs. If you want the simulator instead:
+
+```bash
+make run-sim
+```
 
 Open:
 
@@ -44,14 +50,15 @@ Open:
 Use `make help` for the full list. Most-used targets:
 
 - `make bootstrap`
-- `make dev`
-- `make lint`
-- `make test-all`
-- `make stack-up-provider-capture`
-- `make logs-api`
+- `make validate`
+- `make run`
+- `make run-sim`
+- `make down`
+- `make health`
 - `make provider-inspect`
 - `make provider-export`
-- `make backup-now`
+- `make backup`
+- `make sql`
 
 ## Branching Workflow
 
@@ -61,17 +68,13 @@ Use `make help` for the full list. Most-used targets:
 
 ## Quality Checks
 
-- `make lint`
-- `make test-api`
-- `make test-web-smoke`
-- `make build`
-- `make test-all`
+- `make validate` runs API format checks, lint, API tests, web smoke tests, and build
 
 ## Live Runtime Notes
 
 - Local development defaults to simulator mode (`LIVE_SOURCE=simulator`).
-- Switch to provider mode by setting `LIVE_SOURCE=provider`.
-- For container logs while waiting on the official feed, enable `LIVE_PROVIDER_LOG_FRAMES=true` and `LIVE_PROVIDER_LOG_MESSAGES=true`, then follow `docker logs -f f1-vibetiming-api`.
+- Raw `docker compose` still defaults to simulator mode; `make run` overrides that to provider mode.
+- For noisier provider payload diagnostics, run `make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true`.
 - Local provider capture now persists raw events and snapshots into PostgreSQL with a bind mount at `./.data/postgres` and daily SQL backups at `./.data/backups`.
 - Web consumes SSE from `/api/live/stream` and falls back to polling `/api/live/state` when needed.
 - Live health diagnostics are exposed at `/api/live/health`.

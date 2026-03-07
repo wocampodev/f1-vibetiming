@@ -3,31 +3,27 @@ version: 1
 bootstrap:
   - make bootstrap
 
-dev:
-  - make dev
+validate:
+  - make validate
 
-deploy:
-  stack_up: make stack-up
-  stack_up_provider: make stack-up-provider
-  stack_up_provider_capture: make stack-up-provider-capture
-  stack_up_provider_verbose: make stack-up-provider-verbose
-  stack_down: make stack-down
-  provider_logs: make logs-api
-  health: make health
-  backup_now: make backup-now
-  provider_capture_inspect: make provider-inspect
-  provider_capture_timingdata: make provider-inspect-topic TOPIC=TimingData
-  provider_capture_export: make provider-export
+run:
+  - make run
 
-test:
-  api_unit: make test-api
-  api_e2e: make test-api-e2e
-  web_smoke: make test-web-smoke
+run_sim:
+  - make run-sim
 
-quality:
-  lint: make lint
-  build: make build
-  test_all: make test-all
+down:
+  - make down
 
-recommended_resume_flow:
-  - make resume
+health:
+  - make health
+
+provider:
+  inspect: make provider-inspect
+  inspect_timingdata: make provider-inspect TOPIC=TimingData
+  export: make provider-export
+
+database:
+  backup: make backup
+  restore_example: make restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
+  sql: make sql

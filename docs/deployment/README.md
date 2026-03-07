@@ -19,32 +19,25 @@ Deployment baseline for F1 VibeTiming.
 ## Local Deploy-Like Run
 
 ```bash
-make stack-up
+make run
 ```
 
-Run in provider mode (without an override file):
+Run in simulator mode with attached logs:
 
 ```bash
-make stack-up-provider
+make run-sim
 ```
 
 Run in provider mode with container-visible provider frame and payload logs:
 
 ```bash
-make stack-up-provider-verbose
-make logs-api
-```
-
-Run in provider mode with capture enabled and ready for later analysis:
-
-```bash
-make stack-up-provider-capture
+make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true
 ```
 
 Stop stack:
 
 ```bash
-make stack-down
+make down
 ```
 
 Health checks:
@@ -66,7 +59,7 @@ make help
 - `API_PORT`: HTTP port (default `4000`)
 - `DATABASE_URL`: Postgres DSN
 - `ERGAST_BASE_URL`: standings/results provider base URL
-- `LIVE_SOURCE`: `simulator` by default in `compose.yml`; set `provider` to use real live feed
+- `LIVE_SOURCE`: `simulator` by default in `compose.yml`; `make run` overrides it to `provider`
 - `LIVE_SIGNALR_BASE_URL`: SignalR base URL
 - `LIVE_SIGNALR_HUB`: SignalR hub name
 - `LIVE_SIGNALR_TOPICS`: live topic subscription list
@@ -76,7 +69,7 @@ make help
 - `LIVE_PROVIDER_CAPTURE_ENABLED`: persist decoded provider messages and normalized snapshots
 - `LIVE_PROVIDER_RAW_RETENTION_DAYS`: retention window for `live_provider_event` rows
 - `LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS`: retention window for `live_session_snapshot` rows
-- `LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC`: max snapshot age restored back into live state on API startup
+- `LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC`: max age allowed when restoring provider state from persisted replay or snapshots on API startup
 
 ### Postgres Backup Sidecar
 
@@ -95,13 +88,13 @@ make help
 Run an immediate backup on demand:
 
 ```bash
-make backup-now
+make backup
 ```
 
 Restore from a backup file:
 
 ```bash
-make backup-restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
+make restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
 ```
 
 ### Web

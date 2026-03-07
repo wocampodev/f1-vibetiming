@@ -10,6 +10,8 @@ import {
   LiveFeedSource,
   LiveFlagStatus,
   LiveLeaderboardEntry,
+  LivePositionConfidence,
+  LivePositionSource,
   LiveRaceControlMessage,
   LiveSpeedSample,
   LiveState,
@@ -50,7 +52,15 @@ export interface SignalrFeedExtractionResult {
 interface LiveLeaderboardDraftEntry extends LiveLeaderboardEntry {
   driverNumber: string;
   explicitPosition: number | null;
-  previousResolvedPosition: number | null;
+  previousResolvedMetadata: LiveResolvedPositionMetadata | null;
+  fallbackPositionSource: LivePositionSource;
+}
+
+interface LiveResolvedPositionMetadata {
+  position: number;
+  source: LivePositionSource;
+  updatedAt: string | null;
+  confidence: LivePositionConfidence;
 }
 
 interface DisplayedSectorTimes {
@@ -479,6 +489,21 @@ const parseTimingGapField = (
   return null;
 };
 
+const resolveFallbackPositionSource = (
+  bestLapMs: number | null,
+  lastLapMs: number | null,
+): LivePositionSource => {
+  if (bestLapMs != null) {
+    return 'best_lap';
+  }
+
+  if (lastLapMs != null) {
+    return 'last_lap';
+  }
+
+  return 'driver_code';
+};
+
 const mergeRecords = (
   current: JsonRecord,
   incoming: JsonRecord,
@@ -716,11 +741,18 @@ export class ProviderStateAccumulator {
   private readonly timingAppByNumber = new Map<string, JsonRecord>();
   private readonly carDataByNumber = new Map<string, JsonRecord>();
   private readonly positionByNumber = new Map<string, JsonRecord>();
+  private readonly explicitPositionUpdatedAtByNumber = new Map<
+    string,
+    string
+  >();
   private readonly displayedSectorTimesByNumber = new Map<
     string,
     DisplayedSectorTimes
   >();
-  private readonly resolvedPositionByNumber = new Map<string, number>();
+  private readonly resolvedPositionMetaByNumber = new Map<
+    string,
+    LiveResolvedPositionMetadata
+  >();
   private readonly speedHistoryByNumber = new Map<string, LiveSpeedSample[]>();
   private readonly trackStatusHistoryByNumber = new Map<
     string,
@@ -781,6 +813,11 @@ export class ProviderStateAccumulator {
           const line = asRecord(lineValue);
           if (!line) {
             continue;
+          }
+
+          const explicitPosition = toInt(line.Position);
+          if (explicitPosition != null) {
+            this.explicitPositionUpdatedAtByNumber.set(number, emittedAt);
           }
 
           const current = this.timingByNumber.get(number) ?? {};
@@ -1026,8 +1063,8 @@ export class ProviderStateAccumulator {
       }
 
       const explicitPosition = toInt(timing.Position);
-      const previousResolvedPosition =
-        this.resolvedPositionByNumber.get(number) ?? null;
+      const previousResolvedMetadata =
+        this.resolvedPositionMetaByNumber.get(number) ?? null;
 
       const sectors = asRecord(timing.Sectors);
       const sector1 = asRecord(sectors?.['0']);
@@ -1075,6 +1112,10 @@ export class ProviderStateAccumulator {
         parseLapOrSectorMs(timing.BestLapTime) ??
         parseTimingStatsBestLap(timingStats) ??
         lastLapMs;
+      const fallbackPositionSource = resolveFallbackPositionSource(
+        bestLapMs,
+        lastLapMs,
+      );
 
       const channels = asRecord(carData?.Channels);
       const speedHistoryKph = this.speedHistoryByNumber.get(number) ?? [];
@@ -1169,8 +1210,22 @@ export class ProviderStateAccumulator {
           normalizeCompound(latestStint?.Compound) ??
           normalizeCompound(timing.Compound),
         stintLap: toInt(latestStint?.TotalLaps),
+        positionSource:
+          explicitPosition != null
+            ? 'timing_data'
+            : (previousResolvedMetadata?.source ?? fallbackPositionSource),
+        positionUpdatedAt:
+          explicitPosition != null
+            ? (this.explicitPositionUpdatedAtByNumber.get(number) ?? emittedAt)
+            : (previousResolvedMetadata?.updatedAt ??
+              (fallbackPositionSource === 'driver_code' ? null : emittedAt)),
+        positionConfidence:
+          explicitPosition != null
+            ? 'high'
+            : (previousResolvedMetadata?.confidence ?? 'low'),
         explicitPosition,
-        previousResolvedPosition,
+        previousResolvedMetadata,
+        fallbackPositionSource,
       });
     }
 
@@ -1201,23 +1256,27 @@ export class ProviderStateAccumulator {
       }
 
       if (
-        left.previousResolvedPosition != null &&
-        right.previousResolvedPosition != null &&
-        left.previousResolvedPosition !== right.previousResolvedPosition
+        left.previousResolvedMetadata?.position != null &&
+        right.previousResolvedMetadata?.position != null &&
+        left.previousResolvedMetadata.position !==
+          right.previousResolvedMetadata.position
       ) {
-        return left.previousResolvedPosition - right.previousResolvedPosition;
+        return (
+          left.previousResolvedMetadata.position -
+          right.previousResolvedMetadata.position
+        );
       }
 
       if (
-        left.previousResolvedPosition != null &&
-        right.previousResolvedPosition == null
+        left.previousResolvedMetadata?.position != null &&
+        right.previousResolvedMetadata?.position == null
       ) {
         return -1;
       }
 
       if (
-        left.previousResolvedPosition == null &&
-        right.previousResolvedPosition != null
+        left.previousResolvedMetadata?.position == null &&
+        right.previousResolvedMetadata?.position != null
       ) {
         return 1;
       }
@@ -1238,12 +1297,15 @@ export class ProviderStateAccumulator {
     });
 
     const leaderboard: LiveLeaderboardEntry[] = [];
-    const nextResolvedPositions = new Map<string, number>();
+    const nextResolvedPositions = new Map<
+      string,
+      LiveResolvedPositionMetadata
+    >();
     const assignedPositions = new Set<number>();
     let nextFallbackPosition = 1;
 
     for (const entry of draftLeaderboard) {
-      let resolvedPosition: number;
+      let resolvedPositionMetadata: LiveResolvedPositionMetadata;
 
       if (
         hasExplicitOrder &&
@@ -1251,40 +1313,65 @@ export class ProviderStateAccumulator {
         entry.explicitPosition > 0 &&
         !assignedPositions.has(entry.explicitPosition)
       ) {
-        resolvedPosition = entry.explicitPosition;
+        resolvedPositionMetadata = {
+          position: entry.explicitPosition,
+          source: 'timing_data',
+          updatedAt:
+            this.explicitPositionUpdatedAtByNumber.get(entry.driverNumber) ??
+            emittedAt,
+          confidence: 'high',
+        };
       } else if (
-        entry.previousResolvedPosition != null &&
-        entry.previousResolvedPosition > 0 &&
-        !assignedPositions.has(entry.previousResolvedPosition)
+        entry.previousResolvedMetadata != null &&
+        entry.previousResolvedMetadata.position > 0 &&
+        !assignedPositions.has(entry.previousResolvedMetadata.position)
       ) {
-        resolvedPosition = entry.previousResolvedPosition;
+        resolvedPositionMetadata = {
+          ...entry.previousResolvedMetadata,
+          confidence:
+            entry.previousResolvedMetadata.source === 'timing_data'
+              ? 'medium'
+              : entry.previousResolvedMetadata.confidence,
+        };
       } else {
         while (assignedPositions.has(nextFallbackPosition)) {
           nextFallbackPosition += 1;
         }
-        resolvedPosition = nextFallbackPosition;
+        resolvedPositionMetadata = {
+          position: nextFallbackPosition,
+          source: entry.fallbackPositionSource,
+          updatedAt:
+            entry.fallbackPositionSource === 'driver_code' ? null : emittedAt,
+          confidence: 'low',
+        };
       }
 
-      assignedPositions.add(resolvedPosition);
+      assignedPositions.add(resolvedPositionMetadata.position);
       const leaderboardEntry = {
         ...entry,
       } as LiveLeaderboardEntry & {
         driverNumber?: string;
         explicitPosition?: number | null;
-        previousResolvedPosition?: number | null;
+        previousResolvedMetadata?: LiveResolvedPositionMetadata | null;
+        fallbackPositionSource?: LivePositionSource;
       };
+      delete leaderboardEntry.driverNumber;
       delete leaderboardEntry.explicitPosition;
-      delete leaderboardEntry.previousResolvedPosition;
+      delete leaderboardEntry.previousResolvedMetadata;
+      delete leaderboardEntry.fallbackPositionSource;
       leaderboard.push({
         ...leaderboardEntry,
-        position: resolvedPosition,
+        position: resolvedPositionMetadata.position,
+        positionSource: resolvedPositionMetadata.source,
+        positionUpdatedAt: resolvedPositionMetadata.updatedAt,
+        positionConfidence: resolvedPositionMetadata.confidence,
       });
-      nextResolvedPositions.set(entry.driverNumber, resolvedPosition);
+      nextResolvedPositions.set(entry.driverNumber, resolvedPositionMetadata);
     }
 
-    this.resolvedPositionByNumber.clear();
-    for (const [number, resolvedPosition] of nextResolvedPositions.entries()) {
-      this.resolvedPositionByNumber.set(number, resolvedPosition);
+    this.resolvedPositionMetaByNumber.clear();
+    for (const [number, metadata] of nextResolvedPositions.entries()) {
+      this.resolvedPositionMetaByNumber.set(number, metadata);
     }
 
     leaderboard.sort((a, b) => a.position - b.position);

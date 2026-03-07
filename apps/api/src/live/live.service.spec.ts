@@ -52,6 +52,9 @@ function createLiveState(): LiveState {
         ],
         tireCompound: 'SOFT',
         stintLap: 5,
+        positionSource: 'simulator',
+        positionUpdatedAt: '2026-03-03T00:00:00.000Z',
+        positionConfidence: 'high',
       },
     ],
     raceControl: [],
@@ -129,17 +132,26 @@ function createLiveCaptureServiceMock(overrides?: Record<string, unknown>) {
   };
 }
 
+function createLiveReplayServiceMock(overrides?: Record<string, unknown>) {
+  return {
+    replayLatestProviderSession: jest.fn(() => Promise.resolve(null)),
+    ...overrides,
+  };
+}
+
 describe('LiveService', () => {
   it('starts simulator source and exposes current state', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -152,6 +164,9 @@ describe('LiveService', () => {
     expect(state?.leaderboard[0]).not.toHaveProperty('topSpeedKph');
     expect(state?.leaderboard[0]).not.toHaveProperty('tireCompound');
     expect(state?.leaderboard[0]).not.toHaveProperty('stintLap');
+    expect(state?.leaderboard[0]).not.toHaveProperty('positionSource');
+    expect(state?.leaderboard[0]).not.toHaveProperty('positionUpdatedAt');
+    expect(state?.leaderboard[0]).not.toHaveProperty('positionConfidence');
     expect(state?.leaderboard[0]).toMatchObject({
       bestSector1Ms: 29790,
       bestSector2Ms: 30680,
@@ -167,11 +182,13 @@ describe('LiveService', () => {
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -189,11 +206,13 @@ describe('LiveService', () => {
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -213,6 +232,11 @@ describe('LiveService', () => {
     expect(data.payload.leaderboard[0]).not.toHaveProperty('topSpeedKph');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('tireCompound');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('stintLap');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('positionSource');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty('positionUpdatedAt');
+    expect(data.payload.leaderboard[0]).not.toHaveProperty(
+      'positionConfidence',
+    );
     expect(data.payload.leaderboard[0]).toMatchObject({
       bestSector1Ms: 29790,
       bestSector2Ms: 30680,
@@ -225,11 +249,13 @@ describe('LiveService', () => {
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -251,11 +277,13 @@ describe('LiveService', () => {
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -273,21 +301,33 @@ describe('LiveService', () => {
     });
   });
 
-  it('restores a recent persisted provider snapshot before adapter updates', async () => {
+  it('replays a recent persisted provider session before adapter updates', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Restored Session';
     const capture = createLiveCaptureServiceMock({
-      loadLatestSnapshot: jest.fn(() => Promise.resolve(restoredState)),
+      loadLatestSnapshot: jest.fn(() => Promise.resolve(null)),
       getHealth: jest.fn(() => ({ enabled: true })),
+    });
+    const replay = createLiveReplayServiceMock({
+      replayLatestProviderSession: jest.fn(() =>
+        Promise.resolve({
+          sessionKey: 'provider:restored:session',
+          eventCount: 12,
+          firstEventAt: '2026-03-03T00:00:00.000Z',
+          lastEventAt: '2026-03-03T00:00:05.000Z',
+          state: restoredState,
+        }),
+      ),
     });
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
@@ -302,6 +342,37 @@ describe('LiveService', () => {
       sessionId: restoredState.session.sessionId,
       sessionName: restoredState.session.sessionName,
     });
+    expect(capture.loadLatestSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the persisted snapshot when replay has no recent provider session', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const restoredState = createLiveState();
+    restoredState.session.sessionName = 'Snapshot Session';
+    const capture = createLiveCaptureServiceMock({
+      loadLatestSnapshot: jest.fn(() => Promise.resolve(restoredState)),
+      getHealth: jest.fn(() => ({ enabled: true })),
+    });
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(replay.replayLatestProviderSession).toHaveBeenCalledWith(21600);
+    expect(capture.loadLatestSnapshot).toHaveBeenCalledWith('provider');
+    expect(service.getState()).toMatchObject({
+      session: {
+        sessionName: 'Snapshot Session',
+      },
+    });
   });
 
   it('stops adapter on module destroy', async () => {
@@ -309,11 +380,13 @@ describe('LiveService', () => {
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
       capture as never,
+      replay as never,
     );
 
     await service.onModuleInit();
