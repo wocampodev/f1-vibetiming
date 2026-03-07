@@ -3,10 +3,40 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const repoRoot = new URL('..', import.meta.url).pathname;
+const apiDir = join(repoRoot, 'apps/api');
 const outputDir = join(repoRoot, 'docs/live-provider/reports');
 const postgresContainer = process.env.POSTGRES_CONTAINER ?? 'f1-vibetiming-postgres';
 const postgresUser = process.env.POSTGRES_USER ?? 'postgres';
 const postgresDb = process.env.POSTGRES_DB ?? 'f1_vibetiming';
+
+const runAudit = () => {
+  const output = execFileSync(
+    'pnpm',
+    [
+      'exec',
+      'dotenv',
+      '-e',
+      '../../.env',
+      '--',
+      'ts-node',
+      'src/scripts/live-provider-audit.ts',
+    ],
+    {
+      cwd: apiDir,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        OUTPUT_FORMAT: 'json',
+      },
+    },
+  ).trim();
+
+  if (output.length === 0 || output === 'null') {
+    return null;
+  }
+
+  return JSON.parse(output);
+};
 
 const runQuery = (query) => {
   const output = execFileSync(
@@ -117,6 +147,8 @@ const report = {
   `),
 };
 
+const rankingAudit = runAudit();
+
 const shapeCountByTopic = new Map(
   (report.shapeCounts ?? []).map((entry) => [entry.topic, entry.shapeCount]),
 );
@@ -151,6 +183,53 @@ const markdown = [
   '',
 ];
 
+const rankingMarkdown = [
+  '# Latest Ranking Audit',
+  '',
+  `Generated at: \`${report.generatedAt}\``,
+  '',
+];
+
+if (!rankingAudit) {
+  rankingMarkdown.push('No provider ranking audit available.', '');
+} else {
+  rankingMarkdown.push(
+    `- Session: \`${rankingAudit.sessionKey}\``,
+    `- Events: ${rankingAudit.eventCount}`,
+    `- Projection samples: ${rankingAudit.projectionSamples}`,
+    `- Position sources: ${rankingAudit.projectedPositionSourceCounts.map((entry) => `\`${entry.source}\`=${entry.count}`).join(', ') || 'none'}`,
+    `- Position confidence: ${rankingAudit.projectedPositionConfidenceCounts.map((entry) => `\`${entry.confidence}\`=${entry.count}`).join(', ') || 'none'}`,
+    `- Line hints: timingData=${rankingAudit.timingDataLineOnlyHints}, timingApp=${rankingAudit.timingAppLineHints}, driverList=${rankingAudit.driverListLineOnlyHints}`,
+    '',
+    '## Risky Projected Leaders',
+    '',
+  );
+
+  if (rankingAudit.riskyLeaderSamples.length === 0) {
+    rankingMarkdown.push('- none', '');
+  } else {
+    rankingMarkdown.push(
+      ...rankingAudit.riskyLeaderSamples.map(
+        (sample) =>
+          `- \`${sample.driverCode}\` ${sample.driverName ?? ''} source=\`${sample.source}\` confidence=\`${sample.confidence}\` count=${sample.count} first=\`${sample.firstSeenAt}\` last=\`${sample.lastSeenAt}\``,
+      ),
+      '',
+    );
+  }
+
+  rankingMarkdown.push(
+    '## Final Leaderboard Provenance',
+    '',
+    '| Pos | Driver | Source | Confidence | Updated at |',
+    '| --- | --- | --- | --- | --- |',
+    ...rankingAudit.finalLeaderboard.map(
+      (entry) =>
+        `| ${entry.position} | \`${entry.driverCode}\` ${entry.driverName ?? ''} | \`${entry.positionSource}\` | \`${entry.positionConfidence}\` | \`${entry.positionUpdatedAt ?? 'n/a'}\` |`,
+    ),
+    '',
+  );
+}
+
 mkdirSync(outputDir, { recursive: true });
 
 writeFileSync(
@@ -165,5 +244,19 @@ writeFileSync(
   'utf8',
 );
 
+writeFileSync(
+  join(outputDir, 'latest-ranking-audit.json'),
+  `${JSON.stringify(rankingAudit, null, 2)}\n`,
+  'utf8',
+);
+
+writeFileSync(
+  join(outputDir, 'latest-ranking-audit.md'),
+  `${rankingMarkdown.join('\n')}\n`,
+  'utf8',
+);
+
 process.stdout.write(`Wrote ${join(outputDir, 'latest-capture-summary.json')}\n`);
 process.stdout.write(`Wrote ${join(outputDir, 'latest-capture-summary.md')}\n`);
+process.stdout.write(`Wrote ${join(outputDir, 'latest-ranking-audit.json')}\n`);
+process.stdout.write(`Wrote ${join(outputDir, 'latest-ranking-audit.md')}\n`);

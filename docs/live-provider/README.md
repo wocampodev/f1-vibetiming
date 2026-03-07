@@ -101,6 +101,8 @@ order by lastSeenAt desc;
 - `samples/`: curated representative payloads taken from observed provider traffic
 - `reports/latest-capture-summary.md`: generated snapshot of current DB-backed counts
 - `reports/latest-capture-summary.json`: generated structured export of the same snapshot
+- `reports/latest-ranking-audit.md`: generated replay-audit summary for the latest captured provider session
+- `reports/latest-ranking-audit.json`: generated structured replay-audit export for the same session
 - `../architecture/08-live-provider-persistence.md`: architecture view of capture and backup flow
 
 ## Current Reality

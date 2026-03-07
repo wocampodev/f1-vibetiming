@@ -1,0 +1,258 @@
+{
+  "sessionKey": "provider:australian-grand-prix:australian-grand-prix-qualifying",
+  "eventCount": 3478,
+  "timingDataPositionFields": 349,
+  "timingDataLineOnlyHints": 0,
+  "timingAppLineHints": 349,
+  "driverListLineOnlyHints": 349,
+  "projectionSamples": 3478,
+  "projectedPositionSourceCounts": [
+    {
+      "source": "timing_data",
+      "count": 52159
+    },
+    {
+      "source": "driver_code",
+      "count": 10334
+    },
+    {
+      "source": "best_lap",
+      "count": 1561
+    }
+  ],
+  "projectedPositionConfidenceCounts": [
+    {
+      "confidence": "high",
+      "count": 52159
+    },
+    {
+      "confidence": "low",
+      "count": 11895
+    }
+  ],
+  "riskyLeaderSamples": [
+    {
+      "driverCode": "27",
+      "driverName": "Nico Hulkenberg",
+      "source": "driver_code",
+      "confidence": "low",
+      "count": 789,
+      "firstSeenAt": "2026-03-07T05:00:02.960Z",
+      "lastSeenAt": "2026-03-07T05:03:14.053Z"
+    }
+  ],
+  "finalLeaderboard": [
+    {
+      "position": 1,
+      "driverCode": "63",
+      "driverName": "George Russell",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:06:56.080Z"
+    },
+    {
+      "position": 2,
+      "driverCode": "16",
+      "driverName": "Charles Leclerc",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 3,
+      "driverCode": "81",
+      "driverName": "Oscar Piastri",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 4,
+      "driverCode": "41",
+      "driverName": "Arvid Lindblad",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 5,
+      "driverCode": "44",
+      "driverName": "Lewis Hamilton",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 6,
+      "driverCode": "6",
+      "driverName": "Isack Hadjar",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 7,
+      "driverCode": "1",
+      "driverName": "Lando Norris",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 8,
+      "driverCode": "5",
+      "driverName": "Gabriel Bortoleto",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:10:12.872Z"
+    },
+    {
+      "position": 9,
+      "driverCode": "27",
+      "driverName": "Nico Hulkenberg",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:09:37.559Z"
+    },
+    {
+      "position": 10,
+      "driverCode": "87",
+      "driverName": "Oliver Bearman",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:07:43.491Z"
+    },
+    {
+      "position": 11,
+      "driverCode": "31",
+      "driverName": "Esteban Ocon",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:07:43.491Z"
+    },
+    {
+      "position": 12,
+      "driverCode": "30",
+      "driverName": "Liam Lawson",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:07:43.491Z"
+    },
+    {
+      "position": 13,
+      "driverCode": "10",
+      "driverName": "Pierre Gasly",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:55.828Z"
+    },
+    {
+      "position": 14,
+      "driverCode": "23",
+      "driverName": "Alexander Albon",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:55.828Z"
+    },
+    {
+      "position": 15,
+      "driverCode": "43",
+      "driverName": "Franco Colapinto",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:55.828Z"
+    },
+    {
+      "position": 16,
+      "driverCode": "14",
+      "driverName": "Fernando Alonso",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:55.828Z"
+    },
+    {
+      "position": 17,
+      "driverCode": "11",
+      "driverName": "Sergio \"Checo\" Perez",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:44.218Z"
+    },
+    {
+      "position": 18,
+      "driverCode": "77",
+      "driverName": "Valtteri Bottas",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:08:44.218Z"
+    },
+    {
+      "position": 19,
+      "driverCode": "3",
+      "driverName": "Max Verstappen",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:05:33.472Z"
+    },
+    {
+      "position": 20,
+      "driverCode": "12",
+      "driverName": "Andrea Kimi Antonelli",
+      "positionSource": "timing_data",
+      "positionConfidence": "high",
+      "positionUpdatedAt": "2026-03-07T05:05:33.472Z"
+    }
+  ],
+  "leadingLineHints": [
+    {
+      "topic": "DriverList",
+      "driverNumber": "23",
+      "count": 1
+    },
+    {
+      "topic": "DriverList",
+      "driverNumber": "87",
+      "count": 1
+    },
+    {
+      "topic": "DriverList",
+      "driverNumber": "41",
+      "count": 1
+    },
+    {
+      "topic": "DriverList",
+      "driverNumber": "81",
+      "count": 1
+    },
+    {
+      "topic": "DriverList",
+      "driverNumber": "5",
+      "count": 1
+    },
+    {
+      "topic": "DriverList",
+      "driverNumber": "63",
+      "count": 1
+    },
+    {
+      "topic": "TimingAppData",
+      "driverNumber": "23",
+      "count": 1
+    },
+    {
+      "topic": "TimingAppData",
+      "driverNumber": "87",
+      "count": 1
+    },
+    {
+      "topic": "TimingAppData",
+      "driverNumber": "41",
+      "count": 1
+    },
+    {
+      "topic": "TimingAppData",
+      "driverNumber": "81",
+      "count": 1
+    }
+  ]
+}
