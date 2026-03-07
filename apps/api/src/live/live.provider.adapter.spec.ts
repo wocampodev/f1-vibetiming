@@ -877,4 +877,118 @@ describe('ProviderStateAccumulator', () => {
       intervalToAheadSec: 1,
     });
   });
+
+  it('does not promote line hints over trusted timing positions', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'DriverList',
+      {
+        '1': {
+          RacingNumber: '1',
+          Tla: 'NOR',
+        },
+        '81': {
+          RacingNumber: '81',
+          Tla: 'PIA',
+          Line: 1,
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:21.000' },
+            BestLapTime: { Value: '1:20.800' },
+          },
+          '81': {
+            Line: 1,
+            LastLapTime: { Value: '1:20.500' },
+            BestLapTime: { Value: '1:20.100' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '81': {
+            Line: 1,
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: 'NOR',
+    });
+    expect(state?.leaderboard[1]).toMatchObject({
+      position: 2,
+      driverCode: 'PIA',
+    });
+  });
+
+  it('keeps the previous resolved position when a later patch clears timing position', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '1': {
+            Position: '1',
+            LastLapTime: { Value: '1:21.000' },
+          },
+          '81': {
+            Position: '2',
+            LastLapTime: { Value: '1:21.300' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const initialState = accumulator.buildState(emittedAt);
+    expect(initialState?.leaderboard[0]?.position).toBe(1);
+    expect(initialState?.leaderboard[1]?.position).toBe(2);
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '81': {
+            Position: '',
+            Line: '1',
+            BestLapTime: { Value: '1:19.900' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const updatedState = accumulator.buildState(emittedAt);
+    expect(updatedState).not.toBeNull();
+    expect(updatedState?.leaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '1',
+    });
+    expect(updatedState?.leaderboard[1]).toMatchObject({
+      position: 2,
+      driverCode: '81',
+    });
+  });
 });
