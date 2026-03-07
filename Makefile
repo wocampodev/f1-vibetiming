@@ -6,112 +6,123 @@ POSTGRES_DB ?= f1_vibetiming
 TOPIC ?= TimingData
 BACKUP_FILE ?=
 WEB_SMOKE_PORT ?=
-PROVIDER_LOG_FRAMES ?= true
-PROVIDER_LOG_MESSAGES ?= true
-PROVIDER_LOG_MAX_CHARS ?= 1200
+PROVIDER_LOG_FRAMES ?= false
+PROVIDER_LOG_MESSAGES ?= false
+PROVIDER_LOG_MAX_CHARS ?= 600
 
 .PHONY: \
 	help \
-	install env-copy bootstrap resume \
+	install env-copy bootstrap \
 	infra-up infra-down \
 	db-generate db-push db-migrate \
 	dev dev-api dev-web \
-	lint build test test-api test-api-e2e test-web-smoke test-all \
+	format-check lint build test test-api test-api-e2e test-web-smoke validate test-all \
+	run run-sim down \
 	stack-up stack-up-provider stack-up-provider-capture stack-up-provider-verbose stack-down \
 	logs-api health \
-	backup-now backup-restore provider-inspect provider-inspect-topic provider-export provider-psql
+	backup backup-now restore backup-restore provider-inspect provider-inspect-topic provider-export sql provider-psql
 
-help: ## Show available project commands
+help: ## Show the simplified command surface
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install workspace dependencies with pnpm
+install:
 	pnpm install
 
-env-copy: ## Create .env from .env.example if it does not exist
+env-copy:
 	@test -f .env || cp .env.example .env
 
-infra-up: ## Start local PostgreSQL and backup infrastructure
+infra-up:
 	docker compose up -d
 
-infra-down: ## Stop local PostgreSQL and backup infrastructure
+infra-down:
 	docker compose down
 
-db-generate: ## Generate Prisma client for the API app
+db-generate:
 	pnpm --filter api prisma:generate
 
-db-push: ## Push Prisma schema to the local database
+db-push:
 	pnpm --filter api prisma:push
 
-db-migrate: ## Run Prisma dev migration workflow for the API app
+db-migrate:
 	pnpm --filter api prisma:migrate
 
-bootstrap: ## Install deps, copy env if needed, start infra, and push schema
+bootstrap: ## Install deps, prepare env, and prime the local database
 	$(MAKE) install
 	$(MAKE) env-copy
 	$(MAKE) infra-up
 	$(MAKE) db-push
 
-resume: ## Resume the recommended local workflow for this repo
-	$(MAKE) install
-	$(MAKE) infra-up
-	$(MAKE) db-push
-	$(MAKE) test-web-smoke
-	$(MAKE) test-api-e2e
-	$(MAKE) dev
-
-dev: ## Start API and web dev servers together
+dev:
 	pnpm dev
 
-dev-api: ## Start only the API dev server
+dev-api:
 	pnpm --filter api start:dev
 
-dev-web: ## Start only the web dev server
+dev-web:
 	pnpm --filter web dev
 
-lint: ## Run API and web lint checks
+format-check:
+	pnpm --filter api exec prettier --check "src/**/*.ts" "test/**/*.ts"
+
+lint:
 	pnpm lint
 
-build: ## Build API and web apps
+build:
 	pnpm build
 
-test: ## Run default repository tests (API unit tests)
+test:
 	pnpm test
 
-test-api: ## Run API unit tests
+test-api:
 	pnpm --filter api test
 
-test-api-e2e: ## Run API end-to-end tests
+test-api-e2e:
 	pnpm --filter api test:e2e
 
-test-web-smoke: ## Run web route smoke tests
+test-web-smoke:
 	@if [ -n "$(WEB_SMOKE_PORT)" ]; then \
 		WEB_SMOKE_PORT=$(WEB_SMOKE_PORT) pnpm --filter web test:smoke; \
 	else \
 		pnpm --filter web test:smoke; \
 	fi
 
-test-all: ## Run the main local verification suite
+validate: ## Run format checks, lint, tests, and build
+	$(MAKE) format-check
 	$(MAKE) lint
 	$(MAKE) test-api
 	$(MAKE) test-web-smoke
 	$(MAKE) build
 
-stack-up: ## Build and start the app profile with simulator defaults
+test-all:
+	$(MAKE) validate
+
+run: ## Run Docker in provider mode with attached logs
+	$(MAKE) env-copy
+	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=$(PROVIDER_LOG_FRAMES) LIVE_PROVIDER_LOG_MESSAGES=$(PROVIDER_LOG_MESSAGES) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up --build
+
+run-sim: ## Run Docker in simulator mode with attached logs
+	$(MAKE) env-copy
+	LIVE_SOURCE=simulator docker compose --profile app up --build
+
+down: ## Stop the local Docker stack
+	docker compose down
+
+stack-up:
 	docker compose --profile app up -d --build
 
-stack-up-provider: ## Build and start the app profile against the real provider
+stack-up-provider:
 	LIVE_SOURCE=provider docker compose --profile app up -d --build
 
-stack-up-provider-capture: ## Build and start provider mode with raw capture enabled
+stack-up-provider-capture:
 	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
 
-stack-up-provider-verbose: ## Build and start provider mode with capture and verbose logs enabled
+stack-up-provider-verbose:
 	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=$(PROVIDER_LOG_FRAMES) LIVE_PROVIDER_LOG_MESSAGES=$(PROVIDER_LOG_MESSAGES) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up -d --build
 
-stack-down: ## Stop and remove the app profile containers
+stack-down:
 	docker compose --profile app down
 
-logs-api: ## Follow API container logs
+logs-api:
 	docker logs -f f1-vibetiming-api
 
 health: ## Query the main local health endpoints
@@ -124,21 +135,30 @@ health: ## Query the main local health endpoints
 	@printf "Standings status\n"
 	@curl -I -fsS http://localhost:3000/standings | sed -n '1p'
 
-backup-now: ## Run an immediate PostgreSQL backup through the backup sidecar
+backup: ## Run an immediate PostgreSQL backup
 	docker exec f1-vibetiming-postgres-backup sh /usr/local/bin/postgres-backup.sh
 
-backup-restore: ## Restore a SQL backup file into local Postgres (set BACKUP_FILE=...)
+backup-now:
+	$(MAKE) backup
+
+restore: ## Restore a SQL backup file into local Postgres (set BACKUP_FILE=...)
 	@test -n "$(BACKUP_FILE)" || (printf "BACKUP_FILE is required\n" >&2; exit 1)
 	gunzip -c "$(BACKUP_FILE)" | docker exec -i $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-provider-inspect: ## Show provider capture summary from PostgreSQL
-	sh scripts/live-provider-inspect.sh
+backup-restore:
+	$(MAKE) restore BACKUP_FILE="$(BACKUP_FILE)"
 
-provider-inspect-topic: ## Show latest captured payloads for TOPIC=<topic>
+provider-inspect: ## Show provider capture summary (set TOPIC=TimingData for recent payloads)
 	sh scripts/live-provider-inspect.sh "$(TOPIC)"
 
-provider-export: ## Export provider capture summary reports into docs/live-provider/reports
+provider-inspect-topic:
+	sh scripts/live-provider-inspect.sh "$(TOPIC)"
+
+provider-export: ## Export provider capture reports into docs/live-provider/reports
 	node scripts/live-provider-export.mjs
 
-provider-psql: ## Open an interactive PostgreSQL shell inside the local container
+sql: ## Open an interactive PostgreSQL shell inside the local container
+	docker exec -it $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+
+provider-psql:
 	docker exec -it $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)

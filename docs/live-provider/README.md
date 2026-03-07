@@ -35,14 +35,19 @@ make help
 Start provider capture locally:
 
 ```bash
-make stack-up-provider-capture
-make logs-api
+make run
+```
+
+For noisier payload diagnostics while attached to container logs:
+
+```bash
+make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true
 ```
 
 Force an immediate SQL backup:
 
 ```bash
-make backup-now
+make backup
 ```
 
 Inspect the current capture summary from the repo root:
@@ -54,7 +59,7 @@ make provider-inspect
 Inspect the latest payloads for a specific topic:
 
 ```bash
-make provider-inspect-topic TOPIC=TimingData
+make provider-inspect TOPIC=TimingData
 ```
 
 Export the current DB-backed capture summary into repo-readable reports:
@@ -66,7 +71,7 @@ make provider-export
 Inspect the latest capture rows:
 
 ```bash
-make provider-psql
+make sql
 ```
 
 Suggested SQL checks:
@@ -97,10 +102,10 @@ order by lastSeenAt desc;
 - The first real capture has now observed `SessionInfo`, `SessionStatus`, `TrackStatus`, `DriverList`, `TimingData`, `TimingStats`, `TimingAppData`, `RaceControlMessages`, and `ExtrapolatedClock`.
 - `LapCount`, `CarData.z`, and `Position.z` still have not appeared in the initial qualifying window.
 - Real traffic already confirmed that `RaceControlMessages.Messages` can be either an array or a keyed object.
-- The API now has a `LiveReplayService` foundation for replaying one persisted session and auditing risky ranking inputs from `live_provider_event` rows.
+- The API now has a `LiveReplayService` foundation for replaying one persisted session, auditing risky ranking inputs, and flagging low-confidence projected leaders from `live_provider_event` rows.
 
 ## Future Follow-Up
 
 - Export captured topic summaries from Postgres into the JSON and Markdown files in this folder.
 - Add replay tooling that rebuilds a session snapshot from `live_provider_event` rows.
-- Move `/api/live/state` recovery to persisted snapshots first, with in-memory state as a short-lived cache.
+- Expand replay and projection tooling so `/api/live/state` can be rebuilt deterministically from persisted provider events, with snapshots as a fast fallback.
