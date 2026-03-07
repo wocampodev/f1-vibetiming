@@ -94,34 +94,26 @@ const incrementCount = <T extends string>(
 export class LiveReplayService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async replayLatestProviderSession(
+  async auditLatestProviderSession(
     maxAgeSec?: number,
-  ): Promise<LiveSessionReplayResult | null> {
-    const latestEvent = await this.prisma.liveProviderEvent.findFirst({
-      where: {
-        source: LiveCaptureSource.PROVIDER,
-      },
-      orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
-      select: {
-        sessionKey: true,
-        emittedAt: true,
-      },
-    });
-
-    if (!latestEvent?.sessionKey) {
+  ): Promise<LiveRankingAuditResult | null> {
+    const latestSession = await this.loadLatestProviderSession(maxAgeSec);
+    if (!latestSession) {
       return null;
     }
 
-    if (maxAgeSec != null) {
-      const ageSec = Math.floor(
-        (Date.now() - latestEvent.emittedAt.getTime()) / 1000,
-      );
-      if (ageSec > maxAgeSec) {
-        return null;
-      }
+    return this.auditProviderRanking(latestSession.sessionKey);
+  }
+
+  async replayLatestProviderSession(
+    maxAgeSec?: number,
+  ): Promise<LiveSessionReplayResult | null> {
+    const latestSession = await this.loadLatestProviderSession(maxAgeSec);
+    if (!latestSession) {
+      return null;
     }
 
-    return this.replayProviderSession(latestEvent.sessionKey);
+    return this.replayProviderSession(latestSession.sessionKey);
   }
 
   async replayProviderSession(
@@ -403,5 +395,35 @@ export class LiveReplayService {
         emittedAt: true,
       },
     });
+  }
+
+  private async loadLatestProviderSession(
+    maxAgeSec?: number,
+  ): Promise<{ sessionKey: string; emittedAt: Date } | null> {
+    const latestEvent = await this.prisma.liveProviderEvent.findFirst({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+      },
+      orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
+      select: {
+        sessionKey: true,
+        emittedAt: true,
+      },
+    });
+
+    if (!latestEvent?.sessionKey) {
+      return null;
+    }
+
+    if (maxAgeSec != null) {
+      const ageSec = Math.floor(
+        (Date.now() - latestEvent.emittedAt.getTime()) / 1000,
+      );
+      if (ageSec > maxAgeSec) {
+        return null;
+      }
+    }
+
+    return latestEvent;
   }
 }

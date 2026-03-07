@@ -56,6 +56,7 @@ Use `make help` for the full list. Most-used targets:
 - `make down`
 - `make health`
 - `make provider-inspect`
+- `make provider-audit`
 - `make provider-export`
 - `make backup`
 - `make sql`

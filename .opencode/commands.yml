@@ -20,6 +20,7 @@ health:
 
 provider:
   inspect: make provider-inspect
+  audit: make provider-audit
   inspect_timingdata: make provider-inspect TOPIC=TimingData
   export: make provider-export
 
