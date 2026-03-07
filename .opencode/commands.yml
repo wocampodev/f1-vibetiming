@@ -11,7 +11,13 @@ dev:
 deploy:
   stack_up: docker compose --profile app up -d --build
   stack_up_provider: LIVE_SOURCE=provider docker compose --profile app up -d --build
+  stack_up_provider_capture: LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=true LIVE_PROVIDER_LOG_MESSAGES=true docker compose --profile app up -d --build
   stack_down: docker compose --profile app down
+  provider_logs: docker logs -f f1-vibetiming-api
+  backup_now: docker exec f1-vibetiming-postgres-backup sh /usr/local/bin/postgres-backup.sh
+  provider_capture_inspect: sh scripts/live-provider-inspect.sh
+  provider_capture_timingdata: sh scripts/live-provider-inspect.sh TimingData
+  provider_capture_export: node scripts/live-provider-export.mjs
 
 test:
   api_unit: pnpm --filter api test

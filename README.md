@@ -61,6 +61,7 @@ F1 VibeTiming is a two-view product:
 - Local development defaults to simulator mode (`LIVE_SOURCE=simulator`).
 - Switch to provider mode by setting `LIVE_SOURCE=provider`.
 - For container logs while waiting on the official feed, enable `LIVE_PROVIDER_LOG_FRAMES=true` and `LIVE_PROVIDER_LOG_MESSAGES=true`, then follow `docker logs -f f1-vibetiming-api`.
+- Local provider capture now persists raw events and snapshots into PostgreSQL with a bind mount at `./.data/postgres` and daily SQL backups at `./.data/backups`.
 - Web consumes SSE from `/api/live/stream` and falls back to polling `/api/live/state` when needed.
 - Live health diagnostics are exposed at `/api/live/health`.
 - Live leaderboard rows include bounded speed-history and track-status-history arrays for trend visuals.
@@ -72,3 +73,4 @@ F1 VibeTiming is a two-view product:
 - Command catalog: `.opencode/commands.yml`
 - Architecture docs: `docs/architecture/README.md`
 - Deployment notes: `docs/deployment/README.md`
+- Provider analysis docs: `docs/live-provider/README.md`

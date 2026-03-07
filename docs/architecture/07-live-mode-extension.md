@@ -38,9 +38,10 @@ Implementation notes:
 
 - Live stream transport is SignalR with reconnect/backoff handling in API and web.
 - Provider normalization currently covers session, timing, timing stats, car telemetry, position, and race-control topics.
+- Provider capture can persist raw decoded messages, topic shape summaries, and normalized live snapshots for local analysis.
 - Leaderboard entries include bounded speed-history and track-status-history windows for trend rendering.
 - Web consumes SSE first and uses `/api/live/state` as fallback polling path.
-- `/api/live/health` includes provider transport diagnostics (frame/message counters, parser/decode errors, topic throughput snapshots).
+- `/api/live/health` includes provider transport diagnostics plus local capture metadata (active run and persisted snapshot freshness).
 - Standings remain DB-backed with per-round history persistence, selectable round snapshots, and previous-round movement deltas.
 
 Source of truth:

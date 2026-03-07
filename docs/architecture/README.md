@@ -11,6 +11,7 @@ Read in this order:
 5. `05-data-model-erd.md`
 6. `06-ci-flow.md`
 7. `07-live-mode-extension.md`
+8. `08-live-provider-persistence.md`
 
 Notes:
 

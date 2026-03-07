@@ -1,0 +1,23 @@
+{
+  "Lines": {
+    "6": {
+      "Stints": {
+        "0": {
+          "New": "true",
+          "Compound": "SOFT",
+          "LapFlags": 0,
+          "StartLaps": 0,
+          "TotalLaps": 0,
+          "TyresNotChanged": "0"
+        }
+      }
+    },
+    "77": {
+      "Stints": {
+        "0": {
+          "TotalLaps": 2
+        }
+      }
+    }
+  }
+}

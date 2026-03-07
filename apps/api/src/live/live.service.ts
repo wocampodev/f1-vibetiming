@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
 import { LiveAdapter } from './live.adapter';
+import { LiveCaptureService } from './live.capture.service';
 import { LiveProviderAdapter } from './live.provider.adapter';
 import { LiveSimulatorAdapter } from './live.simulator.adapter';
 import {
@@ -42,11 +43,13 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly simulatorAdapter: LiveSimulatorAdapter,
     private readonly providerAdapter: LiveProviderAdapter,
+    private readonly liveCaptureService: LiveCaptureService,
   ) {
     this.adapter = this.resolveAdapter();
   }
 
   async onModuleInit(): Promise<void> {
+    await this.restorePersistedState();
     await this.startAdapter();
   }
 
@@ -90,6 +93,10 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   getHealth() {
     const adapterHealth = this.adapter.getHealth();
+    const details = {
+      ...(adapterHealth.details ?? {}),
+      capture: this.liveCaptureService.getHealth(this.adapter.source),
+    };
 
     return {
       source: this.adapter.source,
@@ -101,8 +108,30 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       heartbeatMs: adapterHealth.heartbeatMs,
       seed: adapterHealth.seed,
       speedMultiplier: adapterHealth.speedMultiplier,
-      details: adapterHealth.details ?? null,
+      details,
     };
+  }
+
+  private async restorePersistedState(): Promise<void> {
+    const restoredState = await this.liveCaptureService.loadLatestSnapshot(
+      this.adapter.source,
+    );
+    if (!restoredState) {
+      return;
+    }
+
+    if (this.adapter.source === 'provider') {
+      this.liveCaptureService.seedProviderContext({
+        weekendId: restoredState.session.weekendId,
+        sessionId: restoredState.session.sessionId,
+        sessionName: restoredState.session.sessionName,
+      });
+    }
+
+    this.currentState = restoredState;
+    this.logger.log(
+      `Restored persisted live snapshot for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
+    );
   }
 
   private async startAdapter(): Promise<void> {
@@ -111,6 +140,12 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
         if (event.type === 'initial_state') {
           this.currentState = event.state;
           const publicState = this.toPublicState(event.state);
+          this.liveCaptureService.persistSnapshot(
+            this.adapter.source,
+            event.state,
+            publicState,
+            ['generatedAt', 'session', 'leaderboard', 'raceControl'],
+          );
           this.streamSubject.next(
             this.wrapEnvelope('initial_state', publicState),
           );
@@ -119,9 +154,16 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
         if (event.type === 'delta_update') {
           this.currentState = event.state;
+          const publicState = this.toPublicState(event.state);
+          this.liveCaptureService.persistSnapshot(
+            this.adapter.source,
+            event.state,
+            publicState,
+            event.changedFields,
+          );
           this.streamSubject.next(
             this.wrapEnvelope('delta_update', {
-              state: this.toPublicState(event.state),
+              state: publicState,
               changedFields: event.changedFields,
             }),
           );

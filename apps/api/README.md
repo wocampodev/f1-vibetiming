@@ -47,9 +47,19 @@ Live runtime environment variables:
 - `LIVE_PROVIDER_LOG_FRAMES` (default `false`; logs raw websocket frame previews)
 - `LIVE_PROVIDER_LOG_MESSAGES` (default `false`; logs decoded topic payload previews)
 - `LIVE_PROVIDER_LOG_MAX_CHARS` (default `600`; truncates provider log previews)
+- `LIVE_PROVIDER_CAPTURE_ENABLED` (default `true`; persists decoded provider events and snapshots)
+- `LIVE_PROVIDER_RAW_RETENTION_DAYS` (default `30`; raw event retention window)
+- `LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS` (default `30`; snapshot retention window)
+- `LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC` (default `21600`; max age restored on startup)
 
 Simulator-only tuning env vars:
 
 - `LIVE_SIMULATOR_TICK_MS`
 - `LIVE_SIMULATOR_SPEED_MULTIPLIER`
 - `LIVE_SIMULATOR_SEED`
+
+Local capture persistence:
+
+- Postgres bind mount: `./.data/postgres`
+- Daily SQL backups: `./.data/backups`
+- Local provider analysis docs: `docs/live-provider/README.md`

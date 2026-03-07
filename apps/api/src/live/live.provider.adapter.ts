@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { inflateRawSync } from 'node:zlib';
 import WebSocket, { RawData } from 'ws';
 import { LiveAdapter, LivePublish } from './live.adapter';
+import { LiveCaptureService } from './live.capture.service';
 import { LIVE_DRIVER_ROSTER_BY_NUMBER } from './live.driver-roster';
 import {
   LiveAdapterHealth,
@@ -942,15 +943,18 @@ export class ProviderStateAccumulator {
 
     if (topic === 'RaceControlMessages' && record) {
       const messagesRecord = asRecord(record.Messages);
-      if (messagesRecord) {
+      const messageEntries: Array<[string, JsonRecord]> = messagesRecord
+        ? Object.entries(messagesRecord).map(
+            ([key, message]) => [key, message] as [string, JsonRecord],
+          )
+        : asRecordArray(record.Messages).map(
+            (message, index) => [String(index), message] as const,
+          );
+
+      if (messageEntries.length > 0) {
         const nextMessages: LiveRaceControlMessage[] = [];
 
-        for (const [key, messageValue] of Object.entries(messagesRecord)) {
-          const message = asRecord(messageValue);
-          if (!message) {
-            continue;
-          }
-
+        for (const [key, message] of messageEntries) {
           const emitted = toIso(message.Utc, emittedAt);
           const text = asString(message.Message) ?? asString(message.Status);
           if (!text) {
@@ -988,6 +992,14 @@ export class ProviderStateAccumulator {
     }
 
     return [...changed];
+  }
+
+  getSessionMetadata() {
+    return {
+      weekendId: this.weekendId,
+      sessionId: this.sessionId,
+      sessionName: this.sessionName,
+    };
   }
 
   buildState(emittedAt: string): LiveState | null {
@@ -1088,12 +1100,15 @@ export class ProviderStateAccumulator {
       const gapToLeaderSec = parseTimingGapField(timing, [
         'GapToLeader',
         'TimeDiffToFastest',
+        'TimeDifftoFastest',
         'TimeDiffToFirst',
+        'TimeDifftoFirst',
       ]);
 
       const intervalToAheadSec = parseTimingGapField(timing, [
         'IntervalToPositionAhead',
         'TimeDiffToPositionAhead',
+        'TimeDifftoPositionAhead',
         'GapToPositionAhead',
         'TimeDiffToCarAhead',
       ]);
@@ -1327,7 +1342,10 @@ export class LiveProviderAdapter implements LiveAdapter {
   private initialStatePublished = false;
   private readonly accumulator = new ProviderStateAccumulator();
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly liveCaptureService: LiveCaptureService,
+  ) {
     this.baseUrl = this.configService.get<string>(
       'LIVE_SIGNALR_BASE_URL',
       'https://livetiming.formula1.com/signalr',
@@ -1392,6 +1410,7 @@ export class LiveProviderAdapter implements LiveAdapter {
     this.topicMessageCount.clear();
     this.topicLastSeenAt.clear();
     this.initialStatePublished = false;
+    await this.liveCaptureService.startProviderCapture();
 
     publish({
       type: 'status',
@@ -1403,7 +1422,7 @@ export class LiveProviderAdapter implements LiveAdapter {
     await this.connectAndSubscribe();
   }
 
-  stop(): Promise<void> {
+  async stop(): Promise<void> {
     this.running = false;
     this.publish = null;
     this.connectedAt = null;
@@ -1421,7 +1440,7 @@ export class LiveProviderAdapter implements LiveAdapter {
       socket.close();
     }
 
-    return Promise.resolve();
+    await this.liveCaptureService.completeProviderCapture();
   }
 
   getHealth(): LiveAdapterHealth {
@@ -1733,6 +1752,11 @@ export class LiveProviderAdapter implements LiveAdapter {
         message.topic,
         message.payload,
         message.emittedAt,
+      );
+      this.liveCaptureService.recordProviderMessage(
+        message,
+        this.accumulator.getSessionMetadata(),
+        changedFields,
       );
       this.logProviderMessage(message, changedFields);
       this.lastEventAt = message.emittedAt;

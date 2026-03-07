@@ -1,0 +1,204 @@
+{
+  "status": "provider-capture-observed-with-session-finalisation",
+  "source": "provider",
+  "retention": {
+    "rawEventDays": 30,
+    "backupDays": 30
+  },
+  "captureSnapshot": {
+    "takenAt": "2026-03-07T06:25:06Z",
+    "sessionKey": "provider:australian-grand-prix:australian-grand-prix-qualifying",
+    "eventsCaptured": 12593,
+    "decodeErrors": 0,
+    "observedTopicCount": 9,
+    "subscribedTopicCount": 12,
+    "notYetObservedTopics": [
+      "LapCount",
+      "CarData.z",
+      "Position.z"
+    ]
+  },
+  "topics": [
+    {
+      "rawTopic": "SessionInfo",
+      "topic": "SessionInfo",
+      "handling": "projected",
+      "eventCount": 2,
+      "shapeCount": 1,
+      "captureStatus": "observed",
+      "notes": [
+        "Nested Meeting metadata observed under Meeting.Circuit and Meeting.Country",
+        "Root payload carries Key, Name, Type, Path, StartDate, EndDate, SessionStatus, and _kf",
+        "Later repeat payload changed SessionStatus from Started to Finalised"
+      ],
+      "samples": [
+        "samples/session-info.qualifying.json"
+      ]
+    },
+    {
+      "rawTopic": "SessionStatus",
+      "topic": "SessionStatus",
+      "handling": "projected",
+      "eventCount": 15,
+      "shapeCount": 1,
+      "captureStatus": "observed",
+      "notes": [
+        "Simple root object with _kf, Status, and Started",
+        "Observed semantic states Started, Inactive, Aborted, Finished, and Finalised"
+      ],
+      "samples": [
+        "samples/session-status.started.json"
+      ]
+    },
+    {
+      "rawTopic": "LapCount",
+      "topic": "LapCount",
+      "handling": "projected",
+      "eventCount": 0,
+      "shapeCount": 0,
+      "captureStatus": "not_seen_in_initial_qualifying_window",
+      "notes": [
+        "Subscribed but not emitted during the initial qualifying capture"
+      ],
+      "samples": []
+    },
+    {
+      "rawTopic": "TrackStatus",
+      "topic": "TrackStatus",
+      "handling": "projected",
+      "eventCount": 14,
+      "shapeCount": 1,
+      "captureStatus": "observed",
+      "notes": [
+        "Simple root payload with _kf, Status, and Message",
+        "Observed late-session values including AllClear, Yellow, and Red"
+      ],
+      "samples": [
+        "samples/track-status.all-clear.json"
+      ]
+    },
+    {
+      "rawTopic": "DriverList",
+      "topic": "DriverList",
+      "handling": "projected",
+      "eventCount": 143,
+      "shapeCount": 1,
+      "captureStatus": "observed",
+      "notes": [
+        "Observed as a root object keyed directly by racing number",
+        "Only Line was present; no driver names, team names, or three-letter codes were seen"
+      ],
+      "samples": [
+        "samples/driver-list.line-only.json"
+      ]
+    },
+    {
+      "rawTopic": "TimingData",
+      "topic": "TimingData",
+      "handling": "projected",
+      "eventCount": 11123,
+      "shapeCount": 246,
+      "captureStatus": "observed",
+      "notes": [
+        "Dominated by sparse sector segment status micro-updates",
+        "Observed PreviousValue patches for completed sectors",
+        "Observed richer line snapshots with Position, Stats, BestLapTime, BestLapTimes, LastLapTime, Cutoff, NumberOfLaps, and ShowPosition",
+        "Observed mixed gap field spellings including TimeDifftoPositionAhead"
+      ],
+      "samples": [
+        "samples/timing-data.segment-status.json",
+        "samples/timing-data.previous-value.json",
+        "samples/timing-data.line-snapshot.json"
+      ]
+    },
+    {
+      "rawTopic": "TimingStats",
+      "topic": "TimingStats",
+      "handling": "projected",
+      "eventCount": 581,
+      "shapeCount": 20,
+      "captureStatus": "observed",
+      "notes": [
+        "BestSectors and BestSpeeds updates are the dominant shapes",
+        "PersonalBestLapTime appears less frequently",
+        "Observed deletion metadata under PersonalBestLapTime._deleted"
+      ],
+      "samples": [
+        "samples/timing-stats.best-sectors.json",
+        "samples/timing-stats.personal-best-lap.json"
+      ]
+    },
+    {
+      "rawTopic": "TimingAppData",
+      "topic": "TimingAppData",
+      "handling": "projected",
+      "eventCount": 604,
+      "shapeCount": 15,
+      "captureStatus": "observed",
+      "notes": [
+        "Observed both Line reorder updates and Stints updates",
+        "Stints arrived as both object-map payloads and array payloads",
+        "Lap-level stint updates carry LapTime, LapFlags, and LapNumber"
+      ],
+      "samples": [
+        "samples/timing-app-data.stint-declare.json",
+        "samples/timing-app-data.stint-lap-time.json"
+      ]
+    },
+    {
+      "rawTopic": "CarData.z",
+      "topic": "CarData",
+      "handling": "projected",
+      "eventCount": 0,
+      "shapeCount": 0,
+      "captureStatus": "not_seen_in_initial_qualifying_window",
+      "notes": [
+        "Compressed telemetry topic remains subscribed but unobserved so far"
+      ],
+      "samples": []
+    },
+    {
+      "rawTopic": "Position.z",
+      "topic": "Position",
+      "handling": "projected",
+      "eventCount": 0,
+      "shapeCount": 0,
+      "captureStatus": "not_seen_in_initial_qualifying_window",
+      "notes": [
+        "Compressed position/status topic remains subscribed but unobserved so far"
+      ],
+      "samples": []
+    },
+    {
+      "rawTopic": "RaceControlMessages",
+      "topic": "RaceControlMessages",
+      "handling": "projected",
+      "eventCount": 99,
+      "shapeCount": 4,
+      "captureStatus": "observed",
+      "notes": [
+        "Observed both Messages arrays and Messages objects keyed by provider ids",
+        "Keyed-object variants carried CLEAR, DOUBLE YELLOW, and session control messages"
+      ],
+      "samples": [
+        "samples/race-control.array-green-light.json",
+        "samples/race-control.object-penalty.json"
+      ]
+    },
+    {
+      "rawTopic": "ExtrapolatedClock",
+      "topic": "ExtrapolatedClock",
+      "handling": "projected",
+      "eventCount": 12,
+      "shapeCount": 2,
+      "captureStatus": "observed",
+      "notes": [
+        "Observed Utc, Remaining, and Extrapolating together",
+        "Later payloads flipped Extrapolating from true to false and updated Remaining"
+      ],
+      "samples": [
+        "samples/extrapolated-clock.initial.json"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,266 @@
+{
+  "generatedAt": "2026-03-07T06:31:18.784Z",
+  "activeRun": {
+    "source": "PROVIDER",
+    "status": "ACTIVE",
+    "eventsCaptured": 9125,
+    "decodeErrors": 0,
+    "sessionKey": "provider:australian-grand-prix:australian-grand-prix-qualifying",
+    "startedAt": "2026-03-07T05:17:07.969",
+    "lastEventAt": "2026-03-07T06:24:25.34"
+  },
+  "latestFinishedRun": {
+    "source": "PROVIDER",
+    "status": "INTERRUPTED",
+    "eventsCaptured": 3468,
+    "decodeErrors": 0,
+    "sessionKey": "provider:australian-grand-prix:australian-grand-prix-qualifying",
+    "startedAt": "2026-03-07T04:58:09.169",
+    "lastEventAt": "2026-03-07T05:15:50.634"
+  },
+  "topicCounts": [
+    {
+      "topic": "TimingData",
+      "eventCount": 11123,
+      "firstSeen": "2026-03-07T05:00:02.96",
+      "lastSeen": "2026-03-07T06:22:56.11"
+    },
+    {
+      "topic": "TimingAppData",
+      "eventCount": 604,
+      "firstSeen": "2026-03-07T05:00:05.382",
+      "lastSeen": "2026-03-07T06:20:31.349"
+    },
+    {
+      "topic": "TimingStats",
+      "eventCount": 581,
+      "firstSeen": "2026-03-07T05:00:09.007",
+      "lastSeen": "2026-03-07T06:20:30.048"
+    },
+    {
+      "topic": "DriverList",
+      "eventCount": 143,
+      "firstSeen": "2026-03-07T05:03:14.053",
+      "lastSeen": "2026-03-07T06:20:30.025"
+    },
+    {
+      "topic": "RaceControlMessages",
+      "eventCount": 99,
+      "firstSeen": "2026-03-07T05:00:00.57",
+      "lastSeen": "2026-03-07T06:24:25.34"
+    },
+    {
+      "topic": "SessionStatus",
+      "eventCount": 15,
+      "firstSeen": "2026-03-07T05:00:00.195",
+      "lastSeen": "2026-03-07T06:23:06.604"
+    },
+    {
+      "topic": "TrackStatus",
+      "eventCount": 14,
+      "firstSeen": "2026-03-07T05:10:17.044",
+      "lastSeen": "2026-03-07T06:22:59.354"
+    },
+    {
+      "topic": "ExtrapolatedClock",
+      "eventCount": 12,
+      "firstSeen": "2026-03-07T05:00:01.007",
+      "lastSeen": "2026-03-07T06:19:47.006"
+    },
+    {
+      "topic": "SessionInfo",
+      "eventCount": 2,
+      "firstSeen": "2026-03-07T05:00:00.195",
+      "lastSeen": "2026-03-07T06:23:06.604"
+    }
+  ],
+  "shapeCounts": [
+    {
+      "topic": "TimingData",
+      "shapeCount": 246,
+      "observations": 11123
+    },
+    {
+      "topic": "TimingAppData",
+      "shapeCount": 15,
+      "observations": 604
+    },
+    {
+      "topic": "TimingStats",
+      "shapeCount": 20,
+      "observations": 581
+    },
+    {
+      "topic": "DriverList",
+      "shapeCount": 1,
+      "observations": 143
+    },
+    {
+      "topic": "RaceControlMessages",
+      "shapeCount": 4,
+      "observations": 99
+    },
+    {
+      "topic": "SessionStatus",
+      "shapeCount": 1,
+      "observations": 15
+    },
+    {
+      "topic": "TrackStatus",
+      "shapeCount": 1,
+      "observations": 14
+    },
+    {
+      "topic": "ExtrapolatedClock",
+      "shapeCount": 2,
+      "observations": 12
+    },
+    {
+      "topic": "SessionInfo",
+      "shapeCount": 1,
+      "observations": 2
+    }
+  ],
+  "recentCatalog": [
+    {
+      "topic": "RaceControlMessages",
+      "rawTopic": "RaceControlMessages",
+      "observations": 53,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:24:25.34"
+    },
+    {
+      "topic": "RaceControlMessages",
+      "rawTopic": "RaceControlMessages",
+      "observations": 34,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:23:33.951"
+    },
+    {
+      "topic": "SessionStatus",
+      "rawTopic": "SessionStatus",
+      "observations": 15,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:23:06.604"
+    },
+    {
+      "topic": "SessionInfo",
+      "rawTopic": "SessionInfo",
+      "observations": 2,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:23:06.604"
+    },
+    {
+      "topic": "TrackStatus",
+      "rawTopic": "TrackStatus",
+      "observations": 14,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:22:59.354"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 8579,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:22:56.11"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 2,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:22:54.876"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 3,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:22:44.895"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 55,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:21:38.645"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 533,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:21:36.629"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 157,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:21:32.301"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 2,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:21:06.122"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 4,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:58.372"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 11,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:42.701"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 63,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:34.407"
+    },
+    {
+      "topic": "TimingData",
+      "rawTopic": "TimingData",
+      "observations": 85,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:32.996"
+    },
+    {
+      "topic": "TimingAppData",
+      "rawTopic": "TimingAppData",
+      "observations": 247,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:31.349"
+    },
+    {
+      "topic": "TimingStats",
+      "rawTopic": "TimingStats",
+      "observations": 15,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:30.048"
+    },
+    {
+      "topic": "TimingStats",
+      "rawTopic": "TimingStats",
+      "observations": 3,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:30.048"
+    },
+    {
+      "topic": "DriverList",
+      "rawTopic": "DriverList",
+      "observations": 143,
+      "decodeErrorCount": 0,
+      "lastSeenAt": "2026-03-07T06:20:30.025"
+    }
+  ]
+}

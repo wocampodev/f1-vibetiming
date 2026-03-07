@@ -1,0 +1,30 @@
+{
+  "Key": 11230,
+  "_kf": true,
+  "Name": "Qualifying",
+  "Path": "2026/2026-03-08_Australian_Grand_Prix/2026-03-07_Qualifying/",
+  "Type": "Qualifying",
+  "EndDate": "2026-03-07T17:00:00",
+  "Meeting": {
+    "Key": 1279,
+    "Name": "Australian Grand Prix",
+    "Number": 1,
+    "Circuit": {
+      "Key": 10,
+      "ShortName": "Melbourne"
+    },
+    "Country": {
+      "Key": 5,
+      "Code": "AUS",
+      "Name": "Australia"
+    },
+    "Location": "Melbourne",
+    "OfficialName": "FORMULA 1 QATAR AIRWAYS AUSTRALIAN GRAND PRIX 2026"
+  },
+  "GmtOffset": "11:00:00",
+  "StartDate": "2026-03-07T16:00:00",
+  "ArchiveStatus": {
+    "Status": "Generating"
+  },
+  "SessionStatus": "Started"
+}

@@ -1,0 +1,16 @@
+{
+  "Lines": {
+    "41": {
+      "PersonalBestLapTime": {
+        "Lap": 2,
+        "Value": "1:21.008",
+        "Position": 1
+      }
+    },
+    "43": {
+      "PersonalBestLapTime": {
+        "Position": 6
+      }
+    }
+  }
+}

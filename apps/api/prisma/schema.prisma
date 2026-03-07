@@ -33,6 +33,17 @@ enum IngestionStatus {
   FAILED
 }
 
+enum LiveCaptureSource {
+  PROVIDER
+  SIMULATOR
+}
+
+enum LiveCaptureRunStatus {
+  ACTIVE
+  COMPLETED
+  INTERRUPTED
+}
+
 model Team {
   id                   String                 @id @default(cuid())
   externalId           String                 @unique
@@ -160,4 +171,96 @@ model IngestionRun {
   recordsProcessed Int             @default(0)
   errorMessage     String?
   season           Int?
+}
+
+model LiveCaptureRun {
+  id             String               @id @default(cuid())
+  source         LiveCaptureSource
+  sessionKey     String?
+  weekendId      String?
+  sessionId      String?
+  sessionName    String?
+  status         LiveCaptureRunStatus @default(ACTIVE)
+  startedAt      DateTime             @default(now())
+  lastEventAt    DateTime?
+  finishedAt     DateTime?
+  eventsCaptured Int                  @default(0)
+  decodeErrors   Int                  @default(0)
+  lastTopic      String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  events         LiveProviderEvent[]
+  snapshots      LiveSessionSnapshot[]
+
+  @@index([source, status, startedAt])
+  @@index([source, sessionKey, startedAt])
+}
+
+model LiveProviderEvent {
+  id           String            @id @default(cuid())
+  captureRunId String
+  source       LiveCaptureSource
+  sessionKey   String
+  weekendId    String?
+  sessionId    String?
+  sessionName  String?
+  runSequence  Int
+  rawTopic     String
+  topic        String
+  emittedAt    DateTime
+  receivedAt   DateTime          @default(now())
+  decodeError  Boolean           @default(false)
+  payloadHash  String
+  payload      Json
+  changedFields Json
+  createdAt    DateTime          @default(now())
+  captureRun   LiveCaptureRun    @relation(fields: [captureRunId], references: [id], onDelete: Cascade)
+
+  @@unique([captureRunId, runSequence])
+  @@index([source, sessionKey, emittedAt])
+  @@index([source, topic, emittedAt])
+  @@index([receivedAt])
+}
+
+model LiveSessionSnapshot {
+  id           String            @id @default(cuid())
+  captureRunId String?
+  source       LiveCaptureSource
+  sessionKey   String
+  weekendId    String?
+  sessionId    String?
+  sessionName  String?
+  generatedAt  DateTime
+  lastEventAt  DateTime?
+  version      Int               @default(1)
+  publicState  Json
+  internalState Json
+  changedFields Json
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  captureRun   LiveCaptureRun?   @relation(fields: [captureRunId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sessionKey])
+  @@index([generatedAt])
+  @@index([source, sessionName, generatedAt])
+}
+
+model LiveTopicSchemaCatalog {
+  id               String            @id @default(cuid())
+  source           LiveCaptureSource
+  rawTopic         String
+  topic            String
+  shapeSignature   String
+  topLevelKeys     Json
+  fieldPaths       Json
+  samplePayload    Json
+  firstSeenAt      DateTime
+  lastSeenAt       DateTime
+  observations     Int               @default(1)
+  decodeErrorCount Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([source, rawTopic, shapeSignature])
+  @@index([source, topic, lastSeenAt])
 }

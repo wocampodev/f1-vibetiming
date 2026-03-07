@@ -13,6 +13,8 @@ erDiagram
 
   EVENT ||--o{ SESSION : contains
   SESSION ||--o{ SESSION_RESULT : has
+  LIVE_CAPTURE_RUN ||--o{ LIVE_PROVIDER_EVENT : stores
+  LIVE_CAPTURE_RUN ||--o{ LIVE_SESSION_SNAPSHOT : persists
 
   TEAM {
     string id PK
@@ -92,6 +94,54 @@ erDiagram
     int recordsProcessed
     int season
     string errorMessage
+  }
+
+  LIVE_CAPTURE_RUN {
+    string id PK
+    string source
+    string sessionKey
+    string status
+    datetime startedAt
+    datetime lastEventAt
+    datetime finishedAt
+    int eventsCaptured
+    int decodeErrors
+  }
+
+  LIVE_PROVIDER_EVENT {
+    string id PK
+    string captureRunId FK
+    string source
+    string sessionKey
+    int runSequence
+    string rawTopic
+    string topic
+    datetime emittedAt
+    datetime receivedAt
+    boolean decodeError
+    string payloadHash
+  }
+
+  LIVE_SESSION_SNAPSHOT {
+    string id PK
+    string captureRunId FK
+    string source
+    string sessionKey
+    datetime generatedAt
+    datetime lastEventAt
+    int version
+  }
+
+  LIVE_TOPIC_SCHEMA_CATALOG {
+    string id PK
+    string source
+    string rawTopic
+    string topic
+    string shapeSignature
+    datetime firstSeenAt
+    datetime lastSeenAt
+    int observations
+    int decodeErrorCount
   }
 ```
 

@@ -119,15 +119,27 @@ function createProviderAdapterMock() {
   };
 }
 
+function createLiveCaptureServiceMock(overrides?: Record<string, unknown>) {
+  return {
+    loadLatestSnapshot: jest.fn(() => Promise.resolve(null)),
+    persistSnapshot: jest.fn(),
+    getHealth: jest.fn(() => ({ enabled: false })),
+    seedProviderContext: jest.fn(),
+    ...overrides,
+  };
+}
+
 describe('LiveService', () => {
   it('starts simulator source and exposes current state', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();
@@ -154,10 +166,12 @@ describe('LiveService', () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();
@@ -174,10 +188,12 @@ describe('LiveService', () => {
     const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();
@@ -208,10 +224,12 @@ describe('LiveService', () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();
@@ -232,10 +250,12 @@ describe('LiveService', () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();
@@ -246,7 +266,41 @@ describe('LiveService', () => {
         framesReceived: 42,
         feedMessagesReceived: 180,
         frameParseErrors: 1,
+        capture: {
+          enabled: false,
+        },
       },
+    });
+  });
+
+  it('restores a recent persisted provider snapshot before adapter updates', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const restoredState = createLiveState();
+    restoredState.session.sessionName = 'Restored Session';
+    const capture = createLiveCaptureServiceMock({
+      loadLatestSnapshot: jest.fn(() => Promise.resolve(restoredState)),
+      getHealth: jest.fn(() => ({ enabled: true })),
+    });
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getState()).toMatchObject({
+      session: {
+        sessionName: 'Restored Session',
+      },
+    });
+    expect(capture.seedProviderContext).toHaveBeenCalledWith({
+      weekendId: restoredState.session.weekendId,
+      sessionId: restoredState.session.sessionId,
+      sessionName: restoredState.session.sessionName,
     });
   });
 
@@ -254,10 +308,12 @@ describe('LiveService', () => {
     const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
     const simulator = createSimulatorAdapterMock();
     const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
     const service = new LiveService(
       config as never,
       simulator as never,
       provider as never,
+      capture as never,
     );
 
     await service.onModuleInit();

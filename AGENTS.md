@@ -2,7 +2,7 @@
 
 Persistent handoff and operator profile for future sessions.
 
-Last updated: 2026-03-04 (standings simplified + simulator-first local runtime)
+Last updated: 2026-03-06 (provider capture persistence scaffold + local bind-mounted backups)
 
 ## Snapshot
 
@@ -49,6 +49,7 @@ Last updated: 2026-03-04 (standings simplified + simulator-first local runtime)
 - Real provider mode is opt-in: set `LIVE_SOURCE=provider`.
 - Provider adapter target: `https://livetiming.formula1.com/signalr`.
 - Guardrail: no synthetic fallback data when running in provider mode.
+- Local provider capture persists into Postgres with bind-mounted storage at `./.data/postgres` and daily SQL backups at `./.data/backups`.
 
 ## Guardrails
 

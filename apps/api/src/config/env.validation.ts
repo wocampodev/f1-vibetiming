@@ -23,4 +23,31 @@ export const envValidationSchema = Joi.object({
     .integer()
     .min(1000)
     .default(30000),
+  LIVE_PROVIDER_LOG_FRAMES: Joi.boolean()
+    .truthy('true', '1', 'yes', 'on')
+    .falsy('false', '0', 'no', 'off')
+    .default(false),
+  LIVE_PROVIDER_LOG_MESSAGES: Joi.boolean()
+    .truthy('true', '1', 'yes', 'on')
+    .falsy('false', '0', 'no', 'off')
+    .default(false),
+  LIVE_PROVIDER_LOG_MAX_CHARS: Joi.number().integer().min(80).default(600),
+  LIVE_PROVIDER_CAPTURE_ENABLED: Joi.boolean()
+    .truthy('true', '1', 'yes', 'on')
+    .falsy('false', '0', 'no', 'off')
+    .default(true),
+  LIVE_PROVIDER_RAW_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(90)
+    .default(30),
+  LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(30),
+  LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC: Joi.number()
+    .integer()
+    .min(60)
+    .default(21600),
 });

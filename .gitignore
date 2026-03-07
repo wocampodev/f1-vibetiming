@@ -3,6 +3,7 @@ dist/
 coverage/
 .env
 .env.local
+.data/
 
 apps/*/node_modules/
 apps/*/.next/

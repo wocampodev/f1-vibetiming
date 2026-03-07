@@ -404,6 +404,54 @@ describe('ProviderStateAccumulator', () => {
     });
   });
 
+  it('maps race control message arrays emitted by the real provider', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'SessionStatus',
+      {
+        Status: 'Started',
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'LapCount',
+      {
+        CurrentLap: '1',
+        TotalLaps: '16',
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'RaceControlMessages',
+      {
+        _kf: true,
+        Messages: [
+          {
+            Utc: '2026-03-03T00:00:02.000Z',
+            Flag: 'GREEN',
+            Scope: 'Track',
+            Message: 'GREEN LIGHT - PIT EXIT OPEN',
+            Category: 'Flag',
+          },
+        ],
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+    expect(state?.raceControl).toHaveLength(1);
+    expect(state?.raceControl[0]).toMatchObject({
+      category: 'flag',
+      flag: 'green',
+      message: 'GREEN LIGHT - PIT EXIT OPEN',
+    });
+  });
+
   it('maps TimingStats, CarData, and Position topics into leaderboard telemetry', () => {
     const emittedAt = '2026-03-03T00:00:00.000Z';
     const accumulator = new ProviderStateAccumulator();
@@ -701,8 +749,8 @@ describe('ProviderStateAccumulator', () => {
           '2': {
             Position: '2',
             LastLapTime: { Value: '1:21.250' },
-            TimeDiffToFastest: '+1.250',
-            TimeDiffToPositionAhead: '+1.250',
+            TimeDifftoFastest: '+1.250',
+            TimeDifftoPositionAhead: '+1.250',
           },
         },
       },

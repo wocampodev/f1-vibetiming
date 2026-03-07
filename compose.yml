@@ -1,21 +1,61 @@
 services:
+  postgres-init:
+    image: alpine:3.21
+    container_name: f1-vibetiming-postgres-init
+    restart: 'no'
+    command: >-
+      sh -c "mkdir -p /workspace/postgres /workspace/backups &&
+      chown -R 70:70 /workspace/postgres &&
+      chmod 700 /workspace/postgres &&
+      chmod 755 /workspace/backups"
+    volumes:
+      - ./.data:/workspace
+
   postgres:
     image: postgres:16-alpine
     container_name: f1-vibetiming-postgres
     restart: unless-stopped
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: f1_vibetiming
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./.data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -d f1_vibetiming']
       interval: 10s
       timeout: 5s
       retries: 5
+
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: f1-vibetiming-postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: f1_vibetiming
+      PGPASSWORD: postgres
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${POSTGRES_BACKUP_RETENTION_DAYS:-30}
+      BACKUP_SCHEDULE_CRON: ${POSTGRES_BACKUP_SCHEDULE_CRON:-15 3 * * *}
+      TZ: ${POSTGRES_BACKUP_TZ:-UTC}
+    command: >-
+      sh -c "mkdir -p /backups &&
+      printf '%s\\n' \"$${BACKUP_SCHEDULE_CRON} sh /usr/local/bin/postgres-backup.sh >> /proc/1/fd/1 2>> /proc/1/fd/2\" > /etc/crontabs/root &&
+      crond -f -l 2"
+    volumes:
+      - ./.data/backups:/backups
+      - ./scripts/postgres-backup.sh:/usr/local/bin/postgres-backup.sh:ro
 
   api:
     build:
@@ -39,6 +79,10 @@ services:
       LIVE_PROVIDER_LOG_FRAMES: ${LIVE_PROVIDER_LOG_FRAMES:-false}
       LIVE_PROVIDER_LOG_MESSAGES: ${LIVE_PROVIDER_LOG_MESSAGES:-false}
       LIVE_PROVIDER_LOG_MAX_CHARS: ${LIVE_PROVIDER_LOG_MAX_CHARS:-600}
+      LIVE_PROVIDER_CAPTURE_ENABLED: ${LIVE_PROVIDER_CAPTURE_ENABLED:-true}
+      LIVE_PROVIDER_RAW_RETENTION_DAYS: ${LIVE_PROVIDER_RAW_RETENTION_DAYS:-30}
+      LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS: ${LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS:-30}
+      LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC: ${LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC:-21600}
     ports:
       - '4000:4000'
 
@@ -56,6 +100,3 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://api:4000/api
     ports:
       - '3000:3000'
-
-volumes:
-  postgres_data:
