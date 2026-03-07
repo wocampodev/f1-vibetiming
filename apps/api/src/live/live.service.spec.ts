@@ -488,9 +488,22 @@ describe('LiveService', () => {
         intervalToAheadSec: null,
       },
     ]);
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'stabilized',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '27',
+          lastLowConfidenceLeaderSource: 'driver_code',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '27',
+          publicLeaderCode: '63',
+        },
+      },
+    });
   });
 
-  it('withholds provider leaderboard rows when startup data only has a driver-code leader', async () => {
+  it('withholds provider leaderboard rows when startup data only has a low-confidence driver-code leader', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
     const weakState = cloneLiveState();
@@ -529,6 +542,75 @@ describe('LiveService', () => {
 
     expect(service.getState()).toMatchObject({
       leaderboard: [],
+    });
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'withheld',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '27',
+          lastLowConfidenceLeaderSource: 'driver_code',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '27',
+          publicLeaderCode: null,
+        },
+      },
+    });
+  });
+
+  it('withholds provider leaderboard rows when startup data only has a low-confidence best-lap leader', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const weakState = cloneLiveState();
+    weakState.session.weekendId = 'provider-weekend';
+    weakState.session.sessionId = 'provider-session';
+    weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
+    weakState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverCode: '81',
+        driverName: 'Oscar Piastri',
+        teamName: 'McLaren',
+        bestLapMs: 79500,
+        positionSource: 'best_lap',
+        positionUpdatedAt: '2026-03-07T05:00:02.960Z',
+        positionConfidence: 'low',
+      }),
+    ];
+
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({ type: 'initial_state', state: weakState });
+        return Promise.resolve();
+      }),
+    });
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getState()).toMatchObject({
+      leaderboard: [],
+    });
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'withheld',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '81',
+          lastLowConfidenceLeaderSource: 'best_lap',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '81',
+          publicLeaderCode: null,
+        },
+      },
     });
   });
 

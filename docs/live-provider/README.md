@@ -68,6 +68,24 @@ Audit the latest persisted provider session for low-confidence leaders and posit
 make provider-audit
 ```
 
+Tonight capture checklist:
+
+```bash
+make down
+make run PROVIDER_LOG_MESSAGES=true
+make health
+make provider-audit
+make provider-export
+make backup
+```
+
+Notes:
+
+- `make run` already starts provider mode with capture enabled.
+- Leave `make run` attached while the feed is active so provider logs stay visible.
+- Use `make provider-audit` after a meaningful capture window to spot temporary low-confidence leaders.
+- Use `make provider-export` before wrapping up so the repo keeps the latest DB-backed summary and ranking audit artifacts.
+
 Export the current DB-backed capture summary into repo-readable reports:
 
 ```bash

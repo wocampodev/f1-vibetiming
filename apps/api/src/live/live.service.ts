@@ -16,6 +16,8 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LivePositionConfidence,
+  LivePositionSource,
   LivePublicState,
   LiveState,
   LiveStatusPayload,
@@ -40,6 +42,14 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   private currentPublicState: LivePublicState | null = null;
   private currentStatus: LiveStreamStatus = 'connecting';
   private sequence = 0;
+  private publicProjectionMode: 'pass_through' | 'stabilized' | 'withheld' =
+    'pass_through';
+  private lowConfidenceLeaderSuppressions = 0;
+  private lastLowConfidenceLeaderAt: string | null = null;
+  private lastLowConfidenceLeaderCode: string | null = null;
+  private lastLowConfidenceLeaderSource: LivePositionSource | null = null;
+  private lastLowConfidenceLeaderConfidence: LivePositionConfidence | null =
+    null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -98,6 +108,25 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     const details = {
       ...(adapterHealth.details ?? {}),
       capture: this.liveCaptureService.getHealth(this.adapter.source),
+      publicProjection: {
+        mode: this.publicProjectionMode,
+        lowConfidenceLeaderSuppressions: this.lowConfidenceLeaderSuppressions,
+        lastLowConfidenceLeaderAt: this.lastLowConfidenceLeaderAt,
+        lastLowConfidenceLeaderCode: this.lastLowConfidenceLeaderCode,
+        lastLowConfidenceLeaderSource: this.lastLowConfidenceLeaderSource,
+        lastLowConfidenceLeaderConfidence:
+          this.lastLowConfidenceLeaderConfidence,
+        internalLeaderboardRows: this.currentState?.leaderboard.length ?? 0,
+        publicLeaderboardRows: this.currentPublicState?.leaderboard.length ?? 0,
+        internalLeaderCode:
+          this.currentState?.leaderboard[0]?.driverCode ?? null,
+        internalLeaderSource:
+          this.currentState?.leaderboard[0]?.positionSource ?? null,
+        internalLeaderConfidence:
+          this.currentState?.leaderboard[0]?.positionConfidence ?? null,
+        publicLeaderCode:
+          this.currentPublicState?.leaderboard[0]?.driverCode ?? null,
+      },
     };
 
     return {
@@ -302,17 +331,26 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     previousPublicState: LivePublicState | null,
   ): LivePublicState['leaderboard'] {
     if (this.adapter.source !== 'provider') {
+      this.publicProjectionMode = 'pass_through';
       return leaderboard;
     }
 
     const leader = state.leaderboard[0];
     if (!leader) {
+      this.publicProjectionMode = 'pass_through';
       return leaderboard;
     }
 
     if (leader.positionConfidence !== 'low') {
+      this.publicProjectionMode = 'pass_through';
       return leaderboard;
     }
+
+    this.lowConfidenceLeaderSuppressions += 1;
+    this.lastLowConfidenceLeaderAt = state.generatedAt;
+    this.lastLowConfidenceLeaderCode = leader.driverCode;
+    this.lastLowConfidenceLeaderSource = leader.positionSource;
+    this.lastLowConfidenceLeaderConfidence = leader.positionConfidence;
 
     const sameSession =
       previousPublicState != null &&
@@ -324,7 +362,8 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
             state.session.sessionName));
 
     if (!sameSession) {
-      return leader.positionSource === 'driver_code' ? [] : leaderboard;
+      this.publicProjectionMode = 'withheld';
+      return [];
     }
 
     const currentEntriesByCode = new Map(
@@ -344,6 +383,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    this.publicProjectionMode = 'stabilized';
     return stabilized.map((entry, index) => ({
       ...entry,
       position: index + 1,
