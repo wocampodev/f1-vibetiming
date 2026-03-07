@@ -6,6 +6,8 @@ POSTGRES_DB ?= f1_vibetiming
 TOPIC ?= TimingData
 BACKUP_FILE ?=
 WEB_SMOKE_PORT ?=
+SESSION_KEY ?=
+MAX_AGE_SEC ?=
 PROVIDER_LOG_FRAMES ?= false
 PROVIDER_LOG_MESSAGES ?= false
 PROVIDER_LOG_MAX_CHARS ?= 600
@@ -20,7 +22,7 @@ PROVIDER_LOG_MAX_CHARS ?= 600
 	run run-sim down \
 	stack-up stack-up-provider stack-up-provider-capture stack-up-provider-verbose stack-down \
 	logs-api health \
-	backup backup-now restore backup-restore provider-inspect provider-inspect-topic provider-export sql provider-psql
+	backup backup-now restore backup-restore provider-inspect provider-inspect-topic provider-audit provider-export sql provider-psql
 
 help: ## Show the simplified command surface
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -153,6 +155,13 @@ provider-inspect: ## Show provider capture summary (set TOPIC=TimingData for rec
 
 provider-inspect-topic:
 	sh scripts/live-provider-inspect.sh "$(TOPIC)"
+
+provider-audit: ## Audit latest provider ranking session (set SESSION_KEY=... or MAX_AGE_SEC=...)
+	@if [ -n "$(SESSION_KEY)" ]; then \
+		MAX_AGE_SEC=$(MAX_AGE_SEC) pnpm --filter api live:audit "$(SESSION_KEY)"; \
+	else \
+		MAX_AGE_SEC=$(MAX_AGE_SEC) pnpm --filter api live:audit; \
+	fi
 
 provider-export: ## Export provider capture reports into docs/live-provider/reports
 	node scripts/live-provider-export.mjs

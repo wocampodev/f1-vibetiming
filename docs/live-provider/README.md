@@ -62,6 +62,12 @@ Inspect the latest payloads for a specific topic:
 make provider-inspect TOPIC=TimingData
 ```
 
+Audit the latest persisted provider session for low-confidence leaders and position provenance:
+
+```bash
+make provider-audit
+```
+
 Export the current DB-backed capture summary into repo-readable reports:
 
 ```bash

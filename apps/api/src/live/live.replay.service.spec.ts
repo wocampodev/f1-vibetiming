@@ -137,6 +137,60 @@ describe('LiveReplayService', () => {
     expect(prisma.liveProviderEvent.findMany).not.toHaveBeenCalled();
   });
 
+  it('audits the latest provider session within the allowed age window', async () => {
+    const emittedAt = new Date();
+    const prisma = createPrismaMock([
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '1': {
+              Position: '1',
+            },
+          },
+        },
+        emittedAt,
+      },
+    ]);
+
+    const service = new LiveReplayService(prisma as never);
+    const audit = await service.auditLatestProviderSession(300);
+
+    expect(prisma.liveProviderEvent.findFirst).toHaveBeenCalledWith({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+      },
+      orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
+      select: {
+        sessionKey: true,
+        emittedAt: true,
+      },
+    });
+    expect(audit).not.toBeNull();
+    expect(audit?.sessionKey).toBe('provider:australia:qualifying');
+  });
+
+  it('returns null when the latest provider session is too old to audit', async () => {
+    const emittedAt = new Date('2026-03-01T00:00:00.000Z');
+    const prisma = createPrismaMock([
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '1': {
+              Position: '1',
+            },
+          },
+        },
+        emittedAt,
+      },
+    ]);
+
+    const service = new LiveReplayService(prisma as never);
+    await expect(service.auditLatestProviderSession(1)).resolves.toBeNull();
+    expect(prisma.liveProviderEvent.findMany).not.toHaveBeenCalled();
+  });
+
   it('audits risky line-hint ranking inputs from persisted events', async () => {
     const prisma = createPrismaMock([
       {
