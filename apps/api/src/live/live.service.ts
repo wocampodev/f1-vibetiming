@@ -16,6 +16,8 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LivePositionConfidence,
+  LivePositionSource,
   LivePublicState,
   LiveState,
   LiveStatusPayload,
@@ -37,8 +39,17 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   private adapter: LiveAdapter;
   private currentState: LiveState | null = null;
+  private currentPublicState: LivePublicState | null = null;
   private currentStatus: LiveStreamStatus = 'connecting';
   private sequence = 0;
+  private publicProjectionMode: 'pass_through' | 'stabilized' | 'withheld' =
+    'pass_through';
+  private lowConfidenceLeaderSuppressions = 0;
+  private lastLowConfidenceLeaderAt: string | null = null;
+  private lastLowConfidenceLeaderCode: string | null = null;
+  private lastLowConfidenceLeaderSource: LivePositionSource | null = null;
+  private lastLowConfidenceLeaderConfidence: LivePositionConfidence | null =
+    null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -62,11 +73,10 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   stream(): Observable<MessageEvent> {
     return new Observable<MessageEvent>((subscriber) => {
-      if (this.currentState) {
-        const publicState = this.toPublicState(this.currentState);
+      if (this.currentPublicState) {
         subscriber.next({
           type: 'initial_state',
-          data: this.wrapEnvelope('initial_state', publicState),
+          data: this.wrapEnvelope('initial_state', this.currentPublicState),
         });
       } else {
         subscriber.next({
@@ -90,7 +100,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
   }
 
   getState(): LivePublicState | null {
-    return this.currentState ? this.toPublicState(this.currentState) : null;
+    return this.currentPublicState;
   }
 
   getHealth() {
@@ -98,6 +108,25 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     const details = {
       ...(adapterHealth.details ?? {}),
       capture: this.liveCaptureService.getHealth(this.adapter.source),
+      publicProjection: {
+        mode: this.publicProjectionMode,
+        lowConfidenceLeaderSuppressions: this.lowConfidenceLeaderSuppressions,
+        lastLowConfidenceLeaderAt: this.lastLowConfidenceLeaderAt,
+        lastLowConfidenceLeaderCode: this.lastLowConfidenceLeaderCode,
+        lastLowConfidenceLeaderSource: this.lastLowConfidenceLeaderSource,
+        lastLowConfidenceLeaderConfidence:
+          this.lastLowConfidenceLeaderConfidence,
+        internalLeaderboardRows: this.currentState?.leaderboard.length ?? 0,
+        publicLeaderboardRows: this.currentPublicState?.leaderboard.length ?? 0,
+        internalLeaderCode:
+          this.currentState?.leaderboard[0]?.driverCode ?? null,
+        internalLeaderSource:
+          this.currentState?.leaderboard[0]?.positionSource ?? null,
+        internalLeaderConfidence:
+          this.currentState?.leaderboard[0]?.positionConfidence ?? null,
+        publicLeaderCode:
+          this.currentPublicState?.leaderboard[0]?.driverCode ?? null,
+      },
     };
 
     return {
@@ -154,6 +183,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.currentState = restoredState;
+    this.currentPublicState = this.toPublicState(restoredState);
     this.logger.log(
       `Restored persisted live state for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
     );
@@ -163,8 +193,13 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.adapter.start((event) => {
         if (event.type === 'initial_state') {
+          const previousPublicState = this.currentPublicState;
           this.currentState = event.state;
-          const publicState = this.toPublicState(event.state);
+          const publicState = this.toPublicState(
+            event.state,
+            previousPublicState,
+          );
+          this.currentPublicState = publicState;
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
@@ -178,8 +213,13 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
         }
 
         if (event.type === 'delta_update') {
+          const previousPublicState = this.currentPublicState;
           this.currentState = event.state;
-          const publicState = this.toPublicState(event.state);
+          const publicState = this.toPublicState(
+            event.state,
+            previousPublicState,
+          );
+          this.currentPublicState = publicState;
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
@@ -248,31 +288,107 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private toPublicState(state: LiveState): LivePublicState {
+  private toPublicState(
+    state: LiveState,
+    previousPublicState?: LivePublicState | null,
+  ): LivePublicState {
+    const leaderboard = state.leaderboard.map((entry) => {
+      return {
+        position: entry.position,
+        driverCode: entry.driverCode,
+        driverName: entry.driverName,
+        teamName: entry.teamName,
+        gapToLeaderSec: entry.gapToLeaderSec,
+        intervalToAheadSec: entry.intervalToAheadSec,
+        sector1Ms: entry.sector1Ms,
+        sector2Ms: entry.sector2Ms,
+        sector3Ms: entry.sector3Ms,
+        bestSector1Ms: entry.bestSector1Ms,
+        bestSector2Ms: entry.bestSector2Ms,
+        bestSector3Ms: entry.bestSector3Ms,
+        lastLapMs: entry.lastLapMs,
+        bestLapMs: entry.bestLapMs,
+        speedHistoryKph: entry.speedHistoryKph,
+        trackStatusHistory: entry.trackStatusHistory,
+      };
+    });
+
     return {
       generatedAt: state.generatedAt,
       session: state.session,
-      leaderboard: state.leaderboard.map((entry) => {
-        return {
-          position: entry.position,
-          driverCode: entry.driverCode,
-          driverName: entry.driverName,
-          teamName: entry.teamName,
-          gapToLeaderSec: entry.gapToLeaderSec,
-          intervalToAheadSec: entry.intervalToAheadSec,
-          sector1Ms: entry.sector1Ms,
-          sector2Ms: entry.sector2Ms,
-          sector3Ms: entry.sector3Ms,
-          bestSector1Ms: entry.bestSector1Ms,
-          bestSector2Ms: entry.bestSector2Ms,
-          bestSector3Ms: entry.bestSector3Ms,
-          lastLapMs: entry.lastLapMs,
-          bestLapMs: entry.bestLapMs,
-          speedHistoryKph: entry.speedHistoryKph,
-          trackStatusHistory: entry.trackStatusHistory,
-        };
-      }),
+      leaderboard: this.stabilizeProviderLeaderboard(
+        state,
+        leaderboard,
+        previousPublicState ?? null,
+      ),
       raceControl: state.raceControl,
     };
+  }
+
+  private stabilizeProviderLeaderboard(
+    state: LiveState,
+    leaderboard: LivePublicState['leaderboard'],
+    previousPublicState: LivePublicState | null,
+  ): LivePublicState['leaderboard'] {
+    if (this.adapter.source !== 'provider') {
+      this.publicProjectionMode = 'pass_through';
+      return leaderboard;
+    }
+
+    const leader = state.leaderboard[0];
+    if (!leader) {
+      this.publicProjectionMode = 'pass_through';
+      return leaderboard;
+    }
+
+    if (leader.positionConfidence !== 'low') {
+      this.publicProjectionMode = 'pass_through';
+      return leaderboard;
+    }
+
+    this.lowConfidenceLeaderSuppressions += 1;
+    this.lastLowConfidenceLeaderAt = state.generatedAt;
+    this.lastLowConfidenceLeaderCode = leader.driverCode;
+    this.lastLowConfidenceLeaderSource = leader.positionSource;
+    this.lastLowConfidenceLeaderConfidence = leader.positionConfidence;
+
+    const sameSession =
+      previousPublicState != null &&
+      ((previousPublicState.session.sessionId != null &&
+        previousPublicState.session.sessionId === state.session.sessionId) ||
+        (previousPublicState.session.sessionId == null &&
+          previousPublicState.session.sessionName != null &&
+          previousPublicState.session.sessionName ===
+            state.session.sessionName));
+
+    if (!sameSession) {
+      this.publicProjectionMode = 'withheld';
+      return [];
+    }
+
+    const currentEntriesByCode = new Map(
+      leaderboard.map((entry) => [entry.driverCode, entry]),
+    );
+    const stabilized = previousPublicState.leaderboard
+      .map((entry) => currentEntriesByCode.get(entry.driverCode) ?? null)
+      .filter((entry): entry is (typeof leaderboard)[number] => entry != null);
+    const includedDriverCodes = new Set(
+      stabilized.map((entry) => entry.driverCode),
+    );
+
+    for (const entry of leaderboard) {
+      if (!includedDriverCodes.has(entry.driverCode)) {
+        stabilized.push(entry);
+        includedDriverCodes.add(entry.driverCode);
+      }
+    }
+
+    this.publicProjectionMode = 'stabilized';
+    return stabilized.map((entry, index) => ({
+      ...entry,
+      position: index + 1,
+      gapToLeaderSec: null,
+      intervalToAheadSec: null,
+    }));
   }
 }

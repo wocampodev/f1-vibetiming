@@ -61,6 +61,19 @@ function createLiveState(): LiveState {
   };
 }
 
+function cloneLiveState(): LiveState {
+  return JSON.parse(JSON.stringify(createLiveState())) as LiveState;
+}
+
+function createLeaderboardEntry(
+  overrides?: Partial<LiveState['leaderboard'][number]>,
+): LiveState['leaderboard'][number] {
+  return {
+    ...createLiveState().leaderboard[0],
+    ...overrides,
+  };
+}
+
 function createSimulatorAdapterMock() {
   const state = createLiveState();
 
@@ -93,7 +106,7 @@ function createSimulatorAdapterMock() {
   };
 }
 
-function createProviderAdapterMock() {
+function createProviderAdapterMock(overrides?: Record<string, unknown>) {
   return {
     source: 'provider' as const,
     start: jest.fn((publish: (event: unknown) => void) => {
@@ -119,6 +132,7 @@ function createProviderAdapterMock() {
         frameParseErrors: 1,
       },
     })),
+    ...overrides,
   };
 }
 
@@ -371,6 +385,231 @@ describe('LiveService', () => {
     expect(service.getState()).toMatchObject({
       session: {
         sessionName: 'Snapshot Session',
+      },
+    });
+  });
+
+  it('keeps the previous provider order when a later update would publish a low-confidence P1', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const trustedState = cloneLiveState();
+    trustedState.session.weekendId = 'provider-weekend';
+    trustedState.session.sessionId = 'provider-session';
+    trustedState.session.sessionName = 'Australian Grand Prix - Qualifying';
+    trustedState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverCode: '63',
+        driverName: 'George Russell',
+        teamName: 'Mercedes',
+        gapToLeaderSec: 0,
+        intervalToAheadSec: 0,
+        positionSource: 'timing_data',
+        positionUpdatedAt: '2026-03-07T05:00:00.000Z',
+        positionConfidence: 'high',
+      }),
+      createLeaderboardEntry({
+        position: 2,
+        driverCode: '27',
+        driverName: 'Nico Hulkenberg',
+        teamName: 'Sauber',
+        gapToLeaderSec: 0.481,
+        intervalToAheadSec: 0.481,
+        positionSource: 'timing_data',
+        positionUpdatedAt: '2026-03-07T05:00:00.000Z',
+        positionConfidence: 'high',
+      }),
+    ];
+
+    const weakState = cloneLiveState();
+    weakState.generatedAt = '2026-03-07T05:00:02.960Z';
+    weakState.session = { ...trustedState.session };
+    weakState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverCode: '27',
+        driverName: 'Nico Hulkenberg',
+        teamName: 'Sauber',
+        gapToLeaderSec: 0,
+        intervalToAheadSec: 0,
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+      createLeaderboardEntry({
+        position: 2,
+        driverCode: '63',
+        driverName: 'George Russell',
+        teamName: 'Mercedes',
+        gapToLeaderSec: 0,
+        intervalToAheadSec: 0,
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+    ];
+
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({ type: 'initial_state', state: trustedState });
+        publish({
+          type: 'delta_update',
+          state: weakState,
+          changedFields: ['leaderboard'],
+        });
+        return Promise.resolve();
+      }),
+    });
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getState()?.leaderboard).toMatchObject([
+      {
+        position: 1,
+        driverCode: '63',
+        driverName: 'George Russell',
+        gapToLeaderSec: null,
+        intervalToAheadSec: null,
+      },
+      {
+        position: 2,
+        driverCode: '27',
+        driverName: 'Nico Hulkenberg',
+        gapToLeaderSec: null,
+        intervalToAheadSec: null,
+      },
+    ]);
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'stabilized',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '27',
+          lastLowConfidenceLeaderSource: 'driver_code',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '27',
+          publicLeaderCode: '63',
+        },
+      },
+    });
+  });
+
+  it('withholds provider leaderboard rows when startup data only has a low-confidence driver-code leader', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const weakState = cloneLiveState();
+    weakState.session.weekendId = 'provider-weekend';
+    weakState.session.sessionId = 'provider-session';
+    weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
+    weakState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverCode: '27',
+        driverName: 'Nico Hulkenberg',
+        teamName: 'Sauber',
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+    ];
+
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({ type: 'initial_state', state: weakState });
+        return Promise.resolve();
+      }),
+    });
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getState()).toMatchObject({
+      leaderboard: [],
+    });
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'withheld',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '27',
+          lastLowConfidenceLeaderSource: 'driver_code',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '27',
+          publicLeaderCode: null,
+        },
+      },
+    });
+  });
+
+  it('withholds provider leaderboard rows when startup data only has a low-confidence best-lap leader', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const weakState = cloneLiveState();
+    weakState.session.weekendId = 'provider-weekend';
+    weakState.session.sessionId = 'provider-session';
+    weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
+    weakState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverCode: '81',
+        driverName: 'Oscar Piastri',
+        teamName: 'McLaren',
+        bestLapMs: 79500,
+        positionSource: 'best_lap',
+        positionUpdatedAt: '2026-03-07T05:00:02.960Z',
+        positionConfidence: 'low',
+      }),
+    ];
+
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({ type: 'initial_state', state: weakState });
+        return Promise.resolve();
+      }),
+    });
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getState()).toMatchObject({
+      leaderboard: [],
+    });
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        publicProjection: {
+          mode: 'withheld',
+          lowConfidenceLeaderSuppressions: 1,
+          lastLowConfidenceLeaderCode: '81',
+          lastLowConfidenceLeaderSource: 'best_lap',
+          lastLowConfidenceLeaderConfidence: 'low',
+          internalLeaderCode: '81',
+          publicLeaderCode: null,
+        },
       },
     });
   });

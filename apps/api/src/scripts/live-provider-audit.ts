@@ -12,6 +12,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 class LiveProviderAuditCliModule {}
 
 const MAX_LEADERBOARD_ROWS = 10;
+const OUTPUT_FORMAT = process.env.OUTPUT_FORMAT?.trim().toLowerCase() ?? 'text';
 
 const parsePositiveInt = (value: string | undefined): number | undefined => {
   if (!value) {
@@ -63,9 +64,19 @@ async function bootstrap(): Promise<void> {
       : await replayService.auditLatestProviderSession(maxAgeSec);
 
     if (!audit) {
+      if (OUTPUT_FORMAT === 'json') {
+        process.stdout.write('null\n');
+        return;
+      }
+
       process.stdout.write(
         'No provider session available for ranking audit.\n',
       );
+      return;
+    }
+
+    if (OUTPUT_FORMAT === 'json') {
+      process.stdout.write(`${JSON.stringify(audit, null, 2)}\n`);
       return;
     }
 
