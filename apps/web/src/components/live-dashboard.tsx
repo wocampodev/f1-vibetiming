@@ -42,6 +42,86 @@ const positionTone = [
   "from-blue-600 to-blue-700",
 ];
 
+type SectorTone = "overall_best" | "personal_best" | "off_best" | "neutral";
+
+interface SectorScale {
+  min: number;
+  max: number;
+  sessionBest: number | null;
+}
+
+const sectorToneStyles: Record<
+  Exclude<SectorTone, "neutral">,
+  { shell: string; track: string; fill: string; text: string }
+> = {
+  overall_best: {
+    shell: "border-fuchsia-400/30 bg-fuchsia-500/10",
+    track: "bg-fuchsia-950/60",
+    fill: "bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400",
+    text: "text-fuchsia-100",
+  },
+  personal_best: {
+    shell: "border-emerald-400/25 bg-emerald-500/10",
+    track: "bg-emerald-950/50",
+    fill: "bg-gradient-to-r from-emerald-300 to-emerald-500",
+    text: "text-emerald-100",
+  },
+  off_best: {
+    shell: "border-amber-300/20 bg-amber-400/10",
+    track: "bg-amber-950/40",
+    fill: "bg-gradient-to-r from-amber-300 to-yellow-500",
+    text: "text-amber-50",
+  },
+};
+
+const buildSectorScale = (
+  currentValues: Array<number | null>,
+  benchmarkValues: Array<number | null>,
+): SectorScale => {
+  const visibleValues = currentValues.filter((value): value is number => value != null);
+  const bestValues = benchmarkValues.filter((value): value is number => value != null);
+
+  return {
+    min: visibleValues.length > 0 ? Math.min(...visibleValues) : 0,
+    max: visibleValues.length > 0 ? Math.max(...visibleValues) : 0,
+    sessionBest: bestValues.length > 0 ? Math.min(...bestValues) : null,
+  };
+};
+
+const getSectorTone = (
+  value: number | null,
+  personalBest: number | null,
+  sessionBest: number | null,
+): SectorTone => {
+  if (value == null) {
+    return "neutral";
+  }
+
+  if (sessionBest != null && value <= sessionBest) {
+    return "overall_best";
+  }
+
+  if (personalBest != null && value <= personalBest) {
+    return "personal_best";
+  }
+
+  return "off_best";
+};
+
+const getSectorBarWidth = (value: number, scale: SectorScale): number => {
+  if (scale.max <= scale.min) {
+    return 100;
+  }
+
+  const normalized = (value - scale.min) / (scale.max - scale.min);
+  return Math.max(24, Math.round(100 - normalized * 72));
+};
+
+const isSessionBestLap = (
+  value: number | null,
+  sessionBest: number | null,
+): boolean => value != null && sessionBest != null && value <= sessionBest;
+
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
   try {
     return JSON.parse(raw) as LiveEnvelope<TPayload>;
@@ -106,11 +186,13 @@ interface LiveHealth {
 function SectorCell({
   label,
   value,
-  max,
+  personalBest,
+  scale,
 }: {
   label: string;
   value: number | null;
-  max: number;
+  personalBest: number | null;
+  scale: SectorScale;
 }) {
   if (value == null) {
     return (
@@ -120,19 +202,21 @@ function SectorCell({
     );
   }
 
-  const widthPct = Math.max(8, Math.round((value / max) * 100));
+  const tone = getSectorTone(value, personalBest, scale.sessionBest);
+  const styles = sectorToneStyles[tone === "neutral" ? "off_best" : tone];
+  const widthPct = getSectorBarWidth(value, scale);
 
   return (
-    <td className="px-2 py-2 font-mono text-lg leading-none text-[#f1f7ff]">
-      <div className="flex flex-col gap-1">
-        <div className="h-1.5 w-full rounded-full bg-[#1a2432]">
+    <td className="px-2 py-2 font-mono text-lg leading-none">
+      <div className={`flex flex-col gap-1 rounded-lg border px-3 py-2 ${styles.shell}`}>
+        <div className={`h-1.5 w-full rounded-full ${styles.track}`}>
           <div
-            className="h-full rounded-full bg-gradient-to-r from-[#ffd84f] to-[#ffbf00]"
+            className={`h-full rounded-full transition-[width,background-color] duration-500 ${styles.fill}`}
             style={{ width: `${widthPct}%` }}
             aria-label={`${label} progress`}
           />
         </div>
-        <span>{formatSectorTime(value)}</span>
+        <span className={styles.text}>{formatSectorTime(value)}</span>
       </div>
     </td>
   );
@@ -335,30 +419,40 @@ export function LiveDashboard() {
     return nowMs - new Date(reference).getTime() > STALE_THRESHOLD_MS;
   }, [lastHeartbeat, liveState?.generatedAt, nowMs]);
 
-  const sectorMax = useMemo(() => {
+  const sectorScale = useMemo(() => {
     if (!liveState || liveState.leaderboard.length === 0) {
-      return { s1: 1, s2: 1, s3: 1 };
+      return {
+        s1: buildSectorScale([], []),
+        s2: buildSectorScale([], []),
+        s3: buildSectorScale([], []),
+      };
     }
 
-    const s1Values = liveState.leaderboard
-      .map((entry) => entry.sector1Ms)
-      .filter((value): value is number => value != null);
-    const s2Values = liveState.leaderboard
-      .map((entry) => entry.sector2Ms)
-      .filter((value): value is number => value != null);
-    const s3Values = liveState.leaderboard
-      .map((entry) => entry.sector3Ms)
-      .filter((value): value is number => value != null);
-
     return {
-      s1: s1Values.length > 0 ? Math.max(...s1Values) : 1,
-      s2: s2Values.length > 0 ? Math.max(...s2Values) : 1,
-      s3: s3Values.length > 0 ? Math.max(...s3Values) : 1,
+      s1: buildSectorScale(
+        liveState.leaderboard.map((entry) => entry.sector1Ms),
+        liveState.leaderboard.map((entry) => entry.bestSector1Ms ?? entry.sector1Ms),
+      ),
+      s2: buildSectorScale(
+        liveState.leaderboard.map((entry) => entry.sector2Ms),
+        liveState.leaderboard.map((entry) => entry.bestSector2Ms ?? entry.sector2Ms),
+      ),
+      s3: buildSectorScale(
+        liveState.leaderboard.map((entry) => entry.sector3Ms),
+        liveState.leaderboard.map((entry) => entry.bestSector3Ms ?? entry.sector3Ms),
+      ),
     };
   }, [liveState]);
 
   const rows: LiveLeaderboardEntry[] = liveState?.leaderboard ?? [];
   const raceControl = liveState?.raceControl ?? [];
+  const fastestBestLap = useMemo(() => {
+    const values = (liveState?.leaderboard ?? [])
+      .map((entry) => entry.bestLapMs)
+      .filter((value): value is number => value != null);
+
+    return values.length > 0 ? Math.min(...values) : null;
+  }, [liveState]);
   const partialLeaderboard = rows.length > 0 && rows[0].position > 1;
   const noFeedYet =
     !liveState &&
@@ -398,6 +492,28 @@ export function LiveDashboard() {
           {liveState ? <span>Updated {formatClock(liveState.generatedAt)}</span> : null}
           {liveState?.session.clockIso ? <span>Clock {formatClock(liveState.session.clockIso)}</span> : null}
         </div>
+
+        {liveState ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
+            <span className="text-[#6f86a5]">Timing legend</span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
+              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400" />
+              Overall Best
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
+              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-emerald-300 to-emerald-500" />
+              Personal Best
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
+              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-amber-300 to-yellow-500" />
+              Off Best
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
+              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400" />
+              Fastest Lap
+            </span>
+          </div>
+        ) : null}
 
         {streamStale ? (
           <p className="mt-2 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
@@ -441,23 +557,58 @@ export function LiveDashboard() {
                       </span>
                     </td>
                     <td className="px-2 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-xl font-bold tracking-wide text-[#d7ebff]">
-                          {entry.driverCode}
-                        </span>
+                      <div className="flex min-w-[12rem] items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[#f4f9ff]">
+                            {entry.driverName ?? entry.driverCode}
+                          </p>
+                          {entry.teamName ? (
+                            <p className="truncate text-[11px] uppercase tracking-[0.16em] text-[#7f96b5]">
+                              {entry.teamName}
+                            </p>
+                          ) : null}
+                        </div>
                         {entry.driverName ? (
-                          <span className="text-xs text-[var(--muted)]">{entry.driverName}</span>
+                          <span className="shrink-0 rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-sm font-bold tracking-wide text-[#d7ebff]">
+                            {entry.driverCode}
+                          </span>
                         ) : null}
                       </div>
                     </td>
-                    <SectorCell label="S1" value={entry.sector1Ms} max={sectorMax.s1} />
-                    <SectorCell label="S2" value={entry.sector2Ms} max={sectorMax.s2} />
-                    <SectorCell label="S3" value={entry.sector3Ms} max={sectorMax.s3} />
+                    <SectorCell
+                      label="S1"
+                      value={entry.sector1Ms}
+                      personalBest={entry.bestSector1Ms}
+                      scale={sectorScale.s1}
+                    />
+                    <SectorCell
+                      label="S2"
+                      value={entry.sector2Ms}
+                      personalBest={entry.bestSector2Ms}
+                      scale={sectorScale.s2}
+                    />
+                    <SectorCell
+                      label="S3"
+                      value={entry.sector3Ms}
+                      personalBest={entry.bestSector3Ms}
+                      scale={sectorScale.s3}
+                    />
                     <td className="px-2 py-2 font-mono text-[1.65rem] leading-none text-[#f1f7ff]">
                       {formatLapTime(entry.lastLapMs)}
                     </td>
-                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                      {formatLapTime(entry.bestLapMs)}
+                    <td className="px-2 py-2 font-mono text-xl">
+                      {isSessionBestLap(entry.bestLapMs, fastestBestLap) ? (
+                        <div className="inline-flex min-w-[8.75rem] flex-col rounded-lg border border-fuchsia-400/35 bg-fuchsia-500/10 px-3 py-2 shadow-[0_0_0_1px_rgba(232,121,249,0.05)]">
+                          <span className="font-sans text-[10px] uppercase tracking-[0.22em] text-fuchsia-200/85">
+                            Fastest
+                          </span>
+                          <span className="mt-1 text-[1.35rem] leading-none text-fuchsia-100">
+                            {formatLapTime(entry.bestLapMs)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[#9eb3cd]">{formatLapTime(entry.bestLapMs)}</span>
+                      )}
                     </td>
                     <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
                       {formatGap(entry.gapToLeaderSec, entry.position === 1)}

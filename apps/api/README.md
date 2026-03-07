@@ -44,6 +44,9 @@ Live runtime environment variables:
 - `LIVE_SIGNALR_RECONNECT_MIN_MS` (default `1000`)
 - `LIVE_SIGNALR_RECONNECT_MAX_MS` (default `30000`)
 - `LIVE_HEARTBEAT_MS` (default `15000`)
+- `LIVE_PROVIDER_LOG_FRAMES` (default `false`; logs raw websocket frame previews)
+- `LIVE_PROVIDER_LOG_MESSAGES` (default `false`; logs decoded topic payload previews)
+- `LIVE_PROVIDER_LOG_MAX_CHARS` (default `600`; truncates provider log previews)
 
 Simulator-only tuning env vars:
 

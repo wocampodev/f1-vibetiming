@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { inflateRawSync } from 'node:zlib';
 import WebSocket, { RawData } from 'ws';
 import { LiveAdapter, LivePublish } from './live.adapter';
+import { LIVE_DRIVER_ROSTER_BY_NUMBER } from './live.driver-roster';
 import {
   LiveAdapterHealth,
   LiveFeedSource,
@@ -86,12 +87,80 @@ const TIRE_COMPOUNDS = new Set([
 const MAX_RACE_CONTROL_MESSAGES = 30;
 const MAX_SPEED_HISTORY_POINTS = 16;
 const MAX_TRACK_STATUS_HISTORY_POINTS = 10;
+const DEFAULT_PROVIDER_LOG_MAX_CHARS = 600;
+
+const TRUE_CONFIG_VALUES = new Set(['1', 'true', 'yes', 'on']);
+const FALSE_CONFIG_VALUES = new Set(['0', 'false', 'no', 'off']);
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const asRecord = (value: unknown): JsonRecord | null =>
   isRecord(value) ? value : null;
+
+const parseBooleanConfigValue = (value: unknown, fallback = false): boolean => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return fallback;
+  }
+
+  if (TRUE_CONFIG_VALUES.has(normalized)) {
+    return true;
+  }
+
+  if (FALSE_CONFIG_VALUES.has(normalized)) {
+    return false;
+  }
+
+  return fallback;
+};
+
+const parseProviderLogMaxChars = (value: unknown): number => {
+  const parsed = toInt(value);
+  if (parsed == null || parsed < 80) {
+    return DEFAULT_PROVIDER_LOG_MAX_CHARS;
+  }
+
+  return parsed;
+};
+
+export const formatProviderLogValue = (
+  value: unknown,
+  maxChars: number,
+): string => {
+  const limit = Math.max(80, Math.trunc(maxChars));
+
+  let serialized: string;
+  if (typeof value === 'string') {
+    serialized = value;
+  } else {
+    try {
+      const json = JSON.stringify(value);
+      serialized = typeof json === 'string' ? json : String(value);
+    } catch {
+      serialized = String(value);
+    }
+  }
+
+  const normalized = serialized.replace(/\s+/g, ' ').trim();
+  if (normalized.length === 0) {
+    return '(empty)';
+  }
+
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, limit - 3)}...`;
+};
 
 const unwrapValueNode = (value: unknown): unknown => {
   const record = asRecord(value);
@@ -947,6 +1016,9 @@ export class ProviderStateAccumulator {
         parseLapOrSectorMs(sector2) ?? parseTimingStatsSector(timingStats, 1);
       let sector3Ms =
         parseLapOrSectorMs(sector3) ?? parseTimingStatsSector(timingStats, 2);
+      const bestSector1Ms = parseTimingStatsSector(timingStats, 0) ?? sector1Ms;
+      const bestSector2Ms = parseTimingStatsSector(timingStats, 1) ?? sector2Ms;
+      const bestSector3Ms = parseTimingStatsSector(timingStats, 2) ?? sector3Ms;
 
       const lastLapMs = parseLapOrSectorMs(timing.LastLapTime);
 
@@ -1024,6 +1096,7 @@ export class ProviderStateAccumulator {
         .filter((value) => Boolean(value))
         .join(' ')
         .trim();
+      const rosterEntry = LIVE_DRIVER_ROSTER_BY_NUMBER[number];
 
       draftLeaderboard.push({
         position: explicitPosition ?? 0,
@@ -1032,8 +1105,10 @@ export class ProviderStateAccumulator {
         driverName:
           asString(driver?.FullName) ??
           (combinedName.length > 0 ? combinedName : null) ??
-          asString(driver?.BroadcastName),
-        teamName: asString(driver?.TeamName),
+          asString(driver?.BroadcastName) ??
+          rosterEntry?.driverName ??
+          null,
+        teamName: asString(driver?.TeamName) ?? rosterEntry?.teamName ?? null,
         trackStatus,
         speedKph,
         topSpeedKph,
@@ -1042,6 +1117,9 @@ export class ProviderStateAccumulator {
         sector1Ms,
         sector2Ms,
         sector3Ms,
+        bestSector1Ms,
+        bestSector2Ms,
+        bestSector3Ms,
         lastLapMs,
         bestLapMs,
         speedHistoryKph,
@@ -1200,6 +1278,9 @@ export class LiveProviderAdapter implements LiveAdapter {
   private readonly heartbeatMs: number;
   private readonly reconnectMinMs: number;
   private readonly reconnectMaxMs: number;
+  private readonly logFrames: boolean;
+  private readonly logMessages: boolean;
+  private readonly logMaxChars: number;
 
   private running = false;
   private startedAt: string | null = null;
@@ -1251,6 +1332,18 @@ export class LiveProviderAdapter implements LiveAdapter {
     this.reconnectMaxMs = this.configService.get<number>(
       'LIVE_SIGNALR_RECONNECT_MAX_MS',
       30000,
+    );
+    this.logFrames = parseBooleanConfigValue(
+      this.configService.get<string>('LIVE_PROVIDER_LOG_FRAMES', 'false'),
+    );
+    this.logMessages = parseBooleanConfigValue(
+      this.configService.get<string>('LIVE_PROVIDER_LOG_MESSAGES', 'false'),
+    );
+    this.logMaxChars = parseProviderLogMaxChars(
+      this.configService.get<string>(
+        'LIVE_PROVIDER_LOG_MAX_CHARS',
+        String(DEFAULT_PROVIDER_LOG_MAX_CHARS),
+      ),
     );
   }
 
@@ -1387,6 +1480,11 @@ export class LiveProviderAdapter implements LiveAdapter {
         status: 'live',
         message: 'Connected to Formula 1 live SignalR stream',
       });
+      if (this.logFrames || this.logMessages) {
+        this.logger.log(
+          `Provider payload logging enabled (frames=${this.logFrames}, messages=${this.logMessages}, maxChars=${this.logMaxChars})`,
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`SignalR connection failed: ${message}`);
@@ -1594,6 +1692,7 @@ export class LiveProviderAdapter implements LiveAdapter {
       this.hubName,
     );
     this.frameParseErrors += extraction.invalidFrames;
+    this.logProviderFrame(frameReceivedAt, rawText, extraction);
 
     for (const message of extraction.messages) {
       this.feedMessagesReceived += 1;
@@ -1611,9 +1710,40 @@ export class LiveProviderAdapter implements LiveAdapter {
         message.payload,
         message.emittedAt,
       );
+      this.logProviderMessage(message, changedFields);
       this.lastEventAt = message.emittedAt;
       this.publishState(changedFields, message.emittedAt);
     }
+  }
+
+  private logProviderFrame(
+    frameReceivedAt: string,
+    rawText: string,
+    extraction: SignalrFeedExtractionResult,
+  ): void {
+    if (!this.logFrames) {
+      return;
+    }
+
+    const preview = formatProviderLogValue(rawText, this.logMaxChars);
+    this.logger.log(
+      `Provider frame at=${frameReceivedAt} extractedMessages=${extraction.messages.length} invalidFrames=${extraction.invalidFrames} preview=${preview}`,
+    );
+  }
+
+  private logProviderMessage(
+    message: SignalrFeedMessage,
+    changedFields: string[],
+  ): void {
+    if (!this.logMessages) {
+      return;
+    }
+
+    const changed = changedFields.length > 0 ? changedFields.join(',') : 'none';
+    const payload = formatProviderLogValue(message.payload, this.logMaxChars);
+    this.logger.log(
+      `Provider message topic=${message.topic} rawTopic=${message.rawTopic} at=${message.emittedAt} decodeError=${message.decodeError} changed=${changed} payload=${payload}`,
+    );
   }
 
   private publishState(changedFields: string[], emittedAt: string): void {

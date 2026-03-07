@@ -50,6 +50,9 @@ export interface LiveLeaderboardEntry {
   sector1Ms: number | null;
   sector2Ms: number | null;
   sector3Ms: number | null;
+  bestSector1Ms: number | null;
+  bestSector2Ms: number | null;
+  bestSector3Ms: number | null;
   lastLapMs: number | null;
   bestLapMs: number | null;
   speedHistoryKph: LiveSpeedSample[];

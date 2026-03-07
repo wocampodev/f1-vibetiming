@@ -6,6 +6,7 @@ import {
   extractCookieJarEntries,
   extractFeedMessagesFromRawText,
   extractFeedMessagesFromRawTextWithStats,
+  formatProviderLogValue,
   ProviderStateAccumulator,
 } from './live.provider.adapter';
 
@@ -42,6 +43,25 @@ describe('decodeTopicPayload', () => {
 
     expect(decoded.topic).toBe('SessionStatus');
     expect(decoded.payload).toEqual({ Status: 'Started' });
+  });
+});
+
+describe('formatProviderLogValue', () => {
+  it('normalizes whitespace and truncates long payloads', () => {
+    const formatted = formatProviderLogValue(
+      '{\n  "topic": "TimingData",\n  "value": "1234567890"\n}',
+      80,
+    );
+
+    expect(formatted).toBe('{ "topic": "TimingData", "value": "1234567890" }');
+
+    const truncated = formatProviderLogValue({ payload: 'x'.repeat(200) }, 80);
+    expect(truncated).toHaveLength(80);
+    expect(truncated.endsWith('...')).toBe(true);
+  });
+
+  it('renders empty strings as a visible placeholder', () => {
+    expect(formatProviderLogValue('   ', 120)).toBe('(empty)');
   });
 });
 
@@ -218,6 +238,9 @@ describe('ProviderStateAccumulator', () => {
       sector1Ms: 30100,
       sector2Ms: 31000,
       sector3Ms: 31000,
+      bestSector1Ms: 30100,
+      bestSector2Ms: 31000,
+      bestSector3Ms: 31000,
       tireCompound: 'SOFT',
       stintLap: 12,
     });
@@ -268,6 +291,39 @@ describe('ProviderStateAccumulator', () => {
       sector1Ms: 30000,
       sector2Ms: 31000,
       sector3Ms: 32500,
+    });
+  });
+
+  it('falls back to the local roster when provider driver identity is missing', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '43': {
+            Position: '1',
+            LastLapTime: { Value: '1:24.222' },
+            BestLapTime: { Value: '1:24.222' },
+            Sectors: {
+              '0': { Value: '29.853' },
+              '1': { Value: '18.191' },
+              '2': { Value: '36.178' },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+    expect(state).not.toBeNull();
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '43',
+      driverName: 'Franco Colapinto',
+      teamName: 'Alpine',
     });
   });
 
@@ -546,6 +602,9 @@ describe('ProviderStateAccumulator', () => {
       sector1Ms: 30100,
       sector2Ms: 31200,
       sector3Ms: 31900,
+      bestSector1Ms: 30100,
+      bestSector2Ms: 31200,
+      bestSector3Ms: 31900,
     });
   });
 
@@ -591,6 +650,9 @@ describe('ProviderStateAccumulator', () => {
       sector1Ms: 30100,
       sector2Ms: 31200,
       sector3Ms: 31900,
+      bestSector1Ms: 30100,
+      bestSector2Ms: 31200,
+      bestSector3Ms: 31900,
     });
   });
 

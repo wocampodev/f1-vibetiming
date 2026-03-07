@@ -26,6 +26,13 @@ Run in provider mode (without an override file):
 LIVE_SOURCE=provider docker compose --profile app up -d --build
 ```
 
+Run in provider mode with container-visible provider frame and payload logs:
+
+```bash
+LIVE_SOURCE=provider LIVE_PROVIDER_LOG_FRAMES=true LIVE_PROVIDER_LOG_MESSAGES=true docker compose --profile app up -d --build
+docker logs -f f1-vibetiming-api
+```
+
 Stop stack:
 
 ```bash
@@ -52,6 +59,9 @@ curl http://localhost:3000/standings
 - `LIVE_SIGNALR_BASE_URL`: SignalR base URL
 - `LIVE_SIGNALR_HUB`: SignalR hub name
 - `LIVE_SIGNALR_TOPICS`: live topic subscription list
+- `LIVE_PROVIDER_LOG_FRAMES`: log each raw provider websocket frame to container stdout
+- `LIVE_PROVIDER_LOG_MESSAGES`: log each decoded provider topic payload to container stdout
+- `LIVE_PROVIDER_LOG_MAX_CHARS`: truncate frame and payload previews in logs
 
 ### Web
 

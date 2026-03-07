@@ -30,6 +30,12 @@ interface AppendRaceControlOptions {
   emittedAt?: string;
 }
 
+interface SimulatorSectorTimes {
+  sector1Ms: number;
+  sector2Ms: number;
+  sector3Ms: number;
+}
+
 const SIMULATOR_DRIVERS: DriverSeed[] = [
   { code: 'VER', name: 'Max Verstappen', team: 'Red Bull Racing' },
   { code: 'NOR', name: 'Lando Norris', team: 'McLaren' },
@@ -108,7 +114,7 @@ const rotateCompound = (
 const splitLapIntoSectors = (
   lapMs: number,
   random: () => number = Math.random,
-): Pick<LiveLeaderboardEntry, 'sector1Ms' | 'sector2Ms' | 'sector3Ms'> => {
+): SimulatorSectorTimes => {
   const s1 = roundMillis(lapMs * 0.327 + (random() - 0.5) * 260);
   const s2 = roundMillis(lapMs * 0.338 + (random() - 0.5) * 260);
   const s3 = lapMs - s1 - s2;
@@ -203,6 +209,9 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => {
         gapToLeaderSec: gap,
         intervalToAheadSec: interval,
         ...sectors,
+        bestSector1Ms: sectors.sector1Ms,
+        bestSector2Ms: sectors.sector2Ms,
+        bestSector3Ms: sectors.sector3Ms,
         lastLapMs,
         bestLapMs: lastLapMs,
         speedHistoryKph: [{ at: nowIso, kph: speedKph }],
@@ -254,6 +263,18 @@ export const evolveSimulatorState = (
 
     const nextBestLap = Math.min(currentBestLap, nextLastLap);
     const sectors = splitLapIntoSectors(nextLastLap, random);
+    const nextBestSector1Ms = Math.min(
+      current.bestSector1Ms ?? current.sector1Ms ?? sectors.sector1Ms,
+      sectors.sector1Ms,
+    );
+    const nextBestSector2Ms = Math.min(
+      current.bestSector2Ms ?? current.sector2Ms ?? sectors.sector2Ms,
+      sectors.sector2Ms,
+    );
+    const nextBestSector3Ms = Math.min(
+      current.bestSector3Ms ?? current.sector3Ms ?? sectors.sector3Ms,
+      sectors.sector3Ms,
+    );
 
     let nextStintLap = current.stintLap ?? 1;
     let nextCompoundValue = current.tireCompound ?? 'MEDIUM';
@@ -287,6 +308,9 @@ export const evolveSimulatorState = (
         ...sectors,
         lastLapMs: nextLastLap,
         bestLapMs: nextBestLap,
+        bestSector1Ms: nextBestSector1Ms,
+        bestSector2Ms: nextBestSector2Ms,
+        bestSector3Ms: nextBestSector3Ms,
         speedKph: nextSpeed,
         topSpeedKph: nextTopSpeed,
         trackStatus: nextTrackStatus,
@@ -310,6 +334,9 @@ export const evolveSimulatorState = (
       ...sectors,
       lastLapMs: nextLastLap,
       bestLapMs: nextBestLap,
+      bestSector1Ms: nextBestSector1Ms,
+      bestSector2Ms: nextBestSector2Ms,
+      bestSector3Ms: nextBestSector3Ms,
       speedKph: nextSpeed,
       topSpeedKph: nextTopSpeed,
       trackStatus: nextTrackStatus,

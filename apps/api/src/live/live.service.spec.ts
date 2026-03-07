@@ -41,6 +41,9 @@ function createLiveState(): LiveState {
         sector1Ms: 29810,
         sector2Ms: 30760,
         sector3Ms: 30430,
+        bestSector1Ms: 29790,
+        bestSector2Ms: 30680,
+        bestSector3Ms: 30330,
         lastLapMs: 91000,
         bestLapMs: 90800,
         speedHistoryKph: [{ at: '2026-03-03T00:00:00.000Z', kph: 311 }],
@@ -137,6 +140,11 @@ describe('LiveService', () => {
     expect(state?.leaderboard[0]).not.toHaveProperty('topSpeedKph');
     expect(state?.leaderboard[0]).not.toHaveProperty('tireCompound');
     expect(state?.leaderboard[0]).not.toHaveProperty('stintLap');
+    expect(state?.leaderboard[0]).toMatchObject({
+      bestSector1Ms: 29790,
+      bestSector2Ms: 30680,
+      bestSector3Ms: 30330,
+    });
     expect(service.getHealth()).toMatchObject({
       source: 'simulator',
     });
@@ -189,6 +197,11 @@ describe('LiveService', () => {
     expect(data.payload.leaderboard[0]).not.toHaveProperty('topSpeedKph');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('tireCompound');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('stintLap');
+    expect(data.payload.leaderboard[0]).toMatchObject({
+      bestSector1Ms: 29790,
+      bestSector2Ms: 30680,
+      bestSector3Ms: 30330,
+    });
   });
 
   it('streams status envelope when provider is degraded without state', async () => {
