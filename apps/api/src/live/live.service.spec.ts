@@ -30,14 +30,19 @@ function createLiveState(): LiveState {
     leaderboard: [
       {
         position: 1,
+        driverNumber: '3',
         driverCode: 'VER',
         driverName: 'Max Verstappen',
         teamName: 'Red Bull Racing',
         trackStatus: 'on_track',
+        pitState: 'on_track',
+        pitStops: 0,
         speedKph: 311,
         topSpeedKph: 322,
         gapToLeaderSec: 0,
+        gapToLeaderText: null,
         intervalToAheadSec: 0,
+        intervalToAheadText: null,
         sector1Ms: 29810,
         sector2Ms: 30760,
         sector3Ms: 30430,
@@ -46,12 +51,18 @@ function createLiveState(): LiveState {
         bestSector3Ms: 30330,
         lastLapMs: 91000,
         bestLapMs: 90800,
+        completedLaps: 5,
         speedHistoryKph: [{ at: '2026-03-03T00:00:00.000Z', kph: 311 }],
         trackStatusHistory: [
           { at: '2026-03-03T00:00:00.000Z', status: 'on_track' },
         ],
+        miniSectors: [
+          { sector: 1, segment: 0, status: 2048, active: true },
+          { sector: 1, segment: 1, status: 2048, active: true },
+        ],
         tireCompound: 'SOFT',
         stintLap: 5,
+        tireIsNew: false,
         positionSource: 'simulator',
         positionUpdatedAt: '2026-03-03T00:00:00.000Z',
         positionConfidence: 'high',
@@ -188,6 +199,57 @@ describe('LiveService', () => {
     });
     expect(service.getHealth()).toMatchObject({
       source: 'simulator',
+    });
+  });
+
+  it('builds a rich live board projection without changing the live state contract', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getBoard()).toMatchObject({
+      session: {
+        sessionName: 'Simulator Race',
+      },
+      fastestBestLapMs: 90800,
+      projection: {
+        mode: 'pass_through',
+        internalLeaderboardRows: 1,
+        publicLeaderboardRows: 1,
+      },
+      rows: [
+        {
+          position: 1,
+          driverNumber: '3',
+          driverCode: 'VER',
+          teamKey: 'red_bull',
+          teamColor: '#2d66d5',
+          pitState: 'on_track',
+          tire: {
+            compound: 'SOFT',
+            ageLaps: 5,
+            isNew: false,
+          },
+          intervalToAheadText: 'LAP 5',
+          gapToLeaderText: 'LAP 5',
+          miniSectors: [
+            { sector: 1, segment: 0, status: 2048, active: true },
+            { sector: 1, segment: 1, status: 2048, active: true },
+          ],
+          isSessionFastestLap: true,
+        },
+      ],
     });
   });
 
@@ -488,6 +550,27 @@ describe('LiveService', () => {
         intervalToAheadSec: null,
       },
     ]);
+    expect(service.getBoard()).toMatchObject({
+      projection: {
+        mode: 'stabilized',
+      },
+      rows: [
+        {
+          position: 1,
+          driverCode: '63',
+          teamKey: 'mercedes',
+          positionSource: 'driver_code',
+          positionConfidence: 'low',
+        },
+        {
+          position: 2,
+          driverCode: '27',
+          teamKey: 'sauber',
+          positionSource: 'driver_code',
+          positionConfidence: 'low',
+        },
+      ],
+    });
     expect(service.getHealth()).toMatchObject({
       details: {
         publicProjection: {
@@ -542,6 +625,12 @@ describe('LiveService', () => {
 
     expect(service.getState()).toMatchObject({
       leaderboard: [],
+    });
+    expect(service.getBoard()).toMatchObject({
+      projection: {
+        mode: 'withheld',
+      },
+      rows: [],
     });
     expect(service.getHealth()).toMatchObject({
       details: {
@@ -598,6 +687,12 @@ describe('LiveService', () => {
 
     expect(service.getState()).toMatchObject({
       leaderboard: [],
+    });
+    expect(service.getBoard()).toMatchObject({
+      projection: {
+        mode: 'withheld',
+      },
+      rows: [],
     });
     expect(service.getHealth()).toMatchObject({
       details: {

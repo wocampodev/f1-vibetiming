@@ -15,6 +15,7 @@ import {
 } from './live.types';
 
 interface DriverSeed {
+  number: string;
   code: string;
   name: string;
   team: string;
@@ -37,26 +38,31 @@ interface SimulatorSectorTimes {
 }
 
 const SIMULATOR_DRIVERS: DriverSeed[] = [
-  { code: 'VER', name: 'Max Verstappen', team: 'Red Bull Racing' },
-  { code: 'NOR', name: 'Lando Norris', team: 'McLaren' },
-  { code: 'LEC', name: 'Charles Leclerc', team: 'Ferrari' },
-  { code: 'PIA', name: 'Oscar Piastri', team: 'McLaren' },
-  { code: 'RUS', name: 'George Russell', team: 'Mercedes' },
-  { code: 'HAM', name: 'Lewis Hamilton', team: 'Ferrari' },
-  { code: 'SAI', name: 'Carlos Sainz', team: 'Williams' },
-  { code: 'ALO', name: 'Fernando Alonso', team: 'Aston Martin' },
-  { code: 'GAS', name: 'Pierre Gasly', team: 'Alpine' },
-  { code: 'ALB', name: 'Alexander Albon', team: 'Williams' },
-  { code: 'TSU', name: 'Yuki Tsunoda', team: 'RB' },
-  { code: 'HUL', name: 'Nico Hulkenberg', team: 'Sauber' },
-  { code: 'STR', name: 'Lance Stroll', team: 'Aston Martin' },
-  { code: 'OCO', name: 'Esteban Ocon', team: 'Haas' },
-  { code: 'BEA', name: 'Oliver Bearman', team: 'Haas' },
-  { code: 'ANT', name: 'Andrea Kimi Antonelli', team: 'Mercedes' },
-  { code: 'DOO', name: 'Jack Doohan', team: 'Alpine' },
-  { code: 'BOR', name: 'Gabriel Bortoleto', team: 'Sauber' },
-  { code: 'LAW', name: 'Liam Lawson', team: 'RB' },
-  { code: 'HAD', name: 'Isack Hadjar', team: 'RB' },
+  { number: '3', code: 'VER', name: 'Max Verstappen', team: 'Red Bull Racing' },
+  { number: '1', code: 'NOR', name: 'Lando Norris', team: 'McLaren' },
+  { number: '16', code: 'LEC', name: 'Charles Leclerc', team: 'Ferrari' },
+  { number: '81', code: 'PIA', name: 'Oscar Piastri', team: 'McLaren' },
+  { number: '63', code: 'RUS', name: 'George Russell', team: 'Mercedes' },
+  { number: '44', code: 'HAM', name: 'Lewis Hamilton', team: 'Ferrari' },
+  { number: '55', code: 'SAI', name: 'Carlos Sainz', team: 'Williams' },
+  { number: '14', code: 'ALO', name: 'Fernando Alonso', team: 'Aston Martin' },
+  { number: '10', code: 'GAS', name: 'Pierre Gasly', team: 'Alpine' },
+  { number: '23', code: 'ALB', name: 'Alexander Albon', team: 'Williams' },
+  { number: '22', code: 'TSU', name: 'Yuki Tsunoda', team: 'RB' },
+  { number: '27', code: 'HUL', name: 'Nico Hulkenberg', team: 'Sauber' },
+  { number: '18', code: 'STR', name: 'Lance Stroll', team: 'Aston Martin' },
+  { number: '31', code: 'OCO', name: 'Esteban Ocon', team: 'Haas' },
+  { number: '87', code: 'BEA', name: 'Oliver Bearman', team: 'Haas' },
+  {
+    number: '12',
+    code: 'ANT',
+    name: 'Andrea Kimi Antonelli',
+    team: 'Mercedes',
+  },
+  { number: '7', code: 'DOO', name: 'Jack Doohan', team: 'Alpine' },
+  { number: '5', code: 'BOR', name: 'Gabriel Bortoleto', team: 'Sauber' },
+  { number: '30', code: 'LAW', name: 'Liam Lawson', team: 'RB' },
+  { number: '6', code: 'HAD', name: 'Isack Hadjar', team: 'RB' },
 ];
 
 const LAP_ADVANCE_INTERVAL = 5;
@@ -200,24 +206,32 @@ export const createSimulatorInitialState = (now = new Date()): LiveState => {
 
       return {
         position: index + 1,
+        driverNumber: driver.number,
         driverCode: driver.code,
         driverName: driver.name,
         teamName: driver.team,
         trackStatus: 'on_track',
+        pitState: 'on_track',
+        pitStops: 0,
         speedKph,
         topSpeedKph: 321 - index,
         gapToLeaderSec: gap,
+        gapToLeaderText: index === 0 ? null : `+${gap.toFixed(3)}`,
         intervalToAheadSec: interval,
+        intervalToAheadText: index === 0 ? null : `+${interval.toFixed(3)}`,
         ...sectors,
         bestSector1Ms: sectors.sector1Ms,
         bestSector2Ms: sectors.sector2Ms,
         bestSector3Ms: sectors.sector3Ms,
         lastLapMs,
         bestLapMs: lastLapMs,
+        completedLaps: 1,
         speedHistoryKph: [{ at: nowIso, kph: speedKph }],
         trackStatusHistory: [{ at: nowIso, status: 'on_track' }],
+        miniSectors: [],
         tireCompound: index < 7 ? 'SOFT' : index < 14 ? 'MEDIUM' : 'HARD',
         stintLap: 1 + (index % 8),
+        tireIsNew: true,
         positionSource: 'simulator',
         positionUpdatedAt: nowIso,
         positionConfidence: 'high',
@@ -282,6 +296,7 @@ export const evolveSimulatorState = (
     let nextStintLap = current.stintLap ?? 1;
     let nextCompoundValue = current.tireCompound ?? 'MEDIUM';
     let pittedThisTick = false;
+    const nextPitStops = current.pitStops ?? 0;
 
     if (lapAdvanced) {
       nextStintLap += 1;
@@ -317,12 +332,19 @@ export const evolveSimulatorState = (
         speedKph: nextSpeed,
         topSpeedKph: nextTopSpeed,
         trackStatus: nextTrackStatus,
+        pitState: nextTrackStatus === 'pit_lane' ? 'pit_lane' : 'on_track',
+        pitStops: pittedThisTick ? nextPitStops + 1 : nextPitStops,
         gapToLeaderSec: 0,
+        gapToLeaderText: null,
         intervalToAheadSec: 0,
+        intervalToAheadText: null,
         speedHistoryKph,
         trackStatusHistory,
+        completedLaps: lapAdvanced ? currentLap + 1 : current.completedLaps,
+        miniSectors: [],
         stintLap: nextStintLap,
         tireCompound: nextCompoundValue,
+        tireIsNew: nextStintLap <= 1,
       });
       continue;
     }
@@ -343,12 +365,19 @@ export const evolveSimulatorState = (
       speedKph: nextSpeed,
       topSpeedKph: nextTopSpeed,
       trackStatus: nextTrackStatus,
+      pitState: nextTrackStatus === 'pit_lane' ? 'pit_lane' : 'on_track',
+      pitStops: pittedThisTick ? nextPitStops + 1 : nextPitStops,
       gapToLeaderSec: cumulativeGap,
+      gapToLeaderText: `+${cumulativeGap.toFixed(3)}`,
       intervalToAheadSec: roundSecs(interval),
+      intervalToAheadText: `+${roundSecs(interval).toFixed(3)}`,
       speedHistoryKph,
       trackStatusHistory,
+      completedLaps: lapAdvanced ? currentLap + 1 : current.completedLaps,
+      miniSectors: [],
       stintLap: nextStintLap,
       tireCompound: nextCompoundValue,
+      tireIsNew: nextStintLap <= 1,
     });
   }
 

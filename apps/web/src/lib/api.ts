@@ -1,6 +1,7 @@
 import {
   ConstructorStandingsResponse,
   DriverStandingsResponse,
+  LiveBoardState,
 } from "./types";
 
 const API_BASE_URL =
@@ -47,4 +48,8 @@ export function getConstructorStandings(season?: number, round?: number) {
   return fetchFromApi<ConstructorStandingsResponse>(
     `/standings/constructors${query}`,
   );
+}
+
+export function getLiveBoard() {
+  return fetchFromApi<LiveBoardState>("/live/board");
 }

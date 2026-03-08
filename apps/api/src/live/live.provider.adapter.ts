@@ -10,6 +10,8 @@ import {
   LiveFeedSource,
   LiveFlagStatus,
   LiveLeaderboardEntry,
+  LiveMiniSector,
+  LivePitState,
   LivePositionConfidence,
   LivePositionSource,
   LiveRaceControlMessage,
@@ -221,6 +223,40 @@ const asNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const parseBooleanValue = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  if (TRUE_CONFIG_VALUES.has(normalized)) {
+    return true;
+  }
+
+  if (FALSE_CONFIG_VALUES.has(normalized)) {
+    return false;
+  }
+
+  return null;
+};
+
 const asRecordArray = (value: unknown): JsonRecord[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -313,6 +349,20 @@ const parseGapSeconds = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const parseGapText = (value: unknown): string | null => {
+  const raw = asTextValue(value);
+  if (!raw) {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === '-') {
+    return null;
+  }
+
+  return trimmed;
+};
+
 const parseSpeedKph = (value: unknown): number | null => {
   const parsed = asNumber(value);
   if (parsed == null) {
@@ -346,6 +396,39 @@ const normalizeTrackStatus = (value: unknown): string | null => {
   }
 
   return normalized;
+};
+
+const resolvePitState = (
+  timing: JsonRecord | undefined,
+  trackStatus: string | null,
+): LivePitState | null => {
+  const inPit = parseBooleanValue(timing?.InPit);
+  if (inPit === true) {
+    return 'in_pit';
+  }
+
+  const pitOut = parseBooleanValue(timing?.PitOut);
+  if (pitOut === true) {
+    return 'pit_out';
+  }
+
+  if (trackStatus === 'pit_lane') {
+    return 'pit_lane';
+  }
+  if (trackStatus === 'pit_garage') {
+    return 'pit_garage';
+  }
+  if (trackStatus === 'off_track') {
+    return 'off_track';
+  }
+  if (trackStatus === 'stopped') {
+    return 'stopped';
+  }
+  if (trackStatus === 'on_track') {
+    return 'on_track';
+  }
+
+  return null;
 };
 
 const normalizeFlag = (value: unknown): LiveFlagStatus | null => {
@@ -487,6 +570,61 @@ const parseTimingGapField = (
   }
 
   return null;
+};
+
+const parseTimingGapTextField = (
+  timing: JsonRecord | undefined,
+  fieldNames: string[],
+): string | null => {
+  if (!timing) {
+    return null;
+  }
+
+  for (const fieldName of fieldNames) {
+    const parsed = parseGapText(timing[fieldName]);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
+const parseMiniSectors = (timing: JsonRecord | undefined): LiveMiniSector[] => {
+  const sectors = asRecord(timing?.Sectors);
+  if (!sectors) {
+    return [];
+  }
+
+  const miniSectors: LiveMiniSector[] = [];
+
+  for (const [sectorKey, sectorValue] of Object.entries(sectors)) {
+    const sector = asRecord(sectorValue);
+    const segments = asRecord(sector?.Segments);
+    if (!segments) {
+      continue;
+    }
+
+    for (const [segmentKey, segmentValue] of Object.entries(segments)) {
+      const rawStatus = toInt(asRecord(segmentValue)?.Status ?? segmentValue);
+      if (rawStatus == null) {
+        continue;
+      }
+
+      miniSectors.push({
+        sector: Number.parseInt(sectorKey, 10) + 1,
+        segment: Number.parseInt(segmentKey, 10),
+        status: rawStatus,
+        active: rawStatus !== 0,
+      });
+    }
+  }
+
+  miniSectors.sort(
+    (left, right) => left.sector - right.sector || left.segment - right.segment,
+  );
+
+  return miniSectors;
 };
 
 const resolveFallbackPositionSource = (
@@ -1146,8 +1284,22 @@ export class ProviderStateAccumulator {
         'TimeDiffToFirst',
         'TimeDifftoFirst',
       ]);
+      const gapToLeaderText = parseTimingGapTextField(timing, [
+        'GapToLeader',
+        'TimeDiffToFastest',
+        'TimeDifftoFastest',
+        'TimeDiffToFirst',
+        'TimeDifftoFirst',
+      ]);
 
       const intervalToAheadSec = parseTimingGapField(timing, [
+        'IntervalToPositionAhead',
+        'TimeDiffToPositionAhead',
+        'TimeDifftoPositionAhead',
+        'GapToPositionAhead',
+        'TimeDiffToCarAhead',
+      ]);
+      const intervalToAheadText = parseTimingGapTextField(timing, [
         'IntervalToPositionAhead',
         'TimeDiffToPositionAhead',
         'TimeDifftoPositionAhead',
@@ -1164,12 +1316,18 @@ export class ProviderStateAccumulator {
                 for (const item of value) {
                   accumulator.push(item);
                 }
+              } else if (isRecord(value)) {
+                accumulator.push(value);
               }
               return accumulator;
             }, [])
           : [];
       const latestStint =
         stints.length > 0 ? asRecord(stints[stints.length - 1]) : null;
+      const pitState = resolvePitState(timing, trackStatus);
+      const miniSectors = parseMiniSectors(timing);
+      const completedLaps =
+        toInt(timing.NumberOfLaps) ?? toInt(latestStint?.LapNumber);
 
       const firstName = asString(driver?.FirstName);
       const lastName = asString(driver?.LastName);
@@ -1192,10 +1350,14 @@ export class ProviderStateAccumulator {
           null,
         teamName: asString(driver?.TeamName) ?? rosterEntry?.teamName ?? null,
         trackStatus,
+        pitState,
+        pitStops: toInt(timing.NumberOfPitStops),
         speedKph,
         topSpeedKph,
         gapToLeaderSec,
+        gapToLeaderText,
         intervalToAheadSec,
+        intervalToAheadText,
         sector1Ms,
         sector2Ms,
         sector3Ms,
@@ -1204,12 +1366,15 @@ export class ProviderStateAccumulator {
         bestSector3Ms,
         lastLapMs,
         bestLapMs,
+        completedLaps,
         speedHistoryKph,
         trackStatusHistory: resolvedTrackStatusHistory,
+        miniSectors,
         tireCompound:
           normalizeCompound(latestStint?.Compound) ??
           normalizeCompound(timing.Compound),
         stintLap: toInt(latestStint?.TotalLaps),
+        tireIsNew: parseBooleanValue(latestStint?.New),
         positionSource:
           explicitPosition != null
             ? 'timing_data'
@@ -1355,7 +1520,6 @@ export class ProviderStateAccumulator {
         previousResolvedMetadata?: LiveResolvedPositionMetadata | null;
         fallbackPositionSource?: LivePositionSource;
       };
-      delete leaderboardEntry.driverNumber;
       delete leaderboardEntry.explicitPosition;
       delete leaderboardEntry.previousResolvedMetadata;
       delete leaderboardEntry.fallbackPositionSource;
@@ -1390,6 +1554,7 @@ export class ProviderStateAccumulator {
           );
           if (fallbackGapSec >= 0) {
             current.gapToLeaderSec = fallbackGapSec;
+            current.gapToLeaderText = `+${fallbackGapSec.toFixed(3)}`;
           }
         }
 
@@ -1404,6 +1569,7 @@ export class ProviderStateAccumulator {
           );
           if (fallbackIntervalSec >= 0) {
             current.intervalToAheadSec = fallbackIntervalSec;
+            current.intervalToAheadText = `+${fallbackIntervalSec.toFixed(3)}`;
           }
         }
       }
