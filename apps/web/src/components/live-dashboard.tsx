@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  LiveDeltaPayload,
+  LiveBoardRow,
+  LiveBoardSectorCell,
+  LiveBoardState,
   LiveEnvelope,
   LiveHeartbeatPayload,
-  LiveLeaderboardEntry,
-  LiveState,
   LiveStreamStatus,
 } from "@/lib/types";
 
@@ -29,85 +29,41 @@ const flagToneByValue: Record<string, string> = {
   checkered: "border-zinc-200/50 bg-zinc-300/10 text-zinc-100",
 };
 
-type SectorTone = "overall_best" | "personal_best" | "off_best" | "neutral";
+const tireToneByCompound: Record<string, string> = {
+  SOFT: "border-red-400/40 bg-red-500/10 text-red-100",
+  MEDIUM: "border-yellow-400/40 bg-yellow-400/10 text-yellow-100",
+  HARD: "border-zinc-300/40 bg-zinc-400/10 text-zinc-100",
+  INTERMEDIATE: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+  WET: "border-sky-400/40 bg-sky-500/10 text-sky-100",
+};
 
-interface SectorScale {
-  min: number;
-  max: number;
-  sessionBest: number | null;
+const pitToneByState: Record<string, string> = {
+  on_track: "border-slate-700/80 bg-slate-900/70 text-slate-200",
+  pit_lane: "border-amber-400/40 bg-amber-400/10 text-amber-100",
+  pit_out: "border-cyan-400/40 bg-cyan-400/10 text-cyan-100",
+  pit_garage: "border-orange-400/40 bg-orange-400/10 text-orange-100",
+  in_pit: "border-orange-400/40 bg-orange-400/10 text-orange-100",
+  off_track: "border-rose-400/40 bg-rose-400/10 text-rose-100",
+  stopped: "border-red-400/40 bg-red-500/10 text-red-100",
+  unknown: "border-slate-700/80 bg-slate-900/70 text-slate-300",
+};
+
+const confidenceToneByValue: Record<string, string> = {
+  high: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+  medium: "border-amber-400/30 bg-amber-400/10 text-amber-100",
+  low: "border-rose-400/30 bg-rose-400/10 text-rose-100",
+};
+
+type SectorTone = "session_best" | "personal_best" | "timed" | "empty";
+
+interface LiveHealth {
+  status: LiveStreamStatus;
+  details?: {
+    socketOpen?: boolean;
+    connectionUptimeSec?: number | null;
+    feedMessagesReceived?: number;
+  } | null;
 }
-
-const sectorToneStyles: Record<
-  Exclude<SectorTone, "neutral">,
-  { shell: string; track: string; fill: string; text: string }
-> = {
-  overall_best: {
-    shell: "border-fuchsia-400/30 bg-fuchsia-500/10",
-    track: "bg-fuchsia-950/60",
-    fill: "bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400",
-    text: "text-fuchsia-100",
-  },
-  personal_best: {
-    shell: "border-emerald-400/25 bg-emerald-500/10",
-    track: "bg-emerald-950/50",
-    fill: "bg-gradient-to-r from-emerald-300 to-emerald-500",
-    text: "text-emerald-100",
-  },
-  off_best: {
-    shell: "border-amber-300/20 bg-amber-400/10",
-    track: "bg-amber-950/40",
-    fill: "bg-gradient-to-r from-amber-300 to-yellow-500",
-    text: "text-amber-50",
-  },
-};
-
-const buildSectorScale = (
-  currentValues: Array<number | null>,
-  benchmarkValues: Array<number | null>,
-): SectorScale => {
-  const visibleValues = currentValues.filter((value): value is number => value != null);
-  const bestValues = benchmarkValues.filter((value): value is number => value != null);
-
-  return {
-    min: visibleValues.length > 0 ? Math.min(...visibleValues) : 0,
-    max: visibleValues.length > 0 ? Math.max(...visibleValues) : 0,
-    sessionBest: bestValues.length > 0 ? Math.min(...bestValues) : null,
-  };
-};
-
-const getSectorTone = (
-  value: number | null,
-  personalBest: number | null,
-  sessionBest: number | null,
-): SectorTone => {
-  if (value == null) {
-    return "neutral";
-  }
-
-  if (sessionBest != null && value <= sessionBest) {
-    return "overall_best";
-  }
-
-  if (personalBest != null && value <= personalBest) {
-    return "personal_best";
-  }
-
-  return "off_best";
-};
-
-const getSectorBarWidth = (value: number, scale: SectorScale): number => {
-  if (scale.max <= scale.min) {
-    return 100;
-  }
-
-  const normalized = (value - scale.min) / (scale.max - scale.min);
-  return Math.max(24, Math.round(100 - normalized * 72));
-};
-
-const isSessionBestLap = (
-  value: number | null,
-  sessionBest: number | null,
-): boolean => value != null && sessionBest != null && value <= sessionBest;
 
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
   try {
@@ -135,79 +91,224 @@ const formatLapTime = (milliseconds: number | null): string => {
   return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
 };
 
-const formatSectorTime = (milliseconds: number | null): string => {
-  if (milliseconds == null) {
+const formatGap = (value: string | null, fallbackSeconds: number | null, leader: boolean): string => {
+  if (leader) {
+    return value ?? "LEADER";
+  }
+
+  if (value) {
+    return value;
+  }
+
+  if (fallbackSeconds == null) {
     return "-";
   }
 
-  return `${(milliseconds / 1000).toFixed(3)}`;
-};
-
-const formatGap = (seconds: number | null, isLeader: boolean): string => {
-  if (isLeader) {
-    return "LEADER";
-  }
-
-  if (seconds == null) {
-    return "-";
-  }
-
-  return `+${seconds.toFixed(3)}`;
+  return `+${fallbackSeconds.toFixed(3)}`;
 };
 
 const formatFlagLabel = (value: string): string =>
   value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 
-interface LiveHealth {
-  status: LiveStreamStatus;
-  details?: {
-    socketOpen?: boolean;
-    connectionUptimeSec?: number | null;
-    feedMessagesReceived?: number;
-  } | null;
-}
+const formatProjectionLabel = (value: LiveBoardState["projection"]["mode"]): string =>
+  value.replace(/_/g, " ");
 
-function SectorCell({
-  label,
-  value,
-  personalBest,
-  scale,
-}: {
-  label: string;
-  value: number | null;
-  personalBest: number | null;
-  scale: SectorScale;
-}) {
-  if (value == null) {
-    return (
-      <td className="px-2 py-2 font-mono text-lg leading-none text-[#8aa0be]">
-        <span>-</span>
-      </td>
-    );
+const formatPitLabel = (value: string | null): string => {
+  if (!value) {
+    return "On track";
   }
 
-  const tone = getSectorTone(value, personalBest, scale.sessionBest);
-  const styles = sectorToneStyles[tone === "neutral" ? "off_best" : tone];
-  const widthPct = getSectorBarWidth(value, scale);
+  return value.replace(/_/g, " ");
+};
+
+const getSectorTone = (cell: LiveBoardSectorCell): SectorTone => {
+  if (cell.valueMs == null) {
+    return "empty";
+  }
+
+  if (cell.sessionBestMs != null && cell.valueMs <= cell.sessionBestMs) {
+    return "session_best";
+  }
+
+  if (cell.personalBestMs != null && cell.valueMs <= cell.personalBestMs) {
+    return "personal_best";
+  }
+
+  return "timed";
+};
+
+const miniSectorClassName = (status: number, active: boolean): string => {
+  if (status === 2048 || status === 2049) {
+    return active ? "bg-fuchsia-300" : "bg-fuchsia-500/80";
+  }
+
+  if (status === 2044 || status === 2045) {
+    return active ? "bg-emerald-300" : "bg-emerald-500/80";
+  }
+
+  if (status === 2050 || status === 2051) {
+    return active ? "bg-yellow-200" : "bg-yellow-400/80";
+  }
+
+  if (status >= 0) {
+    return active ? "bg-slate-300" : "bg-slate-500/70";
+  }
+
+  return "bg-slate-800";
+};
+
+function SectorPill({ cell }: { cell: LiveBoardSectorCell }) {
+  const tone = getSectorTone(cell);
+
+  if (tone === "empty") {
+    return <span className="rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1 text-slate-500">-</span>;
+  }
+
+  const valueMs = cell.valueMs as number;
+
+  const className =
+    tone === "session_best"
+      ? "border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-100"
+      : tone === "personal_best"
+        ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-100"
+        : "border-slate-700/80 bg-slate-900/70 text-slate-100";
 
   return (
-    <td className="px-2 py-2 font-mono text-lg leading-none">
-      <div className={`flex flex-col gap-1 rounded-lg border px-3 py-2 ${styles.shell}`}>
-        <div className={`h-1.5 w-full rounded-full ${styles.track}`}>
-          <div
-            className={`h-full rounded-full transition-[width,background-color] duration-500 ${styles.fill}`}
-            style={{ width: `${widthPct}%` }}
-            aria-label={`${label} progress`}
-          />
+    <span className={`rounded-md border px-2 py-1 font-mono text-xs ${className}`}>
+      {(valueMs / 1000).toFixed(3)}
+    </span>
+  );
+}
+
+function DriverCell({ row }: { row: LiveBoardRow }) {
+  return (
+    <div className="flex min-w-[15rem] items-center gap-3">
+      <div
+        className="h-11 w-1 rounded-full"
+        style={{ backgroundColor: row.teamColor ?? "#38506e" }}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-xs font-bold tracking-[0.18em] text-slate-200">
+            {row.driverNumber}
+          </span>
+          <span className="text-sm font-semibold text-[#f4f9ff]">
+            {row.driverName ?? row.driverCode}
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#78c6ff]">
+            {row.driverCode}
+          </span>
         </div>
-        <span className={styles.text}>{formatSectorTime(value)}</span>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#7f96b5]">
+          {row.teamName ? <span>{row.teamName}</span> : null}
+          <span className={`rounded-full border px-2 py-0.5 ${confidenceToneByValue[row.positionConfidence]}`}>
+            {row.positionConfidence}
+          </span>
+          <span>src {row.positionSource.replace(/_/g, " ")}</span>
+        </div>
       </div>
-    </td>
+    </div>
+  );
+}
+
+function TireCell({ row }: { row: LiveBoardRow }) {
+  const compound = row.tire.compound;
+  const tone = compound ? tireToneByCompound[compound] : "border-slate-700/80 bg-slate-950/70 text-slate-200";
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${tone}`}>
+        {compound ?? "Unknown"}
+      </span>
+      <div className="text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
+        {row.tire.ageLaps != null ? `${row.tire.ageLaps} laps` : "Age -"}
+        {row.tire.isNew != null ? ` · ${row.tire.isNew ? "new" : "used"}` : ""}
+      </div>
+    </div>
+  );
+}
+
+function PitCell({ row }: { row: LiveBoardRow }) {
+  const pitState = row.pitState ?? "unknown";
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${pitToneByState[pitState] ?? pitToneByState.unknown}`}>
+        {formatPitLabel(row.pitState)}
+      </span>
+      <div className="text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
+        Stops {row.pitStops ?? "-"}
+      </div>
+    </div>
+  );
+}
+
+function LiveRow({ row }: { row: LiveBoardRow }) {
+  const miniSectors = row.miniSectors.slice(0, 18);
+
+  return (
+    <tr className="border-b border-[var(--line)]/60 hover:bg-[#0d1623]">
+      <td className="px-3 py-3 align-top">
+        <span className="inline-flex min-w-11 items-center justify-center rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-1 text-base font-bold text-[#f4f9ff]">
+          {row.position}
+        </span>
+      </td>
+      <td className="px-3 py-3 align-top">
+        <DriverCell row={row} />
+      </td>
+      <td className="px-3 py-3 align-top">
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1">
+            {row.lastSectors.map((cell) => (
+              <SectorPill key={cell.index} cell={cell} />
+            ))}
+          </div>
+          <div className="flex gap-1.5">
+            {miniSectors.length > 0 ? (
+              miniSectors.map((miniSector) => (
+                <span
+                  key={`${miniSector.sector}-${miniSector.segment}`}
+                  className={`h-1.5 w-3 rounded-full ${miniSectorClassName(miniSector.status, miniSector.active)}`}
+                  title={`S${miniSector.sector} M${miniSector.segment} ${miniSector.status}`}
+                />
+              ))
+            ) : (
+              <span className="text-[11px] uppercase tracking-[0.16em] text-[#617794]">No mini sectors</span>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3 align-top">
+        <div className="space-y-1 font-mono text-sm text-[#dce9fb]">
+          <div>{formatLapTime(row.lastLapMs)}</div>
+          <div className={row.isSessionFastestLap ? "text-fuchsia-200" : "text-[#8aa0be]"}>
+            {formatLapTime(row.bestLapMs)}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3 align-top">
+        <TireCell row={row} />
+      </td>
+      <td className="px-3 py-3 align-top">
+        <PitCell row={row} />
+      </td>
+      <td className="px-3 py-3 align-top font-mono text-sm text-[#f4f9ff]">
+        {formatGap(row.gapToLeaderText, row.gapToLeaderSec, row.position === 1)}
+      </td>
+      <td className="px-3 py-3 align-top font-mono text-sm text-[#d3e1f5]">
+        {formatGap(row.intervalToAheadText, row.intervalToAheadSec, row.position === 1)}
+      </td>
+      <td className="px-3 py-3 align-top text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
+        <div>Laps {row.completedLaps ?? "-"}</div>
+        {row.positionUpdatedAt ? <div className="mt-1">Pos {formatClock(row.positionUpdatedAt)}</div> : null}
+      </td>
+    </tr>
   );
 }
 
 export function LiveDashboard() {
-  const [liveState, setLiveState] = useState<LiveState | null>(null);
+  const [boardState, setBoardState] = useState<LiveBoardState | null>(null);
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [health, setHealth] = useState<LiveHealth | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
@@ -263,6 +364,22 @@ export function LiveDashboard() {
     let closed = false;
     let reconnectAttempt = 0;
 
+    const loadBoard = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/live/board`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const nextBoard = (await response.json()) as LiveBoardState | null;
+        setBoardState(nextBoard);
+      } catch {
+        // keep retrying on next event or interval
+      }
+    };
+
     const stopFallback = () => {
       if (!fallbackTimer) {
         return;
@@ -272,34 +389,14 @@ export function LiveDashboard() {
       fallbackTimer = null;
     };
 
-    const pollState = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/live/state`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          return;
-        }
-
-        const state = (await response.json()) as LiveState | null;
-        if (!state) {
-          return;
-        }
-
-        setLiveState(state);
-      } catch {
-        // keep retrying on next interval
-      }
-    };
-
     const startFallback = () => {
       if (fallbackTimer) {
         return;
       }
 
-      void pollState();
+      void loadBoard();
       fallbackTimer = window.setInterval(() => {
-        void pollState();
+        void loadBoard();
       }, FALLBACK_POLL_MS);
     };
 
@@ -340,6 +437,7 @@ export function LiveDashboard() {
       stream.onopen = () => {
         reconnectAttempt = 0;
         stopFallback();
+        void loadBoard();
       };
 
       stream.onerror = () => {
@@ -348,22 +446,8 @@ export function LiveDashboard() {
         scheduleReconnect();
       };
 
-      const handleInitial = (event: MessageEvent<string>) => {
-        const envelope = parseEnvelope<LiveState>(event.data);
-        if (!envelope) {
-          return;
-        }
-
-        setLiveState(envelope.payload);
-      };
-
-      const handleDelta = (event: MessageEvent<string>) => {
-        const envelope = parseEnvelope<LiveDeltaPayload>(event.data);
-        if (!envelope) {
-          return;
-        }
-
-        setLiveState(envelope.payload.state);
+      const handleUpdate = () => {
+        void loadBoard();
       };
 
       const handleHeartbeat = (event: MessageEvent<string>) => {
@@ -375,11 +459,12 @@ export function LiveDashboard() {
         setLastHeartbeat(envelope.payload.at);
       };
 
-      stream.addEventListener("initial_state", handleInitial as EventListener);
-      stream.addEventListener("delta_update", handleDelta as EventListener);
+      stream.addEventListener("initial_state", handleUpdate as EventListener);
+      stream.addEventListener("delta_update", handleUpdate as EventListener);
       stream.addEventListener("heartbeat", handleHeartbeat as EventListener);
     };
 
+    void loadBoard();
     openStream();
 
     return () => {
@@ -395,57 +480,24 @@ export function LiveDashboard() {
   }, []);
 
   const streamStale = useMemo(() => {
-    const reference = lastHeartbeat ?? liveState?.generatedAt ?? null;
+    const reference = lastHeartbeat ?? boardState?.generatedAt ?? null;
     if (!reference) {
       return false;
     }
 
     return nowMs - new Date(reference).getTime() > STALE_THRESHOLD_MS;
-  }, [lastHeartbeat, liveState?.generatedAt, nowMs]);
+  }, [boardState?.generatedAt, lastHeartbeat, nowMs]);
 
-  const sectorScale = useMemo(() => {
-    if (!liveState || liveState.leaderboard.length === 0) {
-      return {
-        s1: buildSectorScale([], []),
-        s2: buildSectorScale([], []),
-        s3: buildSectorScale([], []),
-      };
-    }
-
-    return {
-      s1: buildSectorScale(
-        liveState.leaderboard.map((entry) => entry.sector1Ms),
-        liveState.leaderboard.map((entry) => entry.bestSector1Ms ?? entry.sector1Ms),
-      ),
-      s2: buildSectorScale(
-        liveState.leaderboard.map((entry) => entry.sector2Ms),
-        liveState.leaderboard.map((entry) => entry.bestSector2Ms ?? entry.sector2Ms),
-      ),
-      s3: buildSectorScale(
-        liveState.leaderboard.map((entry) => entry.sector3Ms),
-        liveState.leaderboard.map((entry) => entry.bestSector3Ms ?? entry.sector3Ms),
-      ),
-    };
-  }, [liveState]);
-
-  const rows: LiveLeaderboardEntry[] = liveState?.leaderboard ?? [];
-  const raceControl = liveState?.raceControl ?? [];
-  const fastestBestLap = useMemo(() => {
-    const values = (liveState?.leaderboard ?? [])
-      .map((entry) => entry.bestLapMs)
-      .filter((value): value is number => value != null);
-
-    return values.length > 0 ? Math.min(...values) : null;
-  }, [liveState]);
-  const partialLeaderboard = rows.length > 0 && rows[0].position > 1;
+  const rows = boardState?.rows ?? [];
+  const raceControl = boardState?.raceControl ?? [];
   const noFeedYet =
-    !liveState &&
+    !boardState &&
     health?.details?.socketOpen === true &&
     (health.details.connectionUptimeSec ?? 0) >= NO_FEED_NOTICE_THRESHOLD_SEC &&
     (health.details.feedMessagesReceived ?? 0) === 0;
   const lapLabel =
-    liveState?.session.currentLap != null && liveState.session.totalLaps != null
-      ? `L${liveState.session.currentLap}/${liveState.session.totalLaps}`
+    boardState?.session.currentLap != null && boardState.session.totalLaps != null
+      ? `L${boardState.session.currentLap}/${boardState.session.totalLaps}`
       : "L-/-";
 
   return (
@@ -455,164 +507,90 @@ export function LiveDashboard() {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Timing Feed</p>
             <p className="text-3xl font-bold leading-tight text-[#f4f9ff]">
-              {liveState?.session.sessionName ?? "Formula 1 Live Timing"}
+              {boardState?.session.sessionName ?? "Formula 1 Live Timing"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#d3e1f5]">
               {lapLabel}
             </span>
-            {liveState ? (
+            {boardState ? (
               <span
-                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${flagToneByValue[liveState.session.flag] ?? "border-zinc-400/40 bg-zinc-400/10 text-zinc-200"}`}
-                >
-                  {formatFlagLabel(liveState.session.flag)}
-                </span>
-              ) : null}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${flagToneByValue[boardState.session.flag] ?? "border-zinc-400/40 bg-zinc-400/10 text-zinc-200"}`}
+              >
+                {formatFlagLabel(boardState.session.flag)}
+              </span>
+            ) : null}
+            {boardState ? (
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-100">
+                {formatProjectionLabel(boardState.projection.mode)}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
-          {liveState ? <span>Updated {formatClock(liveState.generatedAt)}</span> : null}
-          {liveState?.session.clockIso ? <span>Clock {formatClock(liveState.session.clockIso)}</span> : null}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+          {boardState ? <span>Updated {formatClock(boardState.generatedAt)}</span> : null}
+          {boardState?.session.clockIso ? <span>Clock {formatClock(boardState.session.clockIso)}</span> : null}
+          {boardState ? <span>{boardState.rows.length} rows</span> : null}
+          {boardState?.projection.lowConfidenceLeaderSuppressions ? (
+            <span>{boardState.projection.lowConfidenceLeaderSuppressions} suppressed leader projections</span>
+          ) : null}
         </div>
-
-        {liveState ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
-            <span className="text-[#6f86a5]">Timing legend</span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
-              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400" />
-              Overall Best
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
-              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-emerald-300 to-emerald-500" />
-              Personal Best
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
-              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-amber-300 to-yellow-500" />
-              Off Best
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#0e1827] px-3 py-1 font-semibold text-[#dbe8f8]">
-              <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-fuchsia-400 via-violet-400 to-indigo-400" />
-              Fastest Lap
-            </span>
-          </div>
-        ) : null}
 
         {streamStale ? (
-          <p className="mt-2 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
-            Feed is stale. Showing latest available timing data.
+          <p className="mt-3 rounded-md border border-orange-400/40 bg-orange-400/10 px-3 py-2 text-xs text-orange-200">
+            Feed is stale. Showing the latest available board projection.
           </p>
         ) : null}
 
-        {partialLeaderboard ? (
-          <p className="mt-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
-            Showing available timing rows while full order data is still arriving.
+        {boardState?.projection.mode === "stabilized" ? (
+          <p className="mt-3 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
+            Leader order is being stabilized while provider confidence catches up.
+          </p>
+        ) : null}
+
+        {boardState?.projection.mode === "withheld" ? (
+          <p className="mt-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+            Public leader is temporarily withheld until a trustworthy running order is available.
           </p>
         ) : null}
       </div>
 
-      {liveState ? (
+      {boardState ? (
         <div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] bg-[#070d15] text-sm">
-              <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
+            <table className="w-full min-w-[1180px] bg-[#070d15] text-sm">
+              <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-[11px] uppercase tracking-[0.18em] text-[#94a7c2]">
                 <tr>
-                  <th className="px-2 py-2">Pos</th>
-                  <th className="px-2 py-2">Driver</th>
-                  <th className="px-2 py-2">S1</th>
-                  <th className="px-2 py-2">S2</th>
-                  <th className="px-2 py-2">S3</th>
-                  <th className="px-2 py-2">Lap</th>
-                  <th className="px-2 py-2">Best</th>
-                  <th className="px-2 py-2">Gap</th>
-                  <th className="px-2 py-2">Int</th>
+                  <th className="px-3 py-3">Pos</th>
+                  <th className="px-3 py-3">Driver</th>
+                  <th className="px-3 py-3">Sectors</th>
+                  <th className="px-3 py-3">Lap Pace</th>
+                  <th className="px-3 py-3">Tire</th>
+                  <th className="px-3 py-3">Pit</th>
+                  <th className="px-3 py-3">Gap</th>
+                  <th className="px-3 py-3">Int</th>
+                  <th className="px-3 py-3">Meta</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((entry) => {
-                  return (
-                    <tr key={entry.driverCode} className="border-b border-[var(--line)]/60 hover:bg-[#0c1420]">
-                    <td className="px-2 py-2">
-                      <span
-                        className="inline-flex min-w-11 items-center justify-center rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-1 text-base font-bold text-[#f4f9ff]"
-                      >
-                        {entry.position}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex min-w-[12rem] items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-[#f4f9ff]">
-                            {entry.driverName ?? entry.driverCode}
-                          </p>
-                          {entry.teamName ? (
-                            <p className="truncate text-[11px] uppercase tracking-[0.16em] text-[#7f96b5]">
-                              {entry.teamName}
-                            </p>
-                          ) : null}
-                        </div>
-                        {entry.driverName ? (
-                          <span className="shrink-0 rounded-md border border-[#2f4c69] bg-[#102034] px-2 py-0.5 text-sm font-bold tracking-wide text-[#d7ebff]">
-                            {entry.driverCode}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <SectorCell
-                      label="S1"
-                      value={entry.sector1Ms}
-                      personalBest={entry.bestSector1Ms}
-                      scale={sectorScale.s1}
-                    />
-                    <SectorCell
-                      label="S2"
-                      value={entry.sector2Ms}
-                      personalBest={entry.bestSector2Ms}
-                      scale={sectorScale.s2}
-                    />
-                    <SectorCell
-                      label="S3"
-                      value={entry.sector3Ms}
-                      personalBest={entry.bestSector3Ms}
-                      scale={sectorScale.s3}
-                    />
-                    <td className="px-2 py-2 font-mono text-[1.65rem] leading-none text-[#f1f7ff]">
-                      {formatLapTime(entry.lastLapMs)}
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xl">
-                      {isSessionBestLap(entry.bestLapMs, fastestBestLap) ? (
-                        <div className="inline-flex min-w-[8.75rem] flex-col rounded-lg border border-fuchsia-400/35 bg-fuchsia-500/10 px-3 py-2 shadow-[0_0_0_1px_rgba(232,121,249,0.05)]">
-                          <span className="font-sans text-[10px] uppercase tracking-[0.22em] text-fuchsia-200/85">
-                            Fastest
-                          </span>
-                          <span className="mt-1 text-[1.35rem] leading-none text-fuchsia-100">
-                            {formatLapTime(entry.bestLapMs)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[#9eb3cd]">{formatLapTime(entry.bestLapMs)}</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xl text-[#dce9fb]">
-                      {formatGap(entry.gapToLeaderSec, entry.position === 1)}
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xl text-[#9eb3cd]">
-                      {entry.position === 1
-                        ? "-"
-                        : entry.intervalToAheadSec == null
-                          ? "-"
-                          : `+${entry.intervalToAheadSec.toFixed(3)}`}
-                    </td>
-                    </tr>
-                  );
-                })}
+                {rows.map((row) => (
+                  <LiveRow key={row.driverCode} row={row} />
+                ))}
               </tbody>
             </table>
           </div>
 
           <div className="border-t border-[var(--line)] bg-[#0a121e] px-5 py-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Race Control</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Race Control</p>
+              {boardState.fastestBestLapMs != null ? (
+                <p className="text-xs uppercase tracking-[0.18em] text-fuchsia-200">
+                  Fastest lap {formatLapTime(boardState.fastestBestLapMs)}
+                </p>
+              ) : null}
+            </div>
             {raceControl.length === 0 ? (
               <p className="mt-2 text-sm text-[var(--muted)]">No race control messages yet.</p>
             ) : (
@@ -639,7 +617,7 @@ export function LiveDashboard() {
         </div>
       ) : (
         <div className="space-y-3 px-5 py-4">
-          <p className="text-sm text-[var(--muted)]">Waiting for live snapshot.</p>
+          <p className="text-sm text-[var(--muted)]">Waiting for live board projection.</p>
           {noFeedYet ? (
             <p className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
               Provider is connected but no timing updates are being published yet. This usually
