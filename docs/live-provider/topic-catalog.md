@@ -1,6 +1,6 @@
 # Provider Topic Catalog
 
-Current status: real-provider capture recorded on `2026-03-07` during Australian Grand Prix qualifying, including post-session finalisation traffic.
+Current status: real-provider captures recorded on `2026-03-07` for Australian Grand Prix qualifying and on `2026-03-08` for the race, both including late-session finalisation traffic.
 
 ## Capture Snapshot
 
@@ -47,6 +47,14 @@ Current status: real-provider capture recorded on `2026-03-07` during Australian
 
 ## Next Catalog Updates
 
-- Extend this catalog when `LapCount`, `TrackStatus`, `CarData.z`, or `Position.z` finally appear.
+- Extend this catalog further when `CarData.z` or `Position.z` finally appear.
 - Export first/last seen data for each shape signature once the current session ends.
 - Curate any unusual payloads with deletion markers or new nested keys into additional sample files.
+
+## Race Capture Update
+
+- The race capture finally observed `LapCount` continuously and confirmed that it is reliable enough to anchor session-lap display.
+- `TimingData` during the race also emitted explicit `InPit`, `PitOut`, `NumberOfPitStops`, `NumberOfLaps`, and lap-gap text such as `1L`, which is useful for a richer board projection.
+- `TimingAppData` during the race emitted richer stint payloads with `Compound`, `TotalLaps`, `LapNumber`, `LapFlags`, and `New`, which is enough to build tyre-age and used/new indicators without waiting for compressed telemetry topics.
+- `TrackStatus` still appeared only sparsely in the race capture, so it remains a weak source for continuous row-level state.
+- `CarData.z` and `Position.z` still did not appear, so the near-term rich board should continue to treat them as optional enhancements rather than hard dependencies.

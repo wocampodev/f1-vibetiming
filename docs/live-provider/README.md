@@ -77,6 +77,7 @@ make health
 make provider-audit
 make provider-export
 make backup
+make down
 ```
 
 Notes:
@@ -85,6 +86,7 @@ Notes:
 - Leave `make run` attached while the feed is active so provider logs stay visible.
 - Use `make provider-audit` after a meaningful capture window to spot temporary low-confidence leaders.
 - Use `make provider-export` before wrapping up so the repo keeps the latest DB-backed summary and ranking audit artifacts.
+- The API now enables Nest shutdown hooks so stopping the app cleanly can finish the active provider capture run instead of leaving it marked `ACTIVE`.
 
 Export the current DB-backed capture summary into repo-readable reports:
 
@@ -126,7 +128,8 @@ order by lastSeenAt desc;
 ## Current Reality
 
 - The first real capture has now observed `SessionInfo`, `SessionStatus`, `TrackStatus`, `DriverList`, `TimingData`, `TimingStats`, `TimingAppData`, `RaceControlMessages`, and `ExtrapolatedClock`.
-- `LapCount`, `CarData.z`, and `Position.z` still have not appeared in the initial qualifying window.
+- The later race capture also observed `LapCount`, steady pit-state updates in `TimingData`, and rich tyre/stint lifecycle data in `TimingAppData`.
+- `CarData.z` and `Position.z` still have not appeared in local captures.
 - Real traffic already confirmed that `RaceControlMessages.Messages` can be either an array or a keyed object.
 - The API now has a `LiveReplayService` foundation for replaying one persisted session, auditing risky ranking inputs, and flagging low-confidence projected leaders from `live_provider_event` rows.
 
