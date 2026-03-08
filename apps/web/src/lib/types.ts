@@ -105,6 +105,32 @@ export interface LiveTrackStatusSample {
   status: string;
 }
 
+export type LivePitState =
+  | 'on_track'
+  | 'pit_lane'
+  | 'pit_out'
+  | 'pit_garage'
+  | 'in_pit'
+  | 'off_track'
+  | 'stopped'
+  | 'unknown';
+
+export type LivePositionSource =
+  | 'simulator'
+  | 'timing_data'
+  | 'best_lap'
+  | 'last_lap'
+  | 'driver_code';
+
+export type LivePositionConfidence = 'high' | 'medium' | 'low';
+
+export interface LiveMiniSector {
+  sector: number;
+  segment: number;
+  status: number;
+  active: boolean;
+}
+
 export interface LiveLeaderboardEntry {
   position: number;
   driverCode: string;
@@ -137,6 +163,70 @@ export interface LiveState {
   session: LiveSessionState;
   leaderboard: LiveLeaderboardEntry[];
   raceControl: LiveRaceControlMessage[];
+}
+
+export interface LiveBoardSectorCell {
+  index: number;
+  valueMs: number | null;
+  personalBestMs: number | null;
+  sessionBestMs: number | null;
+}
+
+export interface LiveBoardTireState {
+  compound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
+  ageLaps: number | null;
+  isNew: boolean | null;
+}
+
+export interface LiveBoardProjectionState {
+  mode: 'pass_through' | 'stabilized' | 'withheld';
+  lowConfidenceLeaderSuppressions: number;
+  lastLowConfidenceLeaderAt: string | null;
+  lastLowConfidenceLeaderCode: string | null;
+  lastLowConfidenceLeaderSource: LivePositionSource | null;
+  lastLowConfidenceLeaderConfidence: LivePositionConfidence | null;
+  internalLeaderboardRows: number;
+  publicLeaderboardRows: number;
+  internalLeaderCode: string | null;
+  internalLeaderSource: LivePositionSource | null;
+  internalLeaderConfidence: LivePositionConfidence | null;
+  publicLeaderCode: string | null;
+}
+
+export interface LiveBoardRow {
+  position: number;
+  driverNumber: string;
+  driverCode: string;
+  driverName: string | null;
+  teamName: string | null;
+  teamKey: string | null;
+  teamColor: string | null;
+  completedLaps: number | null;
+  intervalToAheadSec: number | null;
+  intervalToAheadText: string | null;
+  gapToLeaderSec: number | null;
+  gapToLeaderText: string | null;
+  pitState: LivePitState | null;
+  pitStops: number | null;
+  tire: LiveBoardTireState;
+  bestLapMs: number | null;
+  lastLapMs: number | null;
+  lastSectors: LiveBoardSectorCell[];
+  bestSectors: LiveBoardSectorCell[];
+  miniSectors: LiveMiniSector[];
+  positionSource: LivePositionSource;
+  positionUpdatedAt: string | null;
+  positionConfidence: LivePositionConfidence;
+  isSessionFastestLap: boolean;
+}
+
+export interface LiveBoardState {
+  generatedAt: string;
+  session: LiveSessionState;
+  fastestBestLapMs: number | null;
+  rows: LiveBoardRow[];
+  raceControl: LiveRaceControlMessage[];
+  projection: LiveBoardProjectionState;
 }
 
 export interface LiveDeltaPayload {

@@ -229,23 +229,97 @@ describe('ProviderStateAccumulator', () => {
     expect(state?.leaderboard).toHaveLength(1);
     expect(state?.leaderboard[0]).toMatchObject({
       position: 1,
+      driverNumber: '1',
       driverCode: 'VER',
       driverName: 'Max Verstappen',
       teamName: 'Red Bull Racing',
       trackStatus: null,
+      pitState: null,
+      pitStops: null,
       speedKph: null,
       topSpeedKph: null,
+      gapToLeaderText: null,
+      intervalToAheadText: null,
       sector1Ms: 30100,
       sector2Ms: 31000,
       sector3Ms: 31000,
       bestSector1Ms: 30100,
       bestSector2Ms: 31000,
       bestSector3Ms: 31000,
+      completedLaps: null,
+      miniSectors: [],
       tireCompound: 'SOFT',
       stintLap: 12,
+      tireIsNew: null,
       positionSource: 'timing_data',
       positionUpdatedAt: emittedAt,
       positionConfidence: 'high',
+    });
+  });
+
+  it('captures board-ready pit, stint, lap, and mini-sector fields', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '44': {
+            Position: '5',
+            InPit: true,
+            NumberOfPitStops: 1,
+            NumberOfLaps: 22,
+            GapToLeader: '+12.345',
+            IntervalToPositionAhead: { Value: '+1.234' },
+            Sectors: {
+              '0': {
+                Segments: {
+                  '0': { Status: 2048 },
+                  '1': { Status: 2049 },
+                },
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '44': {
+            Stints: {
+              '1': {
+                Compound: 'HARD',
+                TotalLaps: 7,
+                New: 'true',
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      driverNumber: '44',
+      pitState: 'in_pit',
+      pitStops: 1,
+      completedLaps: 22,
+      gapToLeaderText: '+12.345',
+      intervalToAheadText: '+1.234',
+      tireCompound: 'HARD',
+      stintLap: 7,
+      tireIsNew: true,
+      miniSectors: [
+        { sector: 1, segment: 0, status: 2048, active: true },
+        { sector: 1, segment: 1, status: 2049, active: true },
+      ],
     });
   });
 

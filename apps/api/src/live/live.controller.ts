@@ -11,6 +11,12 @@ export class LiveController {
     return this.liveService.getState();
   }
 
+  @Get('board')
+  @Header('Cache-Control', 'no-store')
+  getBoard() {
+    return this.liveService.getBoard();
+  }
+
   @Get('health')
   @Header('Cache-Control', 'no-store')
   getHealth() {

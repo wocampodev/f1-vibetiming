@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
 import { LiveAdapter } from './live.adapter';
+import { buildLiveBoardState, createLiveBoardProjection } from './live.board';
 import { LiveCaptureService } from './live.capture.service';
 import { LiveProviderAdapter } from './live.provider.adapter';
 import { LiveReplayService } from './live.replay.service';
@@ -16,6 +17,7 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LiveBoardState,
   LivePositionConfidence,
   LivePositionSource,
   LivePublicState,
@@ -103,30 +105,20 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     return this.currentPublicState;
   }
 
+  getBoard(): LiveBoardState | null {
+    return buildLiveBoardState({
+      internalState: this.currentState,
+      publicState: this.currentPublicState,
+      projection: this.getProjectionState(),
+    });
+  }
+
   getHealth() {
     const adapterHealth = this.adapter.getHealth();
     const details = {
       ...(adapterHealth.details ?? {}),
       capture: this.liveCaptureService.getHealth(this.adapter.source),
-      publicProjection: {
-        mode: this.publicProjectionMode,
-        lowConfidenceLeaderSuppressions: this.lowConfidenceLeaderSuppressions,
-        lastLowConfidenceLeaderAt: this.lastLowConfidenceLeaderAt,
-        lastLowConfidenceLeaderCode: this.lastLowConfidenceLeaderCode,
-        lastLowConfidenceLeaderSource: this.lastLowConfidenceLeaderSource,
-        lastLowConfidenceLeaderConfidence:
-          this.lastLowConfidenceLeaderConfidence,
-        internalLeaderboardRows: this.currentState?.leaderboard.length ?? 0,
-        publicLeaderboardRows: this.currentPublicState?.leaderboard.length ?? 0,
-        internalLeaderCode:
-          this.currentState?.leaderboard[0]?.driverCode ?? null,
-        internalLeaderSource:
-          this.currentState?.leaderboard[0]?.positionSource ?? null,
-        internalLeaderConfidence:
-          this.currentState?.leaderboard[0]?.positionConfidence ?? null,
-        publicLeaderCode:
-          this.currentPublicState?.leaderboard[0]?.driverCode ?? null,
-      },
+      publicProjection: this.getProjectionState(),
     };
 
     return {
@@ -390,5 +382,25 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       gapToLeaderSec: null,
       intervalToAheadSec: null,
     }));
+  }
+
+  private getProjectionState() {
+    return createLiveBoardProjection({
+      mode: this.publicProjectionMode,
+      lowConfidenceLeaderSuppressions: this.lowConfidenceLeaderSuppressions,
+      lastLowConfidenceLeaderAt: this.lastLowConfidenceLeaderAt,
+      lastLowConfidenceLeaderCode: this.lastLowConfidenceLeaderCode,
+      lastLowConfidenceLeaderSource: this.lastLowConfidenceLeaderSource,
+      lastLowConfidenceLeaderConfidence: this.lastLowConfidenceLeaderConfidence,
+      internalLeaderboardRows: this.currentState?.leaderboard.length ?? 0,
+      publicLeaderboardRows: this.currentPublicState?.leaderboard.length ?? 0,
+      internalLeaderCode: this.currentState?.leaderboard[0]?.driverCode ?? null,
+      internalLeaderSource:
+        this.currentState?.leaderboard[0]?.positionSource ?? null,
+      internalLeaderConfidence:
+        this.currentState?.leaderboard[0]?.positionConfidence ?? null,
+      publicLeaderCode:
+        this.currentPublicState?.leaderboard[0]?.driverCode ?? null,
+    });
   }
 }
