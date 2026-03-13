@@ -12,6 +12,8 @@ import {
   LiveFeedSource,
   LivePublicState,
   LiveState,
+  LiveTopicFreshnessHealthState,
+  LiveTopicFreshnessState,
 } from './live.types';
 
 export interface LiveCaptureContext {
@@ -36,6 +38,7 @@ export interface LivePersistedSnapshot {
   internalState: LiveState;
   publicState: LivePublicState;
   projectionState: LiveBoardProjectionState | null;
+  topicFreshness: LiveTopicFreshnessState | null;
 }
 
 const EMPTY_CAPTURE_CONTEXT: LiveCaptureContext = {
@@ -146,6 +149,39 @@ const toProjectionState = (value: unknown): LiveBoardProjectionState | null => {
   return value as unknown as LiveBoardProjectionState;
 };
 
+const toTopicFreshnessState = (
+  value: unknown,
+): LiveTopicFreshnessState | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return value as unknown as LiveTopicFreshnessState;
+};
+
+const toTopicFreshnessHealthState = (
+  value: LiveTopicFreshnessState | null,
+): LiveTopicFreshnessHealthState | null => {
+  if (!value) {
+    return null;
+  }
+
+  return {
+    capturedAt: value.capturedAt,
+    topics: value.topics.map((topic) => ({
+      ...topic,
+      ageSeconds: topic.lastSeenAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now() - new Date(topic.lastSeenAt).getTime()) / 1000,
+            ),
+          )
+        : null,
+    })),
+  };
+};
+
 const stableStringify = (value: unknown): string =>
   JSON.stringify(normalizeJsonValue(value));
 
@@ -231,6 +267,9 @@ export class LiveCaptureService {
   private activeProviderRunStartedAt: string | null = null;
   private activeProviderSequence = 0;
   private latestSnapshotAt: string | null = null;
+  private latestSnapshotVersion: number | null = null;
+  private latestSnapshotSessionKey: string | null = null;
+  private latestSnapshotTopicFreshness: LiveTopicFreshnessState | null = null;
   private providerContext: LiveCaptureContext = { ...EMPTY_CAPTURE_CONTEXT };
   private eventWriteQueue: Promise<void> = Promise.resolve();
   private snapshotWriteQueue: Promise<void> = Promise.resolve();
@@ -271,6 +310,18 @@ export class LiveCaptureService {
       latestSnapshotAt:
         source === 'provider' && this.captureEnabled
           ? this.latestSnapshotAt
+          : null,
+      latestSnapshotVersion:
+        source === 'provider' && this.captureEnabled
+          ? this.latestSnapshotVersion
+          : null,
+      latestSnapshotSessionKey:
+        source === 'provider' && this.captureEnabled
+          ? this.latestSnapshotSessionKey
+          : null,
+      latestSnapshotTopicFreshness:
+        source === 'provider' && this.captureEnabled
+          ? toTopicFreshnessHealthState(this.latestSnapshotTopicFreshness)
           : null,
       rawRetentionDays: this.captureEnabled ? this.rawRetentionDays : null,
       snapshotRetentionDays: this.captureEnabled
@@ -462,6 +513,7 @@ export class LiveCaptureService {
     state: LiveState,
     publicState: LivePublicState,
     projectionState: LiveBoardProjectionState,
+    topicFreshness: LiveTopicFreshnessState | null,
     changedFields: string[],
   ): void {
     if (!this.isCaptureEnabled(source)) {
@@ -484,6 +536,7 @@ export class LiveCaptureService {
     this.snapshotWriteQueue = this.snapshotWriteQueue
       .then(async () => {
         const generatedAt = new Date(state.generatedAt);
+        let nextVersion = 1;
 
         await this.prisma.$transaction(async (tx) => {
           const previousLatestSnapshot = await tx.liveSessionSnapshot.findFirst(
@@ -498,6 +551,7 @@ export class LiveCaptureService {
               },
             },
           );
+          nextVersion = (previousLatestSnapshot?.version ?? 0) + 1;
 
           await tx.liveSessionSnapshot.updateMany({
             where: {
@@ -520,17 +574,23 @@ export class LiveCaptureService {
               sessionName: state.session.sessionName,
               generatedAt,
               lastEventAt: generatedAt,
-              version: (previousLatestSnapshot?.version ?? 0) + 1,
+              version: nextVersion,
               isLatest: true,
               publicState: toStoredJsonValue(publicState),
               internalState: toStoredJsonValue(state),
               projectionState: toStoredJsonValue(projectionState),
+              topicFreshness: toStoredJsonValue(topicFreshness),
               changedFields: toStoredJsonValue(changedFields),
             },
           });
         });
 
-        this.latestSnapshotAt = state.generatedAt;
+        this.updateLatestSnapshotMetadata({
+          sessionKey,
+          generatedAt: state.generatedAt,
+          version: nextVersion,
+          topicFreshness,
+        });
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
@@ -565,8 +625,7 @@ export class LiveCaptureService {
         return null;
       }
 
-      this.latestSnapshotAt = snapshot.generatedAt.toISOString();
-      return {
+      const bundle = {
         sessionKey: snapshot.sessionKey,
         generatedAt: snapshot.generatedAt.toISOString(),
         version: snapshot.version,
@@ -574,7 +633,10 @@ export class LiveCaptureService {
         internalState: snapshot.internalState as unknown as LiveState,
         publicState: snapshot.publicState as unknown as LivePublicState,
         projectionState: toProjectionState(snapshot.projectionState),
+        topicFreshness: toTopicFreshnessState(snapshot.topicFreshness),
       };
+      this.updateLatestSnapshotMetadata(bundle);
+      return bundle;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Unable to load persisted live snapshot: ${message}`);
@@ -623,7 +685,7 @@ export class LiveCaptureService {
       }),
     ]);
 
-    await this.refreshLatestSnapshotAt();
+    await this.refreshLatestSnapshotMetadata();
 
     this.logger.log(
       `Live capture retention cleanup deleted ${deletedEvents.count} events, ${deletedSnapshots.count} snapshots, and ${deletedRuns.count} runs`,
@@ -634,16 +696,45 @@ export class LiveCaptureService {
     return this.captureEnabled && source === 'provider';
   }
 
-  private async refreshLatestSnapshotAt(): Promise<void> {
+  private async refreshLatestSnapshotMetadata(): Promise<void> {
     const snapshot = await this.prisma.liveSessionSnapshot.findFirst({
       where: {
         source: LiveCaptureSource.PROVIDER,
         isLatest: true,
       },
       orderBy: { generatedAt: 'desc' },
-      select: { generatedAt: true },
+      select: {
+        sessionKey: true,
+        generatedAt: true,
+        version: true,
+        topicFreshness: true,
+      },
     });
 
-    this.latestSnapshotAt = snapshot?.generatedAt.toISOString() ?? null;
+    if (!snapshot) {
+      this.updateLatestSnapshotMetadata(null);
+      return;
+    }
+
+    this.updateLatestSnapshotMetadata({
+      sessionKey: snapshot.sessionKey,
+      generatedAt: snapshot.generatedAt.toISOString(),
+      version: snapshot.version,
+      topicFreshness: toTopicFreshnessState(snapshot.topicFreshness),
+    });
+  }
+
+  private updateLatestSnapshotMetadata(
+    snapshot: {
+      sessionKey: string;
+      generatedAt: string;
+      version: number;
+      topicFreshness: LiveTopicFreshnessState | null;
+    } | null,
+  ): void {
+    this.latestSnapshotAt = snapshot?.generatedAt ?? null;
+    this.latestSnapshotVersion = snapshot?.version ?? null;
+    this.latestSnapshotSessionKey = snapshot?.sessionKey ?? null;
+    this.latestSnapshotTopicFreshness = snapshot?.topicFreshness ?? null;
   }
 }

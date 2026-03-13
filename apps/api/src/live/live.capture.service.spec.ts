@@ -3,6 +3,7 @@ import {
   LiveBoardProjectionState,
   LivePublicState,
   LiveState,
+  LiveTopicFreshnessState,
 } from './live.types';
 
 function createConfigMock(values: Record<string, unknown>) {
@@ -115,6 +116,24 @@ function createProjectionState(): LiveBoardProjectionState {
   };
 }
 
+function createTopicFreshnessState(): LiveTopicFreshnessState {
+  return {
+    capturedAt: '2026-03-09T05:00:00.000Z',
+    topics: [
+      {
+        topic: 'LapCount',
+        lastSeenAt: '2026-03-09T04:59:58.000Z',
+        messageCount: 4,
+      },
+      {
+        topic: 'TimingData',
+        lastSeenAt: '2026-03-09T05:00:00.000Z',
+        messageCount: 42,
+      },
+    ],
+  };
+}
+
 function createPrismaMock() {
   const liveSessionSnapshot = {
     findFirst: jest.fn(),
@@ -154,6 +173,7 @@ describe('LiveCaptureService', () => {
 
     const service = new LiveCaptureService(config as never, prisma as never);
     const firstState = createLiveState();
+    const topicFreshness = createTopicFreshnessState();
     const secondState = {
       ...createLiveState(),
       generatedAt: '2026-03-09T05:00:05.000Z',
@@ -168,6 +188,7 @@ describe('LiveCaptureService', () => {
       firstState,
       createPublicState(firstState),
       createProjectionState(),
+      topicFreshness,
       ['leaderboard'],
     );
     await flushSnapshotQueue(service);
@@ -177,6 +198,10 @@ describe('LiveCaptureService', () => {
       secondState,
       createPublicState(secondState),
       createProjectionState(),
+      {
+        ...topicFreshness,
+        capturedAt: secondState.generatedAt,
+      },
       ['leaderboard', 'generatedAt'],
     );
     await flushSnapshotQueue(service);
@@ -211,6 +236,7 @@ describe('LiveCaptureService', () => {
         sessionKey: 'provider:australian-grand-prix:australian-grand-prix-race',
         version: 1,
         isLatest: true,
+        topicFreshness,
       }),
     );
     expect(createCalls[1]?.[0].data).toEqual(
@@ -219,6 +245,10 @@ describe('LiveCaptureService', () => {
         sessionKey: 'provider:australian-grand-prix:australian-grand-prix-race',
         version: 2,
         isLatest: true,
+        topicFreshness: {
+          ...topicFreshness,
+          capturedAt: secondState.generatedAt,
+        },
       }),
     );
   });
@@ -232,6 +262,7 @@ describe('LiveCaptureService', () => {
     const state = createLiveState();
     const publicState = createPublicState(state);
     const projectionState = createProjectionState();
+    const topicFreshness = createTopicFreshnessState();
     prisma.liveSessionSnapshot.findFirst.mockResolvedValue({
       sessionKey: 'provider:australian-grand-prix:australian-grand-prix-race',
       generatedAt: new Date(state.generatedAt),
@@ -240,6 +271,7 @@ describe('LiveCaptureService', () => {
       internalState: state,
       publicState,
       projectionState,
+      topicFreshness,
     });
 
     const service = new LiveCaptureService(config as never, prisma as never);
@@ -253,6 +285,7 @@ describe('LiveCaptureService', () => {
         internalState: state,
         publicState,
         projectionState,
+        topicFreshness,
       },
     );
     expect(prisma.liveSessionSnapshot.findFirst).toHaveBeenCalledWith({
@@ -261,6 +294,27 @@ describe('LiveCaptureService', () => {
         isLatest: true,
       },
       orderBy: [{ generatedAt: 'desc' }, { version: 'desc' }],
+    });
+    expect(service.getHealth('provider')).toMatchObject({
+      latestSnapshotAt: state.generatedAt,
+      latestSnapshotVersion: 7,
+      latestSnapshotSessionKey:
+        'provider:australian-grand-prix:australian-grand-prix-race',
+      latestSnapshotTopicFreshness: {
+        capturedAt: topicFreshness.capturedAt,
+        topics: [
+          {
+            topic: 'LapCount',
+            lastSeenAt: '2026-03-09T04:59:58.000Z',
+            messageCount: 4,
+          },
+          {
+            topic: 'TimingData',
+            lastSeenAt: '2026-03-09T05:00:00.000Z',
+            messageCount: 42,
+          },
+        ],
+      },
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   LiveBoardProjectionState,
   LivePublicState,
   LiveState,
+  LiveTopicFreshnessState,
 } from './live.types';
 import { firstValueFrom } from 'rxjs';
 
@@ -128,6 +129,27 @@ function createProjectionState(
   };
 }
 
+function createTopicFreshnessState(
+  overrides?: Partial<LiveTopicFreshnessState>,
+): LiveTopicFreshnessState {
+  return {
+    capturedAt: '2026-03-03T00:00:00.000Z',
+    topics: [
+      {
+        topic: 'LapCount',
+        lastSeenAt: '2026-03-03T00:00:00.000Z',
+        messageCount: 2,
+      },
+      {
+        topic: 'TimingData',
+        lastSeenAt: '2026-03-03T00:00:00.000Z',
+        messageCount: 18,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function createLeaderboardEntry(
   overrides?: Partial<LiveState['leaderboard'][number]>,
 ): LiveState['leaderboard'][number] {
@@ -193,6 +215,15 @@ function createProviderAdapterMock(overrides?: Record<string, unknown>) {
         framesReceived: 42,
         feedMessagesReceived: 180,
         frameParseErrors: 1,
+        topics: ['LapCount', 'TimingData'],
+        topicMessageCount: {
+          LapCount: 2,
+          TimingData: 180,
+        },
+        topicLastSeenAt: {
+          LapCount: '2026-03-03T00:00:00.000Z',
+          TimingData: '2026-03-03T00:00:00.000Z',
+        },
       },
     })),
     ...overrides,
@@ -428,6 +459,80 @@ describe('LiveService', () => {
         },
       },
     });
+  });
+
+  it('persists provider topic freshness metadata with snapshots', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const providerState = createLiveState();
+    providerState.session.weekendId = 'provider-weekend';
+    providerState.session.sessionId = 'provider-session';
+    providerState.session.sessionName = 'Provider Session';
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({ type: 'initial_state', state: providerState });
+        return Promise.resolve();
+      }),
+      getHealth: jest.fn(() => ({
+        running: true,
+        startedAt: '2026-03-03T00:00:00.000Z',
+        lastEventAt: '2026-03-03T00:00:00.000Z',
+        tickMs: 0,
+        heartbeatMs: 0,
+        seed: null,
+        speedMultiplier: null,
+        details: {
+          topics: ['TimingData', 'LapCount', 'CarData.z'],
+          topicMessageCount: {
+            TimingData: 18,
+            LapCount: 2,
+            CarData: 0,
+          },
+          topicLastSeenAt: {
+            TimingData: '2026-03-03T00:00:00.000Z',
+            LapCount: '2026-03-03T00:00:00.000Z',
+          },
+        },
+      })),
+    });
+    const capture = createLiveCaptureServiceMock();
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(capture.persistSnapshot).toHaveBeenCalledWith(
+      'provider',
+      expect.objectContaining({ generatedAt: providerState.generatedAt }),
+      expect.any(Object),
+      expect.any(Object),
+      createTopicFreshnessState({
+        topics: [
+          {
+            topic: 'CarData',
+            lastSeenAt: null,
+            messageCount: 0,
+          },
+          {
+            topic: 'LapCount',
+            lastSeenAt: '2026-03-03T00:00:00.000Z',
+            messageCount: 2,
+          },
+          {
+            topic: 'TimingData',
+            lastSeenAt: '2026-03-03T00:00:00.000Z',
+            messageCount: 18,
+          },
+        ],
+      }),
+      ['generatedAt', 'session', 'leaderboard', 'raceControl'],
+    );
   });
 
   it('replays a recent persisted provider session before adapter updates', async () => {

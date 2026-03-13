@@ -26,7 +26,49 @@ import {
   LiveStatusPayload,
   LiveStreamEventType,
   LiveStreamStatus,
+  LiveTopicFreshnessState,
 } from './live.types';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const normalizeTopicName = (topic: string): string => topic.replace(/\.z$/, '');
+
+const toStringMap = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => typeof entry === 'string')
+      .map(([key, entry]) => [normalizeTopicName(key), entry]),
+  ) as Record<string, string>;
+};
+
+const toNumberMap = (value: unknown): Record<string, number> => {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([, entry]) => typeof entry === 'number' && Number.isFinite(entry),
+      )
+      .map(([key, entry]) => [normalizeTopicName(key), entry]),
+  ) as Record<string, number>;
+};
+
+const toTopicList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => normalizeTopicName(entry));
+};
 
 @Injectable()
 export class LiveService implements OnModuleInit, OnModuleDestroy {
@@ -206,11 +248,15 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
           );
           this.currentPublicState = publicState;
           const projectionState = this.getProjectionState();
+          const topicFreshness = this.getCurrentTopicFreshness(
+            event.state.generatedAt,
+          );
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
             publicState,
             projectionState,
+            topicFreshness,
             ['generatedAt', 'session', 'leaderboard', 'raceControl'],
           );
           this.streamSubject.next(
@@ -228,11 +274,15 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
           );
           this.currentPublicState = publicState;
           const projectionState = this.getProjectionState();
+          const topicFreshness = this.getCurrentTopicFreshness(
+            event.state.generatedAt,
+          );
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
             publicState,
             projectionState,
+            topicFreshness,
             event.changedFields,
           );
           this.streamSubject.next(
@@ -399,6 +449,43 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       gapToLeaderSec: null,
       intervalToAheadSec: null,
     }));
+  }
+
+  private getCurrentTopicFreshness(
+    capturedAt: string,
+  ): LiveTopicFreshnessState | null {
+    if (this.adapter.source !== 'provider') {
+      return null;
+    }
+
+    const details = this.adapter.getHealth().details;
+    if (!isRecord(details)) {
+      return null;
+    }
+
+    const configuredTopics = toTopicList(details.topics);
+    const topicLastSeenAt = toStringMap(details.topicLastSeenAt);
+    const topicMessageCount = toNumberMap(details.topicMessageCount);
+    const topicNames = [
+      ...new Set([
+        ...configuredTopics,
+        ...Object.keys(topicLastSeenAt),
+        ...Object.keys(topicMessageCount),
+      ]),
+    ].sort((left, right) => left.localeCompare(right));
+
+    if (topicNames.length === 0) {
+      return null;
+    }
+
+    return {
+      capturedAt,
+      topics: topicNames.map((topic) => ({
+        topic,
+        lastSeenAt: topicLastSeenAt[topic] ?? null,
+        messageCount: topicMessageCount[topic] ?? 0,
+      })),
+    };
   }
 
   private applyRestoredProjectionState(

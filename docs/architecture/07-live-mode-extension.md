@@ -41,7 +41,7 @@ Implementation notes:
 - Provider capture can persist raw decoded messages, topic shape summaries, and normalized live snapshots for local analysis.
 - Leaderboard entries include bounded speed-history and track-status-history windows for trend rendering.
 - Web consumes SSE first and uses `/api/live/state` as fallback polling path.
-- `/api/live/health` includes provider transport diagnostics plus local capture metadata (active run and persisted snapshot freshness).
+- `/api/live/health` includes provider transport diagnostics plus local capture metadata (active run, persisted snapshot freshness, and per-topic snapshot freshness details).
 - Standings remain DB-backed with per-round history persistence, selectable round snapshots, and previous-round movement deltas.
 
 Source of truth:

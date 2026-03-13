@@ -237,6 +237,7 @@ model LiveSessionSnapshot {
   publicState  Json
   internalState Json
   projectionState Json?
+  topicFreshness Json?
   changedFields Json
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
