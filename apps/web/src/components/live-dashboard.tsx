@@ -83,6 +83,14 @@ const formatLapTime = (milliseconds: number | null): string => {
   return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
 };
 
+const formatSectorTime = (milliseconds: number | null): string => {
+  if (milliseconds == null) {
+    return "-";
+  }
+
+  return (milliseconds / 1000).toFixed(3);
+};
+
 const formatGap = (value: string | null, fallbackSeconds: number | null, leader: boolean): string => {
   if (leader) {
     return value ?? "LEADER";
@@ -160,15 +168,20 @@ const getSectorTone = (cell: LiveBoardSectorCell): SectorTone => {
 };
 
 const miniSectorClassName = (status: number, active: boolean): string => {
-  if (status === 2048 || status === 2049) {
+  if (status === 2050 || status === 2051) {
     return active ? "bg-fuchsia-300" : "bg-fuchsia-500/80";
   }
 
-  if (status === 2044 || status === 2045) {
+  if (
+    status === 2044 ||
+    status === 2045 ||
+    status === 2064 ||
+    status === 2065
+  ) {
     return active ? "bg-emerald-300" : "bg-emerald-500/80";
   }
 
-  if (status === 2050 || status === 2051) {
+  if (status === 2048 || status === 2049) {
     return active ? "bg-yellow-200" : "bg-yellow-400/80";
   }
 
@@ -179,26 +192,56 @@ const miniSectorClassName = (status: number, active: boolean): string => {
   return "bg-slate-800";
 };
 
-function SectorPill({ cell }: { cell: LiveBoardSectorCell }) {
+function SectorCluster({
+  cell,
+  miniSectors,
+}: {
+  cell: LiveBoardSectorCell;
+  miniSectors: LiveBoardRow["miniSectors"];
+}) {
   const tone = getSectorTone(cell);
-
-  if (tone === "empty") {
-    return <span className="rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1 text-slate-500">-</span>;
-  }
-
-  const valueMs = cell.valueMs as number;
-
-  const className =
+  const valueTone =
     tone === "session_best"
-      ? "border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-100"
+      ? "text-fuchsia-100"
       : tone === "personal_best"
-        ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-100"
-        : "border-slate-700/80 bg-slate-900/70 text-slate-100";
+        ? "text-emerald-100"
+        : tone === "timed"
+          ? "text-[#f4f9ff]"
+          : "text-[#5a6c86]";
+  const placeholderSegments = Array.from({ length: 6 }, (_, index) => index);
 
   return (
-    <span className={`rounded-md border px-2 py-1 font-mono text-xs ${className}`}>
-      {(valueMs / 1000).toFixed(3)}
-    </span>
+    <div className="min-w-[9rem] space-y-2">
+      <div className="flex min-h-2 flex-wrap gap-2.5">
+        {miniSectors.length > 0
+          ? miniSectors.map((miniSector) => (
+              <span
+                key={`${miniSector.sector}-${miniSector.segment}`}
+                className={`h-2 w-4 rounded-full ${miniSectorClassName(
+                  miniSector.status,
+                  miniSector.active,
+                )}`}
+                title={`S${miniSector.sector} M${miniSector.segment} ${miniSector.status}`}
+              />
+            ))
+          : placeholderSegments.map((segment) => (
+              <span
+                key={`placeholder-${cell.index}-${segment}`}
+                className="h-2 w-4 rounded-full bg-slate-900/90"
+              />
+            ))}
+      </div>
+      <div className="flex items-end gap-2">
+        <span className={`font-mono text-2xl font-semibold leading-none ${valueTone}`}>
+          {formatSectorTime(cell.valueMs)}
+        </span>
+        {cell.personalBestMs != null ? (
+          <span className="pb-0.5 font-mono text-xs text-[#7085a0]">
+            {formatSectorTime(cell.personalBestMs)}
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -347,7 +390,21 @@ function DiagnosticsPanel({ health }: { health: LiveHealthState | null }) {
 }
 
 function LiveRow({ row }: { row: LiveBoardRow }) {
-  const miniSectors = row.miniSectors.slice(0, 18);
+  const sectors = row.lastSectors.map((cell) => ({
+    cell,
+    miniSectors: row.miniSectors
+      .filter((miniSector) => miniSector.sector === cell.index)
+      .sort((left, right) => left.segment - right.segment),
+  }));
+  const gapText = formatGap(
+    row.gapToLeaderText,
+    row.gapToLeaderSec,
+    row.position === 1,
+  );
+  const intervalText =
+    row.position === 1
+      ? null
+      : formatGap(row.intervalToAheadText, row.intervalToAheadSec, false);
 
   return (
     <tr className="border-b border-[var(--line)]/60 hover:bg-[#0d1623]">
@@ -360,25 +417,10 @@ function LiveRow({ row }: { row: LiveBoardRow }) {
         <DriverCell row={row} />
       </td>
       <td className="px-3 py-3 align-top">
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-1">
-            {row.lastSectors.map((cell) => (
-              <SectorPill key={cell.index} cell={cell} />
-            ))}
-          </div>
-          <div className="flex gap-1.5">
-            {miniSectors.length > 0 ? (
-              miniSectors.map((miniSector) => (
-                <span
-                  key={`${miniSector.sector}-${miniSector.segment}`}
-                  className={`h-1.5 w-3 rounded-full ${miniSectorClassName(miniSector.status, miniSector.active)}`}
-                  title={`S${miniSector.sector} M${miniSector.segment} ${miniSector.status}`}
-                />
-              ))
-            ) : (
-              <span className="text-[11px] uppercase tracking-[0.16em] text-[#617794]">No mini sectors</span>
-            )}
-          </div>
+        <div className="flex flex-wrap gap-6">
+          {sectors.map(({ cell, miniSectors }) => (
+            <SectorCluster key={cell.index} cell={cell} miniSectors={miniSectors} />
+          ))}
         </div>
       </td>
       <td className="px-3 py-3 align-top">
@@ -395,15 +437,11 @@ function LiveRow({ row }: { row: LiveBoardRow }) {
       <td className="px-3 py-3 align-top">
         <PitCell row={row} />
       </td>
-      <td className="px-3 py-3 align-top font-mono text-sm text-[#f4f9ff]">
-        {formatGap(row.gapToLeaderText, row.gapToLeaderSec, row.position === 1)}
-      </td>
-      <td className="px-3 py-3 align-top font-mono text-sm text-[#d3e1f5]">
-        {formatGap(row.intervalToAheadText, row.intervalToAheadSec, row.position === 1)}
-      </td>
-      <td className="px-3 py-3 align-top text-[11px] uppercase tracking-[0.16em] text-[#8aa0be]">
-        <div>Laps {row.completedLaps ?? "-"}</div>
-        {row.positionUpdatedAt ? <div className="mt-1">Pos {formatClock(row.positionUpdatedAt)}</div> : null}
+      <td className="px-3 py-3 align-top font-mono text-sm">
+        <div className="space-y-1">
+          <div className="text-lg font-semibold text-[#f4f9ff]">{gapText}</div>
+          {intervalText ? <div className="text-xs text-[#7f96b5]">{intervalText}</div> : null}
+        </div>
       </td>
     </tr>
   );
@@ -664,7 +702,7 @@ export function LiveDashboard() {
       {boardState ? (
         <div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] bg-[#070d15] text-sm">
+            <table className="w-full min-w-[1080px] bg-[#070d15] text-sm">
               <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-[11px] uppercase tracking-[0.18em] text-[#94a7c2]">
                 <tr>
                   <th className="px-3 py-3">Pos</th>
@@ -674,8 +712,6 @@ export function LiveDashboard() {
                   <th className="px-3 py-3">Tire</th>
                   <th className="px-3 py-3">Pit</th>
                   <th className="px-3 py-3">Gap</th>
-                  <th className="px-3 py-3">Int</th>
-                  <th className="px-3 py-3">Meta</th>
                 </tr>
               </thead>
               <tbody>
