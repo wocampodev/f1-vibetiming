@@ -14,7 +14,7 @@ This folder tracks how the local provider capture pipeline is intended to work a
 - Logs remain useful for real-time observation, but they are not the source of truth.
 - The API captures provider messages inside `LiveProviderAdapter` immediately after decode and before projection.
 - Captured messages are written into `live_provider_event`.
-- Normalized live snapshots are written into `live_session_snapshot`.
+- Normalized live snapshots are written into `live_session_snapshot` as versioned checkpoint rows.
 - Topic shape summaries are upserted into `live_topic_schema_catalog`.
 
 ## Local Storage
@@ -132,9 +132,10 @@ order by lastSeenAt desc;
 - `CarData.z` and `Position.z` still have not appeared in local captures.
 - Real traffic already confirmed that `RaceControlMessages.Messages` can be either an array or a keyed object.
 - The API now has a `LiveReplayService` foundation for replaying one persisted session, auditing risky ranking inputs, and flagging low-confidence projected leaders from `live_provider_event` rows.
+- Persisted snapshots now keep append-only versions plus stored public projection metadata, so snapshot restore can preserve stabilized public ordering more accurately.
 
 ## Future Follow-Up
 
 - Export captured topic summaries from Postgres into the JSON and Markdown files in this folder.
 - Add replay tooling that rebuilds a session snapshot from `live_provider_event` rows.
-- Expand replay and projection tooling so `/api/live/state` can be rebuilt deterministically from persisted provider events, with snapshots as a fast fallback.
+- Expand replay and projection tooling so `/api/live/state` and `/api/live/board` can be rebuilt deterministically from persisted provider events, with snapshots as a fast fallback.
