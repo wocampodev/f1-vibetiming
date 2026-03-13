@@ -73,6 +73,21 @@ describe('LiveReplayService', () => {
       eventCount: 2,
       firstEventAt: '2026-03-03T00:00:00.000Z',
       lastEventAt: '2026-03-03T00:00:01.000Z',
+      topicFreshness: {
+        capturedAt: '2026-03-03T00:00:01.000Z',
+        topics: [
+          {
+            topic: 'SessionInfo',
+            lastSeenAt: '2026-03-03T00:00:00.000Z',
+            messageCount: 1,
+          },
+          {
+            topic: 'TimingData',
+            lastSeenAt: '2026-03-03T00:00:01.000Z',
+            messageCount: 1,
+          },
+        ],
+      },
       state: {
         session: {
           sessionName: 'Australian Grand Prix - Qualifying',
@@ -114,6 +129,16 @@ describe('LiveReplayService', () => {
     });
     expect(replay).not.toBeNull();
     expect(replay?.sessionKey).toBe('provider:australia:qualifying');
+    expect(replay?.topicFreshness).toMatchObject({
+      capturedAt: emittedAt.toISOString(),
+      topics: [
+        {
+          topic: 'TimingData',
+          lastSeenAt: emittedAt.toISOString(),
+          messageCount: 1,
+        },
+      ],
+    });
   });
 
   it('returns null when the latest provider session is too old to restore', async () => {

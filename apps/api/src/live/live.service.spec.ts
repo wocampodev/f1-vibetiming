@@ -461,6 +461,68 @@ describe('LiveService', () => {
     });
   });
 
+  it('includes stale snapshot topic freshness in the live health payload', async () => {
+    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
+    const simulator = createSimulatorAdapterMock();
+    const provider = createProviderAdapterMock();
+    const capture = createLiveCaptureServiceMock({
+      getHealth: jest.fn(() => ({
+        enabled: true,
+        latestSnapshotAt: '2026-03-03T00:00:00.000Z',
+        latestSnapshotVersion: 3,
+        latestSnapshotSessionKey: 'provider:restored:session',
+        latestSnapshotTopicFreshness: {
+          capturedAt: '2026-03-03T00:00:00.000Z',
+          topics: [
+            {
+              topic: 'TimingData',
+              lastSeenAt: '2026-03-03T00:00:00.000Z',
+              messageCount: 18,
+              ageSeconds: 90,
+            },
+            {
+              topic: 'LapCount',
+              lastSeenAt: '2026-03-02T23:58:30.000Z',
+              messageCount: 2,
+              ageSeconds: 180,
+            },
+          ],
+        },
+      })),
+    });
+    const replay = createLiveReplayServiceMock();
+    const service = new LiveService(
+      config as never,
+      simulator as never,
+      provider as never,
+      capture as never,
+      replay as never,
+    );
+
+    await service.onModuleInit();
+
+    expect(service.getHealth()).toMatchObject({
+      details: {
+        capture: {
+          latestSnapshotVersion: 3,
+          latestSnapshotSessionKey: 'provider:restored:session',
+          latestSnapshotTopicFreshness: {
+            topics: [
+              {
+                topic: 'TimingData',
+                ageSeconds: 90,
+              },
+              {
+                topic: 'LapCount',
+                ageSeconds: 180,
+              },
+            ],
+          },
+        },
+      },
+    });
+  });
+
   it('persists provider topic freshness metadata with snapshots', async () => {
     const config = createConfigMock({ LIVE_SOURCE: 'provider' });
     const simulator = createSimulatorAdapterMock();
@@ -545,6 +607,21 @@ describe('LiveService', () => {
       loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
       getHealth: jest.fn(() => ({ enabled: true })),
     });
+    const replayTopicFreshness = createTopicFreshnessState({
+      capturedAt: '2026-03-03T00:00:05.000Z',
+      topics: [
+        {
+          topic: 'SessionInfo',
+          lastSeenAt: '2026-03-03T00:00:00.000Z',
+          messageCount: 1,
+        },
+        {
+          topic: 'TimingData',
+          lastSeenAt: '2026-03-03T00:00:05.000Z',
+          messageCount: 12,
+        },
+      ],
+    });
     const replay = createLiveReplayServiceMock({
       replayLatestProviderSession: jest.fn(() =>
         Promise.resolve({
@@ -553,6 +630,7 @@ describe('LiveService', () => {
           firstEventAt: '2026-03-03T00:00:00.000Z',
           lastEventAt: '2026-03-03T00:00:05.000Z',
           state: restoredState,
+          topicFreshness: replayTopicFreshness,
         }),
       ),
     });
@@ -577,6 +655,33 @@ describe('LiveService', () => {
       sessionName: restoredState.session.sessionName,
     });
     expect(capture.loadLatestSnapshotBundle).not.toHaveBeenCalled();
+    const persistSnapshotCalls = capture.persistSnapshot.mock
+      .calls as unknown as Array<
+      [
+        string,
+        LiveState,
+        LivePublicState,
+        LiveBoardProjectionState,
+        LiveTopicFreshnessState,
+        string[],
+      ]
+    >;
+    expect(capture.persistSnapshot).toHaveBeenCalledWith(
+      'provider',
+      restoredState,
+      expect.any(Object),
+      expect.any(Object),
+      replayTopicFreshness,
+      ['generatedAt', 'session', 'leaderboard', 'raceControl'],
+    );
+    expect(persistSnapshotCalls[0]?.[2]).toMatchObject({
+      session: {
+        sessionName: 'Restored Session',
+      },
+    });
+    expect(persistSnapshotCalls[0]?.[3]).toMatchObject({
+      mode: 'pass_through',
+    });
   });
 
   it('falls back to the persisted snapshot when replay has no recent provider session', async () => {
@@ -640,6 +745,7 @@ describe('LiveService', () => {
         lowConfidenceLeaderSuppressions: 12,
       },
     });
+    expect(capture.persistSnapshot).not.toHaveBeenCalled();
   });
 
   it('keeps the previous provider order when a later update would publish a low-confidence P1', async () => {

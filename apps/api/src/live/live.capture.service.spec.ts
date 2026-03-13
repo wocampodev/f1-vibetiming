@@ -254,6 +254,9 @@ describe('LiveCaptureService', () => {
   });
 
   it('loads the latest persisted snapshot bundle with projection metadata', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-09T05:02:00.000Z'));
+
     const config = createConfigMock({
       LIVE_PROVIDER_CAPTURE_ENABLED: 'true',
       LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC: 999999999,
@@ -276,8 +279,10 @@ describe('LiveCaptureService', () => {
 
     const service = new LiveCaptureService(config as never, prisma as never);
 
-    await expect(service.loadLatestSnapshotBundle('provider')).resolves.toEqual(
-      {
+    try {
+      await expect(
+        service.loadLatestSnapshotBundle('provider'),
+      ).resolves.toEqual({
         sessionKey: 'provider:australian-grand-prix:australian-grand-prix-race',
         generatedAt: state.generatedAt,
         version: 7,
@@ -286,35 +291,39 @@ describe('LiveCaptureService', () => {
         publicState,
         projectionState,
         topicFreshness,
-      },
-    );
-    expect(prisma.liveSessionSnapshot.findFirst).toHaveBeenCalledWith({
-      where: {
-        source: 'PROVIDER',
-        isLatest: true,
-      },
-      orderBy: [{ generatedAt: 'desc' }, { version: 'desc' }],
-    });
-    expect(service.getHealth('provider')).toMatchObject({
-      latestSnapshotAt: state.generatedAt,
-      latestSnapshotVersion: 7,
-      latestSnapshotSessionKey:
-        'provider:australian-grand-prix:australian-grand-prix-race',
-      latestSnapshotTopicFreshness: {
-        capturedAt: topicFreshness.capturedAt,
-        topics: [
-          {
-            topic: 'LapCount',
-            lastSeenAt: '2026-03-09T04:59:58.000Z',
-            messageCount: 4,
-          },
-          {
-            topic: 'TimingData',
-            lastSeenAt: '2026-03-09T05:00:00.000Z',
-            messageCount: 42,
-          },
-        ],
-      },
-    });
+      });
+      expect(prisma.liveSessionSnapshot.findFirst).toHaveBeenCalledWith({
+        where: {
+          source: 'PROVIDER',
+          isLatest: true,
+        },
+        orderBy: [{ generatedAt: 'desc' }, { version: 'desc' }],
+      });
+      expect(service.getHealth('provider')).toMatchObject({
+        latestSnapshotAt: state.generatedAt,
+        latestSnapshotVersion: 7,
+        latestSnapshotSessionKey:
+          'provider:australian-grand-prix:australian-grand-prix-race',
+        latestSnapshotTopicFreshness: {
+          capturedAt: topicFreshness.capturedAt,
+          topics: [
+            {
+              topic: 'LapCount',
+              lastSeenAt: '2026-03-09T04:59:58.000Z',
+              messageCount: 4,
+              ageSeconds: 122,
+            },
+            {
+              topic: 'TimingData',
+              lastSeenAt: '2026-03-09T05:00:00.000Z',
+              messageCount: 42,
+              ageSeconds: 120,
+            },
+          ],
+        },
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

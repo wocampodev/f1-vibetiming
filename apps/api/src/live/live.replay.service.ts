@@ -6,6 +6,7 @@ import {
   LivePositionConfidence,
   LivePositionSource,
   LiveState,
+  LiveTopicFreshnessState,
 } from './live.types';
 
 interface ReplayEventRow {
@@ -20,6 +21,7 @@ export interface LiveSessionReplayResult {
   firstEventAt: string | null;
   lastEventAt: string | null;
   state: LiveState | null;
+  topicFreshness: LiveTopicFreshnessState | null;
 }
 
 export interface LiveRankingAuditResult {
@@ -90,6 +92,34 @@ const incrementCount = <T extends string>(
   map.set(key, (map.get(key) ?? 0) + 1);
 };
 
+const buildTopicFreshness = (
+  events: ReplayEventRow[],
+): LiveTopicFreshnessState | null => {
+  if (events.length === 0) {
+    return null;
+  }
+
+  const topicCounts = new Map<string, number>();
+  const topicLastSeenAt = new Map<string, string>();
+
+  for (const event of events) {
+    topicCounts.set(event.topic, (topicCounts.get(event.topic) ?? 0) + 1);
+    topicLastSeenAt.set(event.topic, event.emittedAt.toISOString());
+  }
+
+  return {
+    capturedAt:
+      events.at(-1)?.emittedAt.toISOString() ?? new Date().toISOString(),
+    topics: [...topicCounts.entries()]
+      .map(([topic, messageCount]) => ({
+        topic,
+        lastSeenAt: topicLastSeenAt.get(topic) ?? null,
+        messageCount,
+      }))
+      .sort((left, right) => left.topic.localeCompare(right.topic)),
+  };
+};
+
 @Injectable()
 export class LiveReplayService {
   constructor(private readonly prisma: PrismaService) {}
@@ -142,6 +172,7 @@ export class LiveReplayService {
       firstEventAt,
       lastEventAt,
       state: accumulator.buildState(lastEventAt ?? new Date().toISOString()),
+      topicFreshness: buildTopicFreshness(events),
     };
   }
 
