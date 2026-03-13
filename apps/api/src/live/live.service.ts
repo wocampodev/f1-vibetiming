@@ -17,6 +17,7 @@ import {
   LiveDeltaPayload,
   LiveEnvelope,
   LiveHeartbeatPayload,
+  LiveBoardProjectionState,
   LiveBoardState,
   LivePositionConfidence,
   LivePositionSource,
@@ -137,6 +138,8 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   private async restorePersistedState(): Promise<void> {
     let restoredState: LiveState | null = null;
+    let restoredPublicState: LivePublicState | null = null;
+    let restoredProjectionState: LiveBoardProjectionState | null = null;
 
     if (this.adapter.source === 'provider') {
       const restoreMaxAgeSec = this.configService.get<number>(
@@ -157,9 +160,13 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!restoredState) {
-      restoredState = await this.liveCaptureService.loadLatestSnapshot(
-        this.adapter.source,
-      );
+      const persistedSnapshot =
+        await this.liveCaptureService.loadLatestSnapshotBundle(
+          this.adapter.source,
+        );
+      restoredState = persistedSnapshot?.internalState ?? null;
+      restoredPublicState = persistedSnapshot?.publicState ?? null;
+      restoredProjectionState = persistedSnapshot?.projectionState ?? null;
     }
 
     if (!restoredState) {
@@ -175,7 +182,13 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.currentState = restoredState;
-    this.currentPublicState = this.toPublicState(restoredState);
+    this.currentPublicState =
+      restoredPublicState ?? this.toPublicState(restoredState);
+    this.applyRestoredProjectionState(
+      restoredProjectionState,
+      restoredState,
+      this.currentPublicState,
+    );
     this.logger.log(
       `Restored persisted live state for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
     );
@@ -192,10 +205,12 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
             previousPublicState,
           );
           this.currentPublicState = publicState;
+          const projectionState = this.getProjectionState();
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
             publicState,
+            projectionState,
             ['generatedAt', 'session', 'leaderboard', 'raceControl'],
           );
           this.streamSubject.next(
@@ -212,10 +227,12 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
             previousPublicState,
           );
           this.currentPublicState = publicState;
+          const projectionState = this.getProjectionState();
           this.liveCaptureService.persistSnapshot(
             this.adapter.source,
             event.state,
             publicState,
+            projectionState,
             event.changedFields,
           );
           this.streamSubject.next(
@@ -382,6 +399,92 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       gapToLeaderSec: null,
       intervalToAheadSec: null,
     }));
+  }
+
+  private applyRestoredProjectionState(
+    projectionState: LiveBoardProjectionState | null,
+    restoredState: LiveState,
+    restoredPublicState: LivePublicState | null,
+  ): void {
+    if (projectionState) {
+      this.publicProjectionMode = projectionState.mode;
+      this.lowConfidenceLeaderSuppressions =
+        projectionState.lowConfidenceLeaderSuppressions;
+      this.lastLowConfidenceLeaderAt =
+        projectionState.lastLowConfidenceLeaderAt;
+      this.lastLowConfidenceLeaderCode =
+        projectionState.lastLowConfidenceLeaderCode;
+      this.lastLowConfidenceLeaderSource =
+        projectionState.lastLowConfidenceLeaderSource;
+      this.lastLowConfidenceLeaderConfidence =
+        projectionState.lastLowConfidenceLeaderConfidence;
+      return;
+    }
+
+    if (!restoredPublicState) {
+      return;
+    }
+
+    this.publicProjectionMode = this.inferProjectionMode(
+      restoredState,
+      restoredPublicState,
+    );
+    this.lowConfidenceLeaderSuppressions = 0;
+    this.lastLowConfidenceLeaderAt = null;
+    this.lastLowConfidenceLeaderCode = null;
+    this.lastLowConfidenceLeaderSource = null;
+    this.lastLowConfidenceLeaderConfidence = null;
+  }
+
+  private inferProjectionMode(
+    restoredState: LiveState,
+    restoredPublicState: LivePublicState,
+  ): 'pass_through' | 'stabilized' | 'withheld' {
+    if (
+      restoredPublicState.leaderboard.length === 0 &&
+      restoredState.leaderboard.length > 0
+    ) {
+      return 'withheld';
+    }
+
+    if (
+      restoredPublicState.leaderboard.length !==
+      restoredState.leaderboard.length
+    ) {
+      return 'stabilized';
+    }
+
+    const internalRowsByCode = new Map(
+      restoredState.leaderboard.map((entry) => [entry.driverCode, entry]),
+    );
+
+    const hasStabilizedOrder = restoredPublicState.leaderboard.some(
+      (entry, index) =>
+        entry.driverCode !== restoredState.leaderboard[index]?.driverCode,
+    );
+    if (hasStabilizedOrder) {
+      return 'stabilized';
+    }
+
+    const hasRedactedGaps = restoredPublicState.leaderboard.some((entry) => {
+      if (entry.position <= 1) {
+        return false;
+      }
+
+      const internalEntry = internalRowsByCode.get(entry.driverCode);
+      if (!internalEntry) {
+        return false;
+      }
+
+      return (
+        entry.gapToLeaderSec == null &&
+        entry.intervalToAheadSec == null &&
+        (internalEntry.gapToLeaderSec != null ||
+          internalEntry.intervalToAheadSec != null)
+      );
+    });
+
+    return hasRedactedGaps ? 'stabilized' : 'pass_through';
   }
 
   private getProjectionState() {

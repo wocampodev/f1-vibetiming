@@ -7,7 +7,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { LiveFeedSource, LivePublicState, LiveState } from './live.types';
+import {
+  LiveBoardProjectionState,
+  LiveFeedSource,
+  LivePublicState,
+  LiveState,
+} from './live.types';
 
 export interface LiveCaptureContext {
   weekendId: string | null;
@@ -21,6 +26,16 @@ export interface LiveCapturedProviderMessage {
   payload: unknown;
   emittedAt: string;
   decodeError: boolean;
+}
+
+export interface LivePersistedSnapshot {
+  sessionKey: string;
+  generatedAt: string;
+  version: number;
+  changedFields: string[];
+  internalState: LiveState;
+  publicState: LivePublicState;
+  projectionState: LiveBoardProjectionState | null;
 }
 
 const EMPTY_CAPTURE_CONTEXT: LiveCaptureContext = {
@@ -113,6 +128,22 @@ const toStoredJsonValue = (
   }
 
   return normalized as Prisma.InputJsonValue;
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === 'string');
+};
+
+const toProjectionState = (value: unknown): LiveBoardProjectionState | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return value as unknown as LiveBoardProjectionState;
 };
 
 const stableStringify = (value: unknown): string =>
@@ -430,6 +461,7 @@ export class LiveCaptureService {
     source: LiveFeedSource,
     state: LiveState,
     publicState: LivePublicState,
+    projectionState: LiveBoardProjectionState,
     changedFields: string[],
   ): void {
     if (!this.isCaptureEnabled(source)) {
@@ -453,39 +485,49 @@ export class LiveCaptureService {
       .then(async () => {
         const generatedAt = new Date(state.generatedAt);
 
-        await this.prisma.liveSessionSnapshot.upsert({
-          where: {
-            source_sessionKey: {
+        await this.prisma.$transaction(async (tx) => {
+          const previousLatestSnapshot = await tx.liveSessionSnapshot.findFirst(
+            {
+              where: {
+                source: captureSource,
+                sessionKey,
+              },
+              orderBy: [{ version: 'desc' }, { generatedAt: 'desc' }],
+              select: {
+                version: true,
+              },
+            },
+          );
+
+          await tx.liveSessionSnapshot.updateMany({
+            where: {
               source: captureSource,
               sessionKey,
+              isLatest: true,
             },
-          },
-          create: {
-            captureRunId,
-            source: captureSource,
-            sessionKey,
-            weekendId: state.session.weekendId,
-            sessionId: state.session.sessionId,
-            sessionName: state.session.sessionName,
-            generatedAt,
-            lastEventAt: generatedAt,
-            version: 1,
-            publicState: toStoredJsonValue(publicState),
-            internalState: toStoredJsonValue(state),
-            changedFields: toStoredJsonValue(changedFields),
-          },
-          update: {
-            captureRunId,
-            weekendId: state.session.weekendId,
-            sessionId: state.session.sessionId,
-            sessionName: state.session.sessionName,
-            generatedAt,
-            lastEventAt: generatedAt,
-            version: { increment: 1 },
-            publicState: toStoredJsonValue(publicState),
-            internalState: toStoredJsonValue(state),
-            changedFields: toStoredJsonValue(changedFields),
-          },
+            data: {
+              isLatest: false,
+            },
+          });
+
+          await tx.liveSessionSnapshot.create({
+            data: {
+              captureRunId,
+              source: captureSource,
+              sessionKey,
+              weekendId: state.session.weekendId,
+              sessionId: state.session.sessionId,
+              sessionName: state.session.sessionName,
+              generatedAt,
+              lastEventAt: generatedAt,
+              version: (previousLatestSnapshot?.version ?? 0) + 1,
+              isLatest: true,
+              publicState: toStoredJsonValue(publicState),
+              internalState: toStoredJsonValue(state),
+              projectionState: toStoredJsonValue(projectionState),
+              changedFields: toStoredJsonValue(changedFields),
+            },
+          });
         });
 
         this.latestSnapshotAt = state.generatedAt;
@@ -496,15 +538,20 @@ export class LiveCaptureService {
       });
   }
 
-  async loadLatestSnapshot(source: LiveFeedSource): Promise<LiveState | null> {
+  async loadLatestSnapshotBundle(
+    source: LiveFeedSource,
+  ): Promise<LivePersistedSnapshot | null> {
     if (!this.isCaptureEnabled(source)) {
       return null;
     }
 
     try {
       const snapshot = await this.prisma.liveSessionSnapshot.findFirst({
-        where: { source: mapCaptureSource(source) },
-        orderBy: { generatedAt: 'desc' },
+        where: {
+          source: mapCaptureSource(source),
+          isLatest: true,
+        },
+        orderBy: [{ generatedAt: 'desc' }, { version: 'desc' }],
       });
 
       if (!snapshot) {
@@ -519,12 +566,25 @@ export class LiveCaptureService {
       }
 
       this.latestSnapshotAt = snapshot.generatedAt.toISOString();
-      return snapshot.internalState as unknown as LiveState;
+      return {
+        sessionKey: snapshot.sessionKey,
+        generatedAt: snapshot.generatedAt.toISOString(),
+        version: snapshot.version,
+        changedFields: toStringArray(snapshot.changedFields),
+        internalState: snapshot.internalState as unknown as LiveState,
+        publicState: snapshot.publicState as unknown as LivePublicState,
+        projectionState: toProjectionState(snapshot.projectionState),
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Unable to load persisted live snapshot: ${message}`);
       return null;
     }
+  }
+
+  async loadLatestSnapshot(source: LiveFeedSource): Promise<LiveState | null> {
+    const snapshot = await this.loadLatestSnapshotBundle(source);
+    return snapshot?.internalState ?? null;
   }
 
   seedProviderContext(context: LiveCaptureContext): void {
@@ -576,7 +636,10 @@ export class LiveCaptureService {
 
   private async refreshLatestSnapshotAt(): Promise<void> {
     const snapshot = await this.prisma.liveSessionSnapshot.findFirst({
-      where: { source: LiveCaptureSource.PROVIDER },
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+        isLatest: true,
+      },
       orderBy: { generatedAt: 'desc' },
       select: { generatedAt: true },
     });

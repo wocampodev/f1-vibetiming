@@ -233,15 +233,19 @@ model LiveSessionSnapshot {
   generatedAt  DateTime
   lastEventAt  DateTime?
   version      Int               @default(1)
+  isLatest     Boolean           @default(true)
   publicState  Json
   internalState Json
+  projectionState Json?
   changedFields Json
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   captureRun   LiveCaptureRun?   @relation(fields: [captureRunId], references: [id], onDelete: SetNull)
 
-  @@unique([source, sessionKey])
+  @@unique([source, sessionKey, version])
   @@index([generatedAt])
+  @@index([source, sessionKey, generatedAt])
+  @@index([source, sessionKey, isLatest])
   @@index([source, sessionName, generatedAt])
 }
 

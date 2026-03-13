@@ -1,5 +1,9 @@
 import { LiveService } from './live.service';
-import { LivePublicState, LiveState } from './live.types';
+import {
+  LiveBoardProjectionState,
+  LivePublicState,
+  LiveState,
+} from './live.types';
 import { firstValueFrom } from 'rxjs';
 
 function createConfigMock(values: Record<string, unknown>) {
@@ -76,6 +80,54 @@ function cloneLiveState(): LiveState {
   return JSON.parse(JSON.stringify(createLiveState())) as LiveState;
 }
 
+function createPublicState(
+  state: LiveState = createLiveState(),
+): LivePublicState {
+  return {
+    generatedAt: state.generatedAt,
+    session: state.session,
+    leaderboard: state.leaderboard.map((entry) => ({
+      position: entry.position,
+      driverCode: entry.driverCode,
+      driverName: entry.driverName,
+      teamName: entry.teamName,
+      gapToLeaderSec: entry.gapToLeaderSec,
+      intervalToAheadSec: entry.intervalToAheadSec,
+      sector1Ms: entry.sector1Ms,
+      sector2Ms: entry.sector2Ms,
+      sector3Ms: entry.sector3Ms,
+      bestSector1Ms: entry.bestSector1Ms,
+      bestSector2Ms: entry.bestSector2Ms,
+      bestSector3Ms: entry.bestSector3Ms,
+      lastLapMs: entry.lastLapMs,
+      bestLapMs: entry.bestLapMs,
+      speedHistoryKph: entry.speedHistoryKph,
+      trackStatusHistory: entry.trackStatusHistory,
+    })),
+    raceControl: state.raceControl,
+  };
+}
+
+function createProjectionState(
+  overrides?: Partial<LiveBoardProjectionState>,
+): LiveBoardProjectionState {
+  return {
+    mode: 'pass_through',
+    lowConfidenceLeaderSuppressions: 0,
+    lastLowConfidenceLeaderAt: null,
+    lastLowConfidenceLeaderCode: null,
+    lastLowConfidenceLeaderSource: null,
+    lastLowConfidenceLeaderConfidence: null,
+    internalLeaderboardRows: 1,
+    publicLeaderboardRows: 1,
+    internalLeaderCode: 'VER',
+    internalLeaderSource: 'simulator',
+    internalLeaderConfidence: 'high',
+    publicLeaderCode: 'VER',
+    ...overrides,
+  };
+}
+
 function createLeaderboardEntry(
   overrides?: Partial<LiveState['leaderboard'][number]>,
 ): LiveState['leaderboard'][number] {
@@ -149,6 +201,7 @@ function createProviderAdapterMock(overrides?: Record<string, unknown>) {
 
 function createLiveCaptureServiceMock(overrides?: Record<string, unknown>) {
   return {
+    loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
     loadLatestSnapshot: jest.fn(() => Promise.resolve(null)),
     persistSnapshot: jest.fn(),
     getHealth: jest.fn(() => ({ enabled: false })),
@@ -384,7 +437,7 @@ describe('LiveService', () => {
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Restored Session';
     const capture = createLiveCaptureServiceMock({
-      loadLatestSnapshot: jest.fn(() => Promise.resolve(null)),
+      loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
       getHealth: jest.fn(() => ({ enabled: true })),
     });
     const replay = createLiveReplayServiceMock({
@@ -418,7 +471,7 @@ describe('LiveService', () => {
       sessionId: restoredState.session.sessionId,
       sessionName: restoredState.session.sessionName,
     });
-    expect(capture.loadLatestSnapshot).not.toHaveBeenCalled();
+    expect(capture.loadLatestSnapshotBundle).not.toHaveBeenCalled();
   });
 
   it('falls back to the persisted snapshot when replay has no recent provider session', async () => {
@@ -427,8 +480,35 @@ describe('LiveService', () => {
     const provider = createProviderAdapterMock();
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Snapshot Session';
+    const restoredPublicState = createPublicState(restoredState);
+    const restoredProjectionState = createProjectionState({
+      mode: 'stabilized',
+      lowConfidenceLeaderSuppressions: 12,
+      lastLowConfidenceLeaderAt: restoredState.generatedAt,
+      lastLowConfidenceLeaderCode: restoredState.leaderboard[0].driverCode,
+      lastLowConfidenceLeaderSource:
+        restoredState.leaderboard[0].positionSource,
+      lastLowConfidenceLeaderConfidence:
+        restoredState.leaderboard[0].positionConfidence,
+      internalLeaderboardRows: restoredState.leaderboard.length,
+      publicLeaderboardRows: restoredPublicState.leaderboard.length,
+      internalLeaderCode: restoredState.leaderboard[0].driverCode,
+      internalLeaderSource: restoredState.leaderboard[0].positionSource,
+      internalLeaderConfidence: restoredState.leaderboard[0].positionConfidence,
+      publicLeaderCode: restoredPublicState.leaderboard[0].driverCode,
+    });
     const capture = createLiveCaptureServiceMock({
-      loadLatestSnapshot: jest.fn(() => Promise.resolve(restoredState)),
+      loadLatestSnapshotBundle: jest.fn(() =>
+        Promise.resolve({
+          sessionKey: 'provider:snapshot:session',
+          generatedAt: restoredState.generatedAt,
+          version: 4,
+          changedFields: ['leaderboard'],
+          internalState: restoredState,
+          publicState: restoredPublicState,
+          projectionState: restoredProjectionState,
+        }),
+      ),
       getHealth: jest.fn(() => ({ enabled: true })),
     });
     const replay = createLiveReplayServiceMock();
@@ -443,10 +523,16 @@ describe('LiveService', () => {
     await service.onModuleInit();
 
     expect(replay.replayLatestProviderSession).toHaveBeenCalledWith(21600);
-    expect(capture.loadLatestSnapshot).toHaveBeenCalledWith('provider');
+    expect(capture.loadLatestSnapshotBundle).toHaveBeenCalledWith('provider');
     expect(service.getState()).toMatchObject({
       session: {
         sessionName: 'Snapshot Session',
+      },
+    });
+    expect(service.getBoard()).toMatchObject({
+      projection: {
+        mode: 'stabilized',
+        lowConfidenceLeaderSuppressions: 12,
       },
     });
   });
