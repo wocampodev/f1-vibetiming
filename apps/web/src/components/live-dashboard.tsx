@@ -6,8 +6,9 @@ import {
   LiveBoardSectorCell,
   LiveBoardState,
   LiveEnvelope,
+  LiveHealthState,
   LiveHeartbeatPayload,
-  LiveStreamStatus,
+  LiveTopicFreshnessHealthEntry,
 } from "@/lib/types";
 
 const API_BASE_URL =
@@ -55,15 +56,6 @@ const confidenceToneByValue: Record<string, string> = {
 };
 
 type SectorTone = "session_best" | "personal_best" | "timed" | "empty";
-
-interface LiveHealth {
-  status: LiveStreamStatus;
-  details?: {
-    socketOpen?: boolean;
-    connectionUptimeSec?: number | null;
-    feedMessagesReceived?: number;
-  } | null;
-}
 
 const parseEnvelope = <TPayload,>(raw: string): LiveEnvelope<TPayload> | null => {
   try {
@@ -119,6 +111,36 @@ const formatPitLabel = (value: string | null): string => {
   }
 
   return value.replace(/_/g, " ");
+};
+
+const formatAgeSeconds = (value: number | null): string => {
+  if (value == null) {
+    return "No sample";
+  }
+
+  if (value < 60) {
+    return `${value}s old`;
+  }
+
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  return seconds === 0 ? `${minutes}m old` : `${minutes}m ${seconds}s old`;
+};
+
+const freshnessTone = (topic: LiveTopicFreshnessHealthEntry): string => {
+  if (topic.lastSeenAt == null || topic.messageCount === 0) {
+    return "border-slate-700/80 bg-slate-950/70 text-slate-300";
+  }
+
+  if ((topic.ageSeconds ?? 0) <= 15) {
+    return "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
+  }
+
+  if ((topic.ageSeconds ?? 0) <= 60) {
+    return "border-amber-400/35 bg-amber-400/10 text-amber-100";
+  }
+
+  return "border-rose-400/35 bg-rose-500/10 text-rose-100";
 };
 
 const getSectorTone = (cell: LiveBoardSectorCell): SectorTone => {
@@ -244,6 +266,86 @@ function PitCell({ row }: { row: LiveBoardRow }) {
   );
 }
 
+function TopicFreshnessCard({ topic }: { topic: LiveTopicFreshnessHealthEntry }) {
+  return (
+    <div className={`rounded-xl border px-3 py-3 ${freshnessTone(topic)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em]">{topic.topic}</p>
+          <p className="mt-1 text-sm">{formatAgeSeconds(topic.ageSeconds)}</p>
+        </div>
+        <div className="text-right text-[11px] uppercase tracking-[0.16em] text-inherit/80">
+          <div>{topic.messageCount} msgs</div>
+          <div className="mt-1">{topic.lastSeenAt ? formatClock(topic.lastSeenAt) : "Never"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticsPanel({ health }: { health: LiveHealthState | null }) {
+  const capture = health?.details?.capture ?? null;
+  const topicFreshness = capture?.latestSnapshotTopicFreshness ?? null;
+
+  const visibleTopics = useMemo(() => {
+    return [...(topicFreshness?.topics ?? [])]
+      .sort((left, right) => {
+        const leftAge = left.ageSeconds ?? Number.POSITIVE_INFINITY;
+        const rightAge = right.ageSeconds ?? Number.POSITIVE_INFINITY;
+        return rightAge - leftAge || left.topic.localeCompare(right.topic);
+      })
+      .slice(0, 6);
+  }, [topicFreshness]);
+
+  if (!health || !capture) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-[var(--line)] bg-[#09111b] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-[#8aa0be]">Diagnostics</p>
+          <p className="mt-1 text-sm text-[#dce9fb]">
+            Snapshot-aware provider health and topic freshness.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em]">
+          <span className="rounded-full border border-slate-700/80 bg-slate-950/70 px-3 py-1 text-slate-200">
+            Socket {health.details?.socketOpen ? "open" : "closed"}
+          </span>
+          {capture.latestSnapshotVersion != null ? (
+            <span className="rounded-full border border-cyan-400/35 bg-cyan-400/10 px-3 py-1 text-cyan-100">
+              Snapshot v{capture.latestSnapshotVersion}
+            </span>
+          ) : null}
+          {health.details?.publicProjection ? (
+            <span className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-amber-100">
+              Projection {formatProjectionLabel(health.details.publicProjection.mode)}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#8aa0be]">
+        {capture.latestSnapshotAt ? <span>Snapshot {formatClock(capture.latestSnapshotAt)}</span> : null}
+        {capture.latestSnapshotSessionKey ? <span>{capture.latestSnapshotSessionKey}</span> : null}
+        {topicFreshness?.capturedAt ? <span>Topic freshness {formatClock(topicFreshness.capturedAt)}</span> : null}
+      </div>
+
+      {visibleTopics.length > 0 ? (
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {visibleTopics.map((topic) => (
+            <TopicFreshnessCard key={topic.topic} topic={topic} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-[#6f86a5]">No persisted topic freshness samples yet.</p>
+      )}
+    </div>
+  );
+}
+
 function LiveRow({ row }: { row: LiveBoardRow }) {
   const miniSectors = row.miniSectors.slice(0, 18);
 
@@ -310,7 +412,7 @@ function LiveRow({ row }: { row: LiveBoardRow }) {
 export function LiveDashboard() {
   const [boardState, setBoardState] = useState<LiveBoardState | null>(null);
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
-  const [health, setHealth] = useState<LiveHealth | null>(null);
+  const [health, setHealth] = useState<LiveHealthState | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
@@ -325,7 +427,7 @@ export function LiveDashboard() {
           return;
         }
 
-        const payload = (await response.json()) as LiveHealth;
+        const payload = (await response.json()) as LiveHealthState;
         if (!cancelled) {
           setHealth(payload);
         }
@@ -556,6 +658,8 @@ export function LiveDashboard() {
           </p>
         ) : null}
       </div>
+
+      <DiagnosticsPanel health={health} />
 
       {boardState ? (
         <div>

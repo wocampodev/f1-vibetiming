@@ -229,6 +229,58 @@ export interface LiveBoardState {
   projection: LiveBoardProjectionState;
 }
 
+export interface LiveTopicFreshnessEntry {
+  topic: string;
+  lastSeenAt: string | null;
+  messageCount: number;
+}
+
+export interface LiveTopicFreshnessHealthEntry extends LiveTopicFreshnessEntry {
+  ageSeconds: number | null;
+}
+
+export interface LiveTopicFreshnessHealthState {
+  capturedAt: string;
+  topics: LiveTopicFreshnessHealthEntry[];
+}
+
+export interface LiveCaptureHealthState {
+  enabled: boolean;
+  activeRunId: string | null;
+  activeRunStartedAt: string | null;
+  latestSnapshotAt: string | null;
+  latestSnapshotVersion: number | null;
+  latestSnapshotSessionKey: string | null;
+  latestSnapshotTopicFreshness: LiveTopicFreshnessHealthState | null;
+  rawRetentionDays: number | null;
+  snapshotRetentionDays: number | null;
+  restoreMaxAgeSec: number | null;
+}
+
+export interface LiveHealthDetails {
+  socketOpen?: boolean;
+  connectionUptimeSec?: number | null;
+  feedMessagesReceived?: number;
+  topics?: string[];
+  topicMessageCount?: Record<string, number>;
+  topicLastSeenAt?: Record<string, string>;
+  capture?: LiveCaptureHealthState | null;
+  publicProjection?: LiveBoardProjectionState | null;
+}
+
+export interface LiveHealthState {
+  source: 'simulator' | 'provider';
+  status: LiveStreamStatus;
+  running: boolean;
+  startedAt: string | null;
+  lastEventAt: string | null;
+  tickMs: number;
+  heartbeatMs: number;
+  seed: number | null;
+  speedMultiplier: number | null;
+  details?: LiveHealthDetails | null;
+}
+
 export interface LiveDeltaPayload {
   changedFields: string[];
   state: LiveState;

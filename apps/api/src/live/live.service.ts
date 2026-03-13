@@ -182,6 +182,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
     let restoredState: LiveState | null = null;
     let restoredPublicState: LivePublicState | null = null;
     let restoredProjectionState: LiveBoardProjectionState | null = null;
+    let replayTopicFreshness: LiveTopicFreshnessState | null = null;
 
     if (this.adapter.source === 'provider') {
       const restoreMaxAgeSec = this.configService.get<number>(
@@ -193,6 +194,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
           restoreMaxAgeSec,
         );
       restoredState = replay?.state ?? null;
+      replayTopicFreshness = replay?.topicFreshness ?? null;
 
       if (restoredState) {
         this.logger.log(
@@ -231,6 +233,22 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       restoredState,
       this.currentPublicState,
     );
+
+    if (
+      this.adapter.source === 'provider' &&
+      replayTopicFreshness &&
+      this.currentPublicState
+    ) {
+      this.liveCaptureService.persistSnapshot(
+        this.adapter.source,
+        restoredState,
+        this.currentPublicState,
+        this.getProjectionState(),
+        replayTopicFreshness,
+        ['generatedAt', 'session', 'leaderboard', 'raceControl'],
+      );
+    }
+
     this.logger.log(
       `Restored persisted live state for ${restoredState.session.sessionName ?? restoredState.session.sessionId ?? 'unknown session'}`,
     );
