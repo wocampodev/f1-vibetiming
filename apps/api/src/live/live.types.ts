@@ -173,6 +173,26 @@ export interface LiveBoardProjectionState {
   publicLeaderCode: string | null;
 }
 
+export interface LiveTopicFreshnessEntry {
+  topic: string;
+  lastSeenAt: string | null;
+  messageCount: number;
+}
+
+export interface LiveTopicFreshnessState {
+  capturedAt: string;
+  topics: LiveTopicFreshnessEntry[];
+}
+
+export interface LiveTopicFreshnessHealthEntry extends LiveTopicFreshnessEntry {
+  ageSeconds: number | null;
+}
+
+export interface LiveTopicFreshnessHealthState {
+  capturedAt: string;
+  topics: LiveTopicFreshnessHealthEntry[];
+}
+
 export interface LiveBoardState {
   generatedAt: string;
   session: LiveSessionState;

@@ -132,7 +132,7 @@ order by lastSeenAt desc;
 - `CarData.z` and `Position.z` still have not appeared in local captures.
 - Real traffic already confirmed that `RaceControlMessages.Messages` can be either an array or a keyed object.
 - The API now has a `LiveReplayService` foundation for replaying one persisted session, auditing risky ranking inputs, and flagging low-confidence projected leaders from `live_provider_event` rows.
-- Persisted snapshots now keep append-only versions plus stored public projection metadata, so snapshot restore can preserve stabilized public ordering more accurately.
+- Persisted snapshots now keep append-only versions plus stored public projection metadata and per-topic freshness metadata, so snapshot restore can preserve stabilized public ordering more accurately and health can report stale topics after restarts.
 
 ## Future Follow-Up
 
