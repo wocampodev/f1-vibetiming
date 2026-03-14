@@ -6,6 +6,11 @@ import { LiveAdapter, LivePublish } from './live.adapter';
 import { LiveCaptureService } from './live.capture.service';
 import { LIVE_DRIVER_ROSTER_BY_NUMBER } from './live.driver-roster';
 import {
+  DEFAULT_PROVIDER_LOG_MAX_CHARS,
+  formatProviderLogValue,
+  resolveProviderLogSettings,
+} from './live.provider.logging';
+import {
   LiveAdapterHealth,
   LiveFeedSource,
   LiveFlagStatus,
@@ -108,10 +113,8 @@ const TIRE_COMPOUNDS = new Set([
 const MAX_RACE_CONTROL_MESSAGES = 30;
 const MAX_SPEED_HISTORY_POINTS = 16;
 const MAX_TRACK_STATUS_HISTORY_POINTS = 10;
-const DEFAULT_PROVIDER_LOG_MAX_CHARS = 600;
-
-const TRUE_CONFIG_VALUES = new Set(['1', 'true', 'yes', 'on']);
-const FALSE_CONFIG_VALUES = new Set(['0', 'false', 'no', 'off']);
+const TRUE_BOOLEAN_VALUES = new Set(['1', 'true', 'yes', 'on']);
+const FALSE_BOOLEAN_VALUES = new Set(['0', 'false', 'no', 'off']);
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -119,69 +122,7 @@ const isRecord = (value: unknown): value is JsonRecord =>
 const asRecord = (value: unknown): JsonRecord | null =>
   isRecord(value) ? value : null;
 
-const parseBooleanConfigValue = (value: unknown, fallback = false): boolean => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized.length === 0) {
-    return fallback;
-  }
-
-  if (TRUE_CONFIG_VALUES.has(normalized)) {
-    return true;
-  }
-
-  if (FALSE_CONFIG_VALUES.has(normalized)) {
-    return false;
-  }
-
-  return fallback;
-};
-
-const parseProviderLogMaxChars = (value: unknown): number => {
-  const parsed = toInt(value);
-  if (parsed == null || parsed < 80) {
-    return DEFAULT_PROVIDER_LOG_MAX_CHARS;
-  }
-
-  return parsed;
-};
-
-export const formatProviderLogValue = (
-  value: unknown,
-  maxChars: number,
-): string => {
-  const limit = Math.max(80, Math.trunc(maxChars));
-
-  let serialized: string;
-  if (typeof value === 'string') {
-    serialized = value;
-  } else {
-    try {
-      const json = JSON.stringify(value);
-      serialized = typeof json === 'string' ? json : String(value);
-    } catch {
-      serialized = String(value);
-    }
-  }
-
-  const normalized = serialized.replace(/\s+/g, ' ').trim();
-  if (normalized.length === 0) {
-    return '(empty)';
-  }
-
-  if (normalized.length <= limit) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, limit - 3)}...`;
-};
+export { formatProviderLogValue } from './live.provider.logging';
 
 const unwrapValueNode = (value: unknown): unknown => {
   const record = asRecord(value);
@@ -246,11 +187,11 @@ const parseBooleanValue = (value: unknown): boolean | null => {
     return null;
   }
 
-  if (TRUE_CONFIG_VALUES.has(normalized)) {
+  if (TRUE_BOOLEAN_VALUES.has(normalized)) {
     return true;
   }
 
-  if (FALSE_CONFIG_VALUES.has(normalized)) {
+  if (FALSE_BOOLEAN_VALUES.has(normalized)) {
     return false;
   }
 
@@ -1671,18 +1612,22 @@ export class LiveProviderAdapter implements LiveAdapter {
       'LIVE_SIGNALR_RECONNECT_MAX_MS',
       30000,
     );
-    this.logFrames = parseBooleanConfigValue(
-      this.configService.get<string>('LIVE_PROVIDER_LOG_FRAMES', 'false'),
-    );
-    this.logMessages = parseBooleanConfigValue(
-      this.configService.get<string>('LIVE_PROVIDER_LOG_MESSAGES', 'false'),
-    );
-    this.logMaxChars = parseProviderLogMaxChars(
-      this.configService.get<string>(
+    const logSettings = resolveProviderLogSettings({
+      modeValue: this.configService.get<string>('LIVE_PROVIDER_LOG', 'off'),
+      legacyFramesValue: this.configService.get<string>(
+        'LIVE_PROVIDER_LOG_FRAMES',
+      ),
+      legacyMessagesValue: this.configService.get<string>(
+        'LIVE_PROVIDER_LOG_MESSAGES',
+      ),
+      maxCharsValue: this.configService.get<string>(
         'LIVE_PROVIDER_LOG_MAX_CHARS',
         String(DEFAULT_PROVIDER_LOG_MAX_CHARS),
       ),
-    );
+    });
+    this.logFrames = logSettings.framesEnabled;
+    this.logMessages = logSettings.messagesEnabled;
+    this.logMaxChars = logSettings.maxChars;
   }
 
   async start(publish: LivePublish): Promise<void> {

@@ -31,7 +31,7 @@ make run-sim
 Run in provider mode with container-visible provider frame and payload logs:
 
 ```bash
-make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true
+make run PROVIDER_LOG=all
 ```
 
 Stop stack:
@@ -63,8 +63,7 @@ make help
 - `LIVE_SIGNALR_BASE_URL`: SignalR base URL
 - `LIVE_SIGNALR_HUB`: SignalR hub name
 - `LIVE_SIGNALR_TOPICS`: live topic subscription list
-- `LIVE_PROVIDER_LOG_FRAMES`: log each raw provider websocket frame to container stdout
-- `LIVE_PROVIDER_LOG_MESSAGES`: log each decoded provider topic payload to container stdout
+- `LIVE_PROVIDER_LOG`: provider log mode (`off`, `frames`, `messages`, `all`)
 - `LIVE_PROVIDER_LOG_MAX_CHARS`: truncate frame and payload previews in logs
 - `LIVE_PROVIDER_CAPTURE_ENABLED`: persist decoded provider messages and normalized snapshots
 - `LIVE_PROVIDER_RAW_RETENTION_DAYS`: retention window for `live_provider_event` rows

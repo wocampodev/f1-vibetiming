@@ -1,5 +1,5 @@
-import { LiveView } from "@/components/live-view";
+import { LiveDashboard } from "@/components/live-dashboard";
 
 export default function HomePage() {
-  return <LiveView />;
+  return <LiveDashboard />;
 }

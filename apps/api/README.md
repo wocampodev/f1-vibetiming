@@ -32,9 +32,15 @@ make help
 
 Live endpoints:
 
+- `GET /api/live/board`
 - `GET /api/live/state`
 - `GET /api/live/health` (includes transport counters, parser/decode errors, topic throughput)
 - `GET /api/live/stream` (SSE)
+
+Notes:
+
+- `/api/live/board` is the richer timing-board contract used by the web UI.
+- `/api/live/state` remains the stable legacy public snapshot contract.
 
 Standings endpoints:
 
@@ -50,8 +56,7 @@ Live runtime environment variables:
 - `LIVE_SIGNALR_RECONNECT_MIN_MS` (default `1000`)
 - `LIVE_SIGNALR_RECONNECT_MAX_MS` (default `30000`)
 - `LIVE_HEARTBEAT_MS` (default `15000`)
-- `LIVE_PROVIDER_LOG_FRAMES` (default `false`; logs raw websocket frame previews)
-- `LIVE_PROVIDER_LOG_MESSAGES` (default `false`; logs decoded topic payload previews)
+- `LIVE_PROVIDER_LOG` (default `off`; one of `off`, `frames`, `messages`, `all`)
 - `LIVE_PROVIDER_LOG_MAX_CHARS` (default `600`; truncates provider log previews)
 - `LIVE_PROVIDER_CAPTURE_ENABLED` (default `true`; persists decoded provider events and snapshots)
 - `LIVE_PROVIDER_RAW_RETENTION_DAYS` (default `30`; raw event retention window)
