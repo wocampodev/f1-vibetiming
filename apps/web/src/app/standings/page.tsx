@@ -1,17 +1,10 @@
 import { getConstructorStandings, getDriverStandings } from "@/lib/api";
-
-const formatUpdatedAt = (value: string | null): string => {
-  if (!value) {
-    return "unknown";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-};
+import { StandingsTable } from "@/components/standings-table";
+import {
+  formatStandingsUpdatedAt,
+  sortConstructorStandings,
+  sortDriverStandings,
+} from "@/lib/standings";
 
 export default async function StandingsPage() {
   const [drivers, constructors] = await Promise.all([
@@ -32,31 +25,18 @@ export default async function StandingsPage() {
     );
   }
 
-  const sortedDrivers = [...drivers.standings].sort((left, right) => {
-    if (right.points !== left.points) {
-      return right.points - left.points;
-    }
-
-    if (right.wins !== left.wins) {
-      return right.wins - left.wins;
-    }
-
-    return `${left.driver.givenName} ${left.driver.familyName}`.localeCompare(
-      `${right.driver.givenName} ${right.driver.familyName}`,
-    );
-  });
-
-  const sortedConstructors = [...constructors.standings].sort((left, right) => {
-    if (right.points !== left.points) {
-      return right.points - left.points;
-    }
-
-    if (right.wins !== left.wins) {
-      return right.wins - left.wins;
-    }
-
-    return left.team.name.localeCompare(right.team.name);
-  });
+  const sortedDrivers = sortDriverStandings(drivers.standings);
+  const sortedConstructors = sortConstructorStandings(constructors.standings);
+  const driverRows = sortedDrivers.map((item) => ({
+    id: item.driver.id,
+    label: `${item.driver.givenName} ${item.driver.familyName}`,
+    points: item.points,
+  }));
+  const constructorRows = sortedConstructors.map((item) => ({
+    id: item.team.id,
+    label: item.team.name,
+    points: item.points,
+  }));
 
   return (
     <div className="space-y-5">
@@ -68,68 +48,22 @@ export default async function StandingsPage() {
           Driver and constructor title race.
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Season {drivers.season}. Updated {formatUpdatedAt(drivers.freshness.updatedAt)}.
+          Season {drivers.season}. Updated{" "}
+          {formatStandingsUpdatedAt(drivers.freshness.updatedAt)}.
         </p>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <article className="panel overflow-hidden p-0">
-          <div className="border-b border-[var(--line)] px-4 py-3">
-            <h2 className="text-xl uppercase tracking-wide text-[var(--ink)]">Drivers</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-[#0f1824] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
-                <tr>
-                  <th className="px-4 py-2">Pos</th>
-                  <th className="px-4 py-2">Driver</th>
-                  <th className="px-4 py-2 text-right">Pts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedDrivers.map((item, index) => (
-                  <tr key={item.driver.id} className="border-t border-[var(--line)]/70">
-                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{index + 1}</td>
-                    <td className="px-4 py-2 text-[var(--ink)]">
-                      {item.driver.givenName} {item.driver.familyName}
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold text-[#67d6ff]">
-                      {item.points.toFixed(0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article className="panel overflow-hidden p-0">
-          <div className="border-b border-[var(--line)] px-4 py-3">
-            <h2 className="text-xl uppercase tracking-wide text-[var(--ink)]">Constructors</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-[#0f1824] text-left text-xs uppercase tracking-wide text-[#94a7c2]">
-                <tr>
-                  <th className="px-4 py-2">Pos</th>
-                  <th className="px-4 py-2">Escuderia</th>
-                  <th className="px-4 py-2 text-right">Pts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedConstructors.map((item, index) => (
-                  <tr key={item.team.id} className="border-t border-[var(--line)]/70">
-                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{index + 1}</td>
-                    <td className="px-4 py-2 text-[var(--ink)]">{item.team.name}</td>
-                    <td className="px-4 py-2 text-right font-semibold text-[#67d6ff]">
-                      {item.points.toFixed(0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <StandingsTable
+          title="Drivers"
+          labelHeader="Driver"
+          rows={driverRows}
+        />
+        <StandingsTable
+          title="Constructors"
+          labelHeader="Escuderia"
+          rows={constructorRows}
+        />
       </section>
     </div>
   );
