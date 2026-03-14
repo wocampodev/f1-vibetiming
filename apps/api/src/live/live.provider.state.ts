@@ -621,245 +621,324 @@ export class ProviderStateAccumulator {
     const changed = new Set<string>(['generatedAt']);
     const record = asRecord(payload);
 
-    if (topic === 'DriverList' && record) {
-      for (const [number, lineValue] of Object.entries(record)) {
-        const line = asRecord(lineValue);
-        if (!line) {
-          continue;
-        }
-
-        const current = this.driverByNumber.get(number) ?? {};
-        this.driverByNumber.set(number, mergeRecords(current, line));
-      }
-      changed.add('leaderboard');
+    if (!record) {
+      return [...changed];
     }
 
-    if (topic === 'TimingData' && record) {
-      const lines = asRecord(record.Lines);
-      if (lines) {
-        for (const [number, lineValue] of Object.entries(lines)) {
-          const line = asRecord(lineValue);
-          if (!line) {
-            continue;
-          }
-
-          const explicitPosition = toInt(line.Position);
-          if (explicitPosition != null) {
-            this.explicitPositionUpdatedAtByNumber.set(number, emittedAt);
-          }
-
-          const current = this.timingByNumber.get(number) ?? {};
-          this.timingByNumber.set(number, mergeRecords(current, line));
-        }
-        changed.add('leaderboard');
-      }
-    }
-
-    if (topic === 'TimingStats' && record) {
-      const lines = asRecord(record.Lines);
-      if (lines) {
-        for (const [number, lineValue] of Object.entries(lines)) {
-          const line = asRecord(lineValue);
-          if (!line) {
-            continue;
-          }
-
-          const current = this.timingStatsByNumber.get(number) ?? {};
-          this.timingStatsByNumber.set(number, mergeRecords(current, line));
-        }
-        changed.add('leaderboard');
-      }
-    }
-
-    if (topic === 'TimingAppData' && record) {
-      const lines = asRecord(record.Lines);
-      if (lines) {
-        for (const [number, lineValue] of Object.entries(lines)) {
-          const line = asRecord(lineValue);
-          if (!line) {
-            continue;
-          }
-
-          const current = this.timingAppByNumber.get(number) ?? {};
-          this.timingAppByNumber.set(number, mergeRecords(current, line));
-        }
-        changed.add('leaderboard');
-      }
-    }
-
-    if (topic === 'CarData' && record) {
-      const entries = asRecordArray(record.Entries);
-      for (const entry of entries) {
-        const cars = asRecord(entry.Cars);
-        if (!cars) {
-          continue;
-        }
-
-        const telemetryAt = toIso(entry.Utc, emittedAt);
-
-        for (const [number, carValue] of Object.entries(cars)) {
-          const car = asRecord(carValue);
-          if (!car) {
-            continue;
-          }
-
-          const current = this.carDataByNumber.get(number) ?? {};
-          const merged = mergeRecords(current, car);
-          merged.Utc = telemetryAt;
-          this.carDataByNumber.set(number, merged);
-
-          const channels = asRecord(merged.Channels);
-          const speedKph = parseSpeedKph(channels?.['2']);
-          if (speedKph != null) {
-            this.appendSpeedHistory(number, speedKph, telemetryAt);
-          }
-        }
-      }
-
-      if (entries.length > 0) {
-        changed.add('leaderboard');
-      }
-    }
-
-    if (topic === 'Position' && record) {
-      const positions = asRecordArray(record.Position);
-      for (const position of positions) {
-        const entries = asRecord(position.Entries);
-        if (!entries) {
-          continue;
-        }
-
-        const positionAt = toIso(position.Utc ?? position.Timestamp, emittedAt);
-
-        for (const [number, entryValue] of Object.entries(entries)) {
-          const entry = asRecord(entryValue);
-          if (!entry) {
-            continue;
-          }
-
-          const current = this.positionByNumber.get(number) ?? {};
-          this.positionByNumber.set(number, mergeRecords(current, entry));
-
-          const normalizedStatus = normalizeTrackStatus(entry.Status);
-          if (normalizedStatus) {
-            this.appendTrackStatusHistory(number, normalizedStatus, positionAt);
-          }
-        }
-      }
-
-      if (positions.length > 0) {
-        changed.add('leaderboard');
-      }
-    }
-
-    if (topic === 'LapCount' && record) {
-      this.currentLap = toInt(record.CurrentLap);
-      this.totalLaps = toInt(record.TotalLaps);
-      changed.add('session.currentLap');
-      changed.add('session.totalLaps');
-    }
-
-    if (topic === 'SessionInfo' && record) {
-      const meeting = asRecord(record.Meeting);
-      const meetingKey =
-        asString(meeting?.Key) ??
-        asString(meeting?.Name) ??
-        asString(record.Meeting);
-      const meetingName = asString(meeting?.Name);
-      const sessionName = asString(record.Name);
-
-      this.weekendId = meetingKey ?? this.weekendId;
-      this.sessionId = asString(record.Key) ?? this.sessionId;
-      this.sessionName =
-        [meetingName, sessionName]
-          .filter((part) => Boolean(part))
-          .join(' - ') || this.sessionName;
-
-      changed.add('session.weekendId');
-      changed.add('session.sessionId');
-      changed.add('session.sessionName');
-    }
-
-    if (topic === 'SessionStatus' && record) {
-      const status = (asString(record.Status) ?? '').toLowerCase();
-      if (status.includes('finish') || status.includes('ended')) {
-        this.phase = 'finished';
-        this.flag = 'checkered';
-      } else if (status.includes('start') || status.includes('running')) {
-        this.phase = 'running';
-      }
-
-      changed.add('session.phase');
-      changed.add('session.flag');
-    }
-
-    if (topic === 'TrackStatus' && record) {
-      const mapped = TRACK_STATUS_FLAG_MAP[asString(record.Status) ?? ''];
-      const fromMessage = normalizeFlag(record.Message);
-      const flag = mapped ?? fromMessage;
-      if (flag) {
-        this.flag = flag;
-        changed.add('session.flag');
-      }
-    }
-
-    if (topic === 'ExtrapolatedClock' && record) {
-      const value = asString(record.Utc) ?? asString(record.Remaining);
-      this.clockIso = value ? toIso(value, emittedAt) : emittedAt;
-      changed.add('session.clockIso');
-    }
-
-    if (topic === 'RaceControlMessages' && record) {
-      const messagesRecord = asRecord(record.Messages);
-      const messageEntries: Array<[string, JsonRecord]> = messagesRecord
-        ? Object.entries(messagesRecord).map(
-            ([key, message]) => [key, message] as [string, JsonRecord],
-          )
-        : asRecordArray(record.Messages).map(
-            (message, index) => [String(index), message] as const,
-          );
-
-      if (messageEntries.length > 0) {
-        const nextMessages: LiveRaceControlMessage[] = [];
-
-        for (const [key, message] of messageEntries) {
-          const emitted = toIso(message.Utc, emittedAt);
-          const text = asString(message.Message) ?? asString(message.Status);
-          if (!text) {
-            continue;
-          }
-
-          const categoryRaw = (
-            asString(message.Category) ?? 'control'
-          ).toLowerCase();
-          const category: LiveRaceControlMessage['category'] =
-            categoryRaw.includes('incident')
-              ? 'incident'
-              : categoryRaw.includes('pit')
-                ? 'pit'
-                : categoryRaw.includes('flag')
-                  ? 'flag'
-                  : 'control';
-
-          const flag =
-            normalizeFlag(message.Flag) ?? normalizeFlag(message.Message);
-
-          nextMessages.push({
-            id: asString(message.MessageId) ?? `rc-${key}-${emitted}`,
-            emittedAt: emitted,
-            category,
-            message: text,
-            flag: flag ?? undefined,
-          });
-        }
-
-        nextMessages.sort((a, b) => (a.emittedAt < b.emittedAt ? 1 : -1));
-        this.raceControl = nextMessages.slice(0, MAX_RACE_CONTROL_MESSAGES);
-        changed.add('raceControl');
-      }
+    switch (topic) {
+      case 'DriverList':
+        this.ingestDriverList(record, changed);
+        break;
+      case 'TimingData':
+        this.ingestTimingData(record, emittedAt, changed);
+        break;
+      case 'TimingStats':
+        this.ingestTimingStats(record, changed);
+        break;
+      case 'TimingAppData':
+        this.ingestTimingAppData(record, changed);
+        break;
+      case 'CarData':
+        this.ingestCarData(record, emittedAt, changed);
+        break;
+      case 'Position':
+        this.ingestPosition(record, emittedAt, changed);
+        break;
+      case 'LapCount':
+        this.ingestLapCount(record, changed);
+        break;
+      case 'SessionInfo':
+        this.ingestSessionInfo(record, changed);
+        break;
+      case 'SessionStatus':
+        this.ingestSessionStatus(record, changed);
+        break;
+      case 'TrackStatus':
+        this.ingestTrackStatus(record, changed);
+        break;
+      case 'ExtrapolatedClock':
+        this.ingestExtrapolatedClock(record, emittedAt, changed);
+        break;
+      case 'RaceControlMessages':
+        this.ingestRaceControlMessages(record, emittedAt, changed);
+        break;
+      default:
+        break;
     }
 
     return [...changed];
+  }
+
+  private ingestDriverList(record: JsonRecord, changed: Set<string>): void {
+    for (const [number, lineValue] of Object.entries(record)) {
+      const line = asRecord(lineValue);
+      if (!line) {
+        continue;
+      }
+
+      const current = this.driverByNumber.get(number) ?? {};
+      this.driverByNumber.set(number, mergeRecords(current, line));
+    }
+
+    changed.add('leaderboard');
+  }
+
+  private ingestTimingData(
+    record: JsonRecord,
+    emittedAt: string,
+    changed: Set<string>,
+  ): void {
+    const lines = asRecord(record.Lines);
+    if (!lines) {
+      return;
+    }
+
+    for (const [number, lineValue] of Object.entries(lines)) {
+      const line = asRecord(lineValue);
+      if (!line) {
+        continue;
+      }
+
+      const explicitPosition = toInt(line.Position);
+      if (explicitPosition != null) {
+        this.explicitPositionUpdatedAtByNumber.set(number, emittedAt);
+      }
+
+      const current = this.timingByNumber.get(number) ?? {};
+      this.timingByNumber.set(number, mergeRecords(current, line));
+    }
+
+    changed.add('leaderboard');
+  }
+
+  private ingestTimingStats(record: JsonRecord, changed: Set<string>): void {
+    const lines = asRecord(record.Lines);
+    if (!lines) {
+      return;
+    }
+
+    for (const [number, lineValue] of Object.entries(lines)) {
+      const line = asRecord(lineValue);
+      if (!line) {
+        continue;
+      }
+
+      const current = this.timingStatsByNumber.get(number) ?? {};
+      this.timingStatsByNumber.set(number, mergeRecords(current, line));
+    }
+
+    changed.add('leaderboard');
+  }
+
+  private ingestTimingAppData(record: JsonRecord, changed: Set<string>): void {
+    const lines = asRecord(record.Lines);
+    if (!lines) {
+      return;
+    }
+
+    for (const [number, lineValue] of Object.entries(lines)) {
+      const line = asRecord(lineValue);
+      if (!line) {
+        continue;
+      }
+
+      const current = this.timingAppByNumber.get(number) ?? {};
+      this.timingAppByNumber.set(number, mergeRecords(current, line));
+    }
+
+    changed.add('leaderboard');
+  }
+
+  private ingestCarData(
+    record: JsonRecord,
+    emittedAt: string,
+    changed: Set<string>,
+  ): void {
+    const entries = asRecordArray(record.Entries);
+    for (const entry of entries) {
+      const cars = asRecord(entry.Cars);
+      if (!cars) {
+        continue;
+      }
+
+      const telemetryAt = toIso(entry.Utc, emittedAt);
+
+      for (const [number, carValue] of Object.entries(cars)) {
+        const car = asRecord(carValue);
+        if (!car) {
+          continue;
+        }
+
+        const current = this.carDataByNumber.get(number) ?? {};
+        const merged = mergeRecords(current, car);
+        merged.Utc = telemetryAt;
+        this.carDataByNumber.set(number, merged);
+
+        const channels = asRecord(merged.Channels);
+        const speedKph = parseSpeedKph(channels?.['2']);
+        if (speedKph != null) {
+          this.appendSpeedHistory(number, speedKph, telemetryAt);
+        }
+      }
+    }
+
+    if (entries.length > 0) {
+      changed.add('leaderboard');
+    }
+  }
+
+  private ingestPosition(
+    record: JsonRecord,
+    emittedAt: string,
+    changed: Set<string>,
+  ): void {
+    const positions = asRecordArray(record.Position);
+    for (const position of positions) {
+      const entries = asRecord(position.Entries);
+      if (!entries) {
+        continue;
+      }
+
+      const positionAt = toIso(position.Utc ?? position.Timestamp, emittedAt);
+
+      for (const [number, entryValue] of Object.entries(entries)) {
+        const entry = asRecord(entryValue);
+        if (!entry) {
+          continue;
+        }
+
+        const current = this.positionByNumber.get(number) ?? {};
+        this.positionByNumber.set(number, mergeRecords(current, entry));
+
+        const normalizedStatus = normalizeTrackStatus(entry.Status);
+        if (normalizedStatus) {
+          this.appendTrackStatusHistory(number, normalizedStatus, positionAt);
+        }
+      }
+    }
+
+    if (positions.length > 0) {
+      changed.add('leaderboard');
+    }
+  }
+
+  private ingestLapCount(record: JsonRecord, changed: Set<string>): void {
+    this.currentLap = toInt(record.CurrentLap);
+    this.totalLaps = toInt(record.TotalLaps);
+    changed.add('session.currentLap');
+    changed.add('session.totalLaps');
+  }
+
+  private ingestSessionInfo(record: JsonRecord, changed: Set<string>): void {
+    const meeting = asRecord(record.Meeting);
+    const meetingKey =
+      asString(meeting?.Key) ??
+      asString(meeting?.Name) ??
+      asString(record.Meeting);
+    const meetingName = asString(meeting?.Name);
+    const sessionName = asString(record.Name);
+
+    this.weekendId = meetingKey ?? this.weekendId;
+    this.sessionId = asString(record.Key) ?? this.sessionId;
+    this.sessionName =
+      [meetingName, sessionName].filter((part) => Boolean(part)).join(' - ') ||
+      this.sessionName;
+
+    changed.add('session.weekendId');
+    changed.add('session.sessionId');
+    changed.add('session.sessionName');
+  }
+
+  private ingestSessionStatus(record: JsonRecord, changed: Set<string>): void {
+    const status = (asString(record.Status) ?? '').toLowerCase();
+    if (status.includes('finish') || status.includes('ended')) {
+      this.phase = 'finished';
+      this.flag = 'checkered';
+    } else if (status.includes('start') || status.includes('running')) {
+      this.phase = 'running';
+    }
+
+    changed.add('session.phase');
+    changed.add('session.flag');
+  }
+
+  private ingestTrackStatus(record: JsonRecord, changed: Set<string>): void {
+    const mapped = TRACK_STATUS_FLAG_MAP[asString(record.Status) ?? ''];
+    const fromMessage = normalizeFlag(record.Message);
+    const flag = mapped ?? fromMessage;
+    if (!flag) {
+      return;
+    }
+
+    this.flag = flag;
+    changed.add('session.flag');
+  }
+
+  private ingestExtrapolatedClock(
+    record: JsonRecord,
+    emittedAt: string,
+    changed: Set<string>,
+  ): void {
+    const value = asString(record.Utc) ?? asString(record.Remaining);
+    this.clockIso = value ? toIso(value, emittedAt) : emittedAt;
+    changed.add('session.clockIso');
+  }
+
+  private ingestRaceControlMessages(
+    record: JsonRecord,
+    emittedAt: string,
+    changed: Set<string>,
+  ): void {
+    const messagesRecord = asRecord(record.Messages);
+    const messageEntries: Array<[string, JsonRecord]> = messagesRecord
+      ? Object.entries(messagesRecord).map(
+          ([key, message]) => [key, message] as [string, JsonRecord],
+        )
+      : asRecordArray(record.Messages).map(
+          (message, index) => [String(index), message] as const,
+        );
+
+    if (messageEntries.length === 0) {
+      return;
+    }
+
+    const nextMessages: LiveRaceControlMessage[] = [];
+
+    for (const [key, message] of messageEntries) {
+      const emitted = toIso(message.Utc, emittedAt);
+      const text = asString(message.Message) ?? asString(message.Status);
+      if (!text) {
+        continue;
+      }
+
+      const categoryRaw = (
+        asString(message.Category) ?? 'control'
+      ).toLowerCase();
+      const category: LiveRaceControlMessage['category'] = categoryRaw.includes(
+        'incident',
+      )
+        ? 'incident'
+        : categoryRaw.includes('pit')
+          ? 'pit'
+          : categoryRaw.includes('flag')
+            ? 'flag'
+            : 'control';
+
+      const flag =
+        normalizeFlag(message.Flag) ?? normalizeFlag(message.Message);
+
+      nextMessages.push({
+        id: asString(message.MessageId) ?? `rc-${key}-${emitted}`,
+        emittedAt: emitted,
+        category,
+        message: text,
+        flag: flag ?? undefined,
+      });
+    }
+
+    nextMessages.sort((a, b) => (a.emittedAt < b.emittedAt ? 1 : -1));
+    this.raceControl = nextMessages.slice(0, MAX_RACE_CONTROL_MESSAGES);
+    changed.add('raceControl');
   }
 
   getSessionMetadata() {
@@ -871,219 +950,279 @@ export class ProviderStateAccumulator {
   }
 
   buildState(emittedAt: string): LiveState | null {
-    const numbers = new Set<string>([
+    const draftLeaderboard = this.buildDraftLeaderboard(emittedAt);
+    const leaderboard = this.resolveLeaderboard(draftLeaderboard, emittedAt);
+
+    if (!this.hasSessionInfo(leaderboard)) {
+      return null;
+    }
+
+    return {
+      generatedAt: emittedAt,
+      session: {
+        weekendId: this.weekendId,
+        sessionId: this.sessionId,
+        sessionName: this.sessionName,
+        phase: this.phase,
+        flag: this.flag,
+        currentLap: this.currentLap,
+        totalLaps: this.totalLaps,
+        clockIso: this.clockIso ?? emittedAt,
+      },
+      leaderboard,
+      raceControl: this.raceControl,
+    };
+  }
+
+  private buildDraftLeaderboard(
+    emittedAt: string,
+  ): LiveLeaderboardDraftEntry[] {
+    const draftLeaderboard: LiveLeaderboardDraftEntry[] = [];
+
+    for (const number of this.getTrackedDriverNumbers()) {
+      const entry = this.buildDraftLeaderboardEntry(number, emittedAt);
+      if (entry) {
+        draftLeaderboard.push(entry);
+      }
+    }
+
+    return draftLeaderboard;
+  }
+
+  private getTrackedDriverNumbers(): Set<string> {
+    return new Set<string>([
       ...this.driverByNumber.keys(),
       ...this.timingByNumber.keys(),
     ]);
+  }
 
-    const draftLeaderboard: LiveLeaderboardDraftEntry[] = [];
+  private buildDraftLeaderboardEntry(
+    number: string,
+    emittedAt: string,
+  ): LiveLeaderboardDraftEntry | null {
+    const driver = this.driverByNumber.get(number);
+    const timing = this.timingByNumber.get(number);
+    const timingStats = this.timingStatsByNumber.get(number);
+    const timingApp = this.timingAppByNumber.get(number);
+    const carData = this.carDataByNumber.get(number);
+    const positionData = this.positionByNumber.get(number);
 
-    for (const number of numbers) {
-      const driver = this.driverByNumber.get(number);
-      const timing = this.timingByNumber.get(number);
-      const timingStats = this.timingStatsByNumber.get(number);
-      const timingApp = this.timingAppByNumber.get(number);
-      const carData = this.carDataByNumber.get(number);
-      const positionData = this.positionByNumber.get(number);
-
-      if (!timing) {
-        continue;
-      }
-
-      const explicitPosition = toInt(timing.Position);
-      const previousResolvedMetadata =
-        this.resolvedPositionMetaByNumber.get(number) ?? null;
-
-      const sectors = asRecord(timing.Sectors);
-      const sector1 = asRecord(sectors?.['0']);
-      const sector2 = asRecord(sectors?.['1']);
-      const sector3 = asRecord(sectors?.['2']);
-      const cachedSectorTimes = this.displayedSectorTimesByNumber.get(number);
-      const parsedSector1Ms = parseLapOrSectorMs(sector1);
-      const parsedSector2Ms = parseLapOrSectorMs(sector2);
-      let parsedSector3Ms = parseLapOrSectorMs(sector3);
-      const statsSector1Ms = parseTimingStatsSector(timingStats, 0);
-      const statsSector2Ms = parseTimingStatsSector(timingStats, 1);
-      const statsSector3Ms = parseTimingStatsSector(timingStats, 2);
-
-      const lastLapMs = parseLapOrSectorMs(timing.LastLapTime);
-
-      if (
-        parsedSector3Ms == null &&
-        parsedSector1Ms != null &&
-        parsedSector2Ms != null &&
-        lastLapMs != null
-      ) {
-        const derivedSector3Ms = lastLapMs - parsedSector1Ms - parsedSector2Ms;
-        if (derivedSector3Ms > 0) {
-          parsedSector3Ms = derivedSector3Ms;
-        }
-      }
-
-      const sector1Ms =
-        parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? statsSector1Ms;
-      const sector2Ms =
-        parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? statsSector2Ms;
-      const sector3Ms =
-        parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? statsSector3Ms;
-      const bestSector1Ms = statsSector1Ms ?? sector1Ms;
-      const bestSector2Ms = statsSector2Ms ?? sector2Ms;
-      const bestSector3Ms = statsSector3Ms ?? sector3Ms;
-
-      this.displayedSectorTimesByNumber.set(number, {
-        sector1Ms: parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? null,
-        sector2Ms: parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? null,
-        sector3Ms: parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? null,
-      });
-
-      const bestLapMs =
-        parseLapOrSectorMs(timing.BestLapTime) ??
-        parseTimingStatsBestLap(timingStats) ??
-        lastLapMs;
-      const fallbackPositionSource = resolveFallbackPositionSource(
-        bestLapMs,
-        lastLapMs,
-      );
-
-      const channels = asRecord(carData?.Channels);
-      const speedHistoryKph = this.speedHistoryByNumber.get(number) ?? [];
-      const speedKph =
-        parseSpeedKph(channels?.['2']) ?? speedHistoryKph.at(-1)?.kph ?? null;
-      const topSpeedKph =
-        parseTopSpeedKphFromStats(timingStats) ??
-        speedKph ??
-        parseSpeedKph(asRecord(timingStats?.Speeds)?.ST);
-      const trackStatusHistory =
-        this.trackStatusHistoryByNumber.get(number) ?? [];
-      const normalizedTrackStatus = normalizeTrackStatus(positionData?.Status);
-      const resolvedTrackStatusHistory = normalizedTrackStatus
-        ? appendTrackStatusHistoryPoint(trackStatusHistory, {
-            at: emittedAt,
-            status: normalizedTrackStatus,
-          })
-        : trackStatusHistory;
-      const trackStatus =
-        normalizedTrackStatus ??
-        resolvedTrackStatusHistory.at(-1)?.status ??
-        null;
-
-      const gapToLeaderSec = parseTimingGapField(timing, [
-        'GapToLeader',
-        'TimeDiffToFastest',
-        'TimeDifftoFastest',
-        'TimeDiffToFirst',
-        'TimeDifftoFirst',
-      ]);
-      const gapToLeaderText = parseTimingGapTextField(timing, [
-        'GapToLeader',
-        'TimeDiffToFastest',
-        'TimeDifftoFastest',
-        'TimeDiffToFirst',
-        'TimeDifftoFirst',
-      ]);
-
-      const intervalToAheadSec = parseTimingGapField(timing, [
-        'IntervalToPositionAhead',
-        'TimeDiffToPositionAhead',
-        'TimeDifftoPositionAhead',
-        'GapToPositionAhead',
-        'TimeDiffToCarAhead',
-      ]);
-      const intervalToAheadText = parseTimingGapTextField(timing, [
-        'IntervalToPositionAhead',
-        'TimeDiffToPositionAhead',
-        'TimeDifftoPositionAhead',
-        'GapToPositionAhead',
-        'TimeDiffToCarAhead',
-      ]);
-
-      const rawStints = timingApp ? timingApp.Stints : null;
-      const stints: unknown[] = Array.isArray(rawStints)
-        ? rawStints
-        : isRecord(rawStints)
-          ? Object.values(rawStints).reduce<unknown[]>((accumulator, value) => {
-              if (Array.isArray(value)) {
-                for (const item of value) {
-                  accumulator.push(item);
-                }
-              } else if (isRecord(value)) {
-                accumulator.push(value);
-              }
-              return accumulator;
-            }, [])
-          : [];
-      const latestStint =
-        stints.length > 0 ? asRecord(stints[stints.length - 1]) : null;
-      const pitState = resolvePitState(timing, trackStatus);
-      const miniSectors = parseMiniSectors(timing);
-      const completedLaps =
-        toInt(timing.NumberOfLaps) ?? toInt(latestStint?.LapNumber);
-
-      const firstName = asString(driver?.FirstName);
-      const lastName = asString(driver?.LastName);
-      const combinedName = [firstName, lastName]
-        .filter((value) => Boolean(value))
-        .join(' ')
-        .trim();
-      const rosterEntry = LIVE_DRIVER_ROSTER_BY_NUMBER[number];
-
-      draftLeaderboard.push({
-        driverNumber: number,
-        position: explicitPosition ?? 0,
-        driverCode:
-          asString(driver?.Tla) ?? asString(driver?.RacingNumber) ?? number,
-        driverName:
-          asString(driver?.FullName) ??
-          (combinedName.length > 0 ? combinedName : null) ??
-          asString(driver?.BroadcastName) ??
-          rosterEntry?.driverName ??
-          null,
-        teamName: asString(driver?.TeamName) ?? rosterEntry?.teamName ?? null,
-        trackStatus,
-        pitState,
-        pitStops: toInt(timing.NumberOfPitStops),
-        speedKph,
-        topSpeedKph,
-        gapToLeaderSec,
-        gapToLeaderText,
-        intervalToAheadSec,
-        intervalToAheadText,
-        sector1Ms,
-        sector2Ms,
-        sector3Ms,
-        bestSector1Ms,
-        bestSector2Ms,
-        bestSector3Ms,
-        lastLapMs,
-        bestLapMs,
-        completedLaps,
-        speedHistoryKph,
-        trackStatusHistory: resolvedTrackStatusHistory,
-        miniSectors,
-        tireCompound:
-          normalizeCompound(latestStint?.Compound) ??
-          normalizeCompound(timing.Compound),
-        stintLap: toInt(latestStint?.TotalLaps),
-        tireIsNew: parseBooleanValue(latestStint?.New),
-        positionSource:
-          explicitPosition != null
-            ? 'timing_data'
-            : (previousResolvedMetadata?.source ?? fallbackPositionSource),
-        positionUpdatedAt:
-          explicitPosition != null
-            ? (this.explicitPositionUpdatedAtByNumber.get(number) ?? emittedAt)
-            : (previousResolvedMetadata?.updatedAt ??
-              (fallbackPositionSource === 'driver_code' ? null : emittedAt)),
-        positionConfidence:
-          explicitPosition != null
-            ? 'high'
-            : (previousResolvedMetadata?.confidence ?? 'low'),
-        explicitPosition,
-        previousResolvedMetadata,
-        fallbackPositionSource,
-      });
+    if (!timing) {
+      return null;
     }
 
+    const explicitPosition = toInt(timing.Position);
+    const previousResolvedMetadata =
+      this.resolvedPositionMetaByNumber.get(number) ?? null;
+
+    const sectors = asRecord(timing.Sectors);
+    const sector1 = asRecord(sectors?.['0']);
+    const sector2 = asRecord(sectors?.['1']);
+    const sector3 = asRecord(sectors?.['2']);
+    const cachedSectorTimes = this.displayedSectorTimesByNumber.get(number);
+    const parsedSector1Ms = parseLapOrSectorMs(sector1);
+    const parsedSector2Ms = parseLapOrSectorMs(sector2);
+    let parsedSector3Ms = parseLapOrSectorMs(sector3);
+    const statsSector1Ms = parseTimingStatsSector(timingStats, 0);
+    const statsSector2Ms = parseTimingStatsSector(timingStats, 1);
+    const statsSector3Ms = parseTimingStatsSector(timingStats, 2);
+
+    const lastLapMs = parseLapOrSectorMs(timing.LastLapTime);
+    if (
+      parsedSector3Ms == null &&
+      parsedSector1Ms != null &&
+      parsedSector2Ms != null &&
+      lastLapMs != null
+    ) {
+      const derivedSector3Ms = lastLapMs - parsedSector1Ms - parsedSector2Ms;
+      if (derivedSector3Ms > 0) {
+        parsedSector3Ms = derivedSector3Ms;
+      }
+    }
+
+    const sector1Ms =
+      parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? statsSector1Ms;
+    const sector2Ms =
+      parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? statsSector2Ms;
+    const sector3Ms =
+      parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? statsSector3Ms;
+    const bestSector1Ms = statsSector1Ms ?? sector1Ms;
+    const bestSector2Ms = statsSector2Ms ?? sector2Ms;
+    const bestSector3Ms = statsSector3Ms ?? sector3Ms;
+
+    this.displayedSectorTimesByNumber.set(number, {
+      sector1Ms: parsedSector1Ms ?? cachedSectorTimes?.sector1Ms ?? null,
+      sector2Ms: parsedSector2Ms ?? cachedSectorTimes?.sector2Ms ?? null,
+      sector3Ms: parsedSector3Ms ?? cachedSectorTimes?.sector3Ms ?? null,
+    });
+
+    const bestLapMs =
+      parseLapOrSectorMs(timing.BestLapTime) ??
+      parseTimingStatsBestLap(timingStats) ??
+      lastLapMs;
+    const fallbackPositionSource = resolveFallbackPositionSource(
+      bestLapMs,
+      lastLapMs,
+    );
+
+    const channels = asRecord(carData?.Channels);
+    const speedHistoryKph = this.speedHistoryByNumber.get(number) ?? [];
+    const speedKph =
+      parseSpeedKph(channels?.['2']) ?? speedHistoryKph.at(-1)?.kph ?? null;
+    const topSpeedKph =
+      parseTopSpeedKphFromStats(timingStats) ??
+      speedKph ??
+      parseSpeedKph(asRecord(timingStats?.Speeds)?.ST);
+    const trackStatusHistory =
+      this.trackStatusHistoryByNumber.get(number) ?? [];
+    const normalizedTrackStatus = normalizeTrackStatus(positionData?.Status);
+    const resolvedTrackStatusHistory = normalizedTrackStatus
+      ? appendTrackStatusHistoryPoint(trackStatusHistory, {
+          at: emittedAt,
+          status: normalizedTrackStatus,
+        })
+      : trackStatusHistory;
+    const trackStatus =
+      normalizedTrackStatus ??
+      resolvedTrackStatusHistory.at(-1)?.status ??
+      null;
+
+    const gapToLeaderSec = parseTimingGapField(timing, [
+      'GapToLeader',
+      'TimeDiffToFastest',
+      'TimeDifftoFastest',
+      'TimeDiffToFirst',
+      'TimeDifftoFirst',
+    ]);
+    const gapToLeaderText = parseTimingGapTextField(timing, [
+      'GapToLeader',
+      'TimeDiffToFastest',
+      'TimeDifftoFastest',
+      'TimeDiffToFirst',
+      'TimeDifftoFirst',
+    ]);
+
+    const intervalToAheadSec = parseTimingGapField(timing, [
+      'IntervalToPositionAhead',
+      'TimeDiffToPositionAhead',
+      'TimeDifftoPositionAhead',
+      'GapToPositionAhead',
+      'TimeDiffToCarAhead',
+    ]);
+    const intervalToAheadText = parseTimingGapTextField(timing, [
+      'IntervalToPositionAhead',
+      'TimeDiffToPositionAhead',
+      'TimeDifftoPositionAhead',
+      'GapToPositionAhead',
+      'TimeDiffToCarAhead',
+    ]);
+
+    const rawStints = timingApp ? timingApp.Stints : null;
+    const stints: unknown[] = Array.isArray(rawStints)
+      ? rawStints
+      : isRecord(rawStints)
+        ? Object.values(rawStints).reduce<unknown[]>((accumulator, value) => {
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                accumulator.push(item);
+              }
+            } else if (isRecord(value)) {
+              accumulator.push(value);
+            }
+            return accumulator;
+          }, [])
+        : [];
+    const latestStint =
+      stints.length > 0 ? asRecord(stints[stints.length - 1]) : null;
+    const pitState = resolvePitState(timing, trackStatus);
+    const miniSectors = parseMiniSectors(timing);
+    const completedLaps =
+      toInt(timing.NumberOfLaps) ?? toInt(latestStint?.LapNumber);
+
+    const firstName = asString(driver?.FirstName);
+    const lastName = asString(driver?.LastName);
+    const combinedName = [firstName, lastName]
+      .filter((value) => Boolean(value))
+      .join(' ')
+      .trim();
+    const rosterEntry = LIVE_DRIVER_ROSTER_BY_NUMBER[number];
+
+    return {
+      driverNumber: number,
+      position: explicitPosition ?? 0,
+      driverCode:
+        asString(driver?.Tla) ?? asString(driver?.RacingNumber) ?? number,
+      driverName:
+        asString(driver?.FullName) ??
+        (combinedName.length > 0 ? combinedName : null) ??
+        asString(driver?.BroadcastName) ??
+        rosterEntry?.driverName ??
+        null,
+      teamName: asString(driver?.TeamName) ?? rosterEntry?.teamName ?? null,
+      trackStatus,
+      pitState,
+      pitStops: toInt(timing.NumberOfPitStops),
+      speedKph,
+      topSpeedKph,
+      gapToLeaderSec,
+      gapToLeaderText,
+      intervalToAheadSec,
+      intervalToAheadText,
+      sector1Ms,
+      sector2Ms,
+      sector3Ms,
+      bestSector1Ms,
+      bestSector2Ms,
+      bestSector3Ms,
+      lastLapMs,
+      bestLapMs,
+      completedLaps,
+      speedHistoryKph,
+      trackStatusHistory: resolvedTrackStatusHistory,
+      miniSectors,
+      tireCompound:
+        normalizeCompound(latestStint?.Compound) ??
+        normalizeCompound(timing.Compound),
+      stintLap: toInt(latestStint?.TotalLaps),
+      tireIsNew: parseBooleanValue(latestStint?.New),
+      positionSource:
+        explicitPosition != null
+          ? 'timing_data'
+          : (previousResolvedMetadata?.source ?? fallbackPositionSource),
+      positionUpdatedAt:
+        explicitPosition != null
+          ? (this.explicitPositionUpdatedAtByNumber.get(number) ?? emittedAt)
+          : (previousResolvedMetadata?.updatedAt ??
+            (fallbackPositionSource === 'driver_code' ? null : emittedAt)),
+      positionConfidence:
+        explicitPosition != null
+          ? 'high'
+          : (previousResolvedMetadata?.confidence ?? 'low'),
+      explicitPosition,
+      previousResolvedMetadata,
+      fallbackPositionSource,
+    };
+  }
+
+  private resolveLeaderboard(
+    draftLeaderboard: LiveLeaderboardDraftEntry[],
+    emittedAt: string,
+  ): LiveLeaderboardEntry[] {
+    const hasExplicitOrder = this.sortDraftLeaderboard(draftLeaderboard);
+    const leaderboard = this.applyResolvedPositions(
+      draftLeaderboard,
+      emittedAt,
+      hasExplicitOrder,
+    );
+
+    leaderboard.sort((a, b) => a.position - b.position);
+    this.applyDerivedLapGaps(leaderboard);
+    return leaderboard;
+  }
+
+  private sortDraftLeaderboard(
+    draftLeaderboard: LiveLeaderboardDraftEntry[],
+  ): boolean {
     const explicitPositions = draftLeaderboard
       .map((entry) => entry.explicitPosition)
       .filter(
@@ -1151,6 +1290,14 @@ export class ProviderStateAccumulator {
       return left.driverCode.localeCompare(right.driverCode);
     });
 
+    return hasExplicitOrder;
+  }
+
+  private applyResolvedPositions(
+    draftLeaderboard: LiveLeaderboardDraftEntry[],
+    emittedAt: string,
+    hasExplicitOrder: boolean,
+  ): LiveLeaderboardEntry[] {
     const leaderboard: LiveLeaderboardEntry[] = [];
     const nextResolvedPositions = new Map<
       string,
@@ -1205,7 +1352,6 @@ export class ProviderStateAccumulator {
       const leaderboardEntry = {
         ...entry,
       } as LiveLeaderboardEntry & {
-        driverNumber?: string;
         explicitPosition?: number | null;
         previousResolvedMetadata?: LiveResolvedPositionMetadata | null;
         fallbackPositionSource?: LivePositionSource;
@@ -1213,6 +1359,7 @@ export class ProviderStateAccumulator {
       delete leaderboardEntry.explicitPosition;
       delete leaderboardEntry.previousResolvedMetadata;
       delete leaderboardEntry.fallbackPositionSource;
+
       leaderboard.push({
         ...leaderboardEntry,
         position: resolvedPositionMetadata.position,
@@ -1228,66 +1375,54 @@ export class ProviderStateAccumulator {
       this.resolvedPositionMetaByNumber.set(number, metadata);
     }
 
-    leaderboard.sort((a, b) => a.position - b.position);
+    return leaderboard;
+  }
 
+  private applyDerivedLapGaps(leaderboard: LiveLeaderboardEntry[]): void {
     const leader = leaderboard.at(0);
-    if (leader?.lastLapMs != null) {
-      for (let index = 1; index < leaderboard.length; index += 1) {
-        const current = leaderboard[index];
-        if (!current) {
-          continue;
-        }
+    if (leader?.lastLapMs == null) {
+      return;
+    }
 
-        if (current.gapToLeaderSec == null && current.lastLapMs != null) {
-          const fallbackGapSec = Number(
-            ((current.lastLapMs - leader.lastLapMs) / 1000).toFixed(3),
-          );
-          if (fallbackGapSec >= 0) {
-            current.gapToLeaderSec = fallbackGapSec;
-            current.gapToLeaderText = `+${fallbackGapSec.toFixed(3)}`;
-          }
-        }
+    for (let index = 1; index < leaderboard.length; index += 1) {
+      const current = leaderboard[index];
+      if (!current) {
+        continue;
+      }
 
-        const previous = leaderboard[index - 1];
-        if (
-          current.intervalToAheadSec == null &&
-          current.lastLapMs != null &&
-          previous?.lastLapMs != null
-        ) {
-          const fallbackIntervalSec = Number(
-            ((current.lastLapMs - previous.lastLapMs) / 1000).toFixed(3),
-          );
-          if (fallbackIntervalSec >= 0) {
-            current.intervalToAheadSec = fallbackIntervalSec;
-            current.intervalToAheadText = `+${fallbackIntervalSec.toFixed(3)}`;
-          }
+      if (current.gapToLeaderSec == null && current.lastLapMs != null) {
+        const fallbackGapSec = Number(
+          ((current.lastLapMs - leader.lastLapMs) / 1000).toFixed(3),
+        );
+        if (fallbackGapSec >= 0) {
+          current.gapToLeaderSec = fallbackGapSec;
+          current.gapToLeaderText = `+${fallbackGapSec.toFixed(3)}`;
+        }
+      }
+
+      const previous = leaderboard[index - 1];
+      if (
+        current.intervalToAheadSec == null &&
+        current.lastLapMs != null &&
+        previous?.lastLapMs != null
+      ) {
+        const fallbackIntervalSec = Number(
+          ((current.lastLapMs - previous.lastLapMs) / 1000).toFixed(3),
+        );
+        if (fallbackIntervalSec >= 0) {
+          current.intervalToAheadSec = fallbackIntervalSec;
+          current.intervalToAheadText = `+${fallbackIntervalSec.toFixed(3)}`;
         }
       }
     }
+  }
 
-    const hasSessionInfo =
+  private hasSessionInfo(leaderboard: LiveLeaderboardEntry[]): boolean {
+    return (
       this.sessionName !== null ||
       this.currentLap !== null ||
       this.totalLaps !== null ||
-      leaderboard.length > 0;
-    if (!hasSessionInfo) {
-      return null;
-    }
-
-    return {
-      generatedAt: emittedAt,
-      session: {
-        weekendId: this.weekendId,
-        sessionId: this.sessionId,
-        sessionName: this.sessionName,
-        phase: this.phase,
-        flag: this.flag,
-        currentLap: this.currentLap,
-        totalLaps: this.totalLaps,
-        clockIso: this.clockIso ?? emittedAt,
-      },
-      leaderboard,
-      raceControl: this.raceControl,
-    };
+      leaderboard.length > 0
+    );
   }
 }
