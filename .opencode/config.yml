@@ -13,15 +13,14 @@ repository:
   visibility: public
 
 runtime:
-  local_live_source_default: simulator
-  provider_mode_opt_in: LIVE_SOURCE=provider
+  local_live_source_default: provider
   standings_source: api.jolpi.ca/ergast
 
 decisions:
   - Keep backend on NestJS
   - Keep pnpm as only package manager
   - Keep product scope to live dashboard and standings
-  - Default local runtime to simulator
+  - Default local runtime to provider
   - Avoid synthetic fallback behavior in provider mode
 
 artifacts:

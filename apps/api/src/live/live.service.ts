@@ -18,7 +18,6 @@ import {
 } from './live.public-state';
 import { LiveProviderAdapter } from './live.provider.adapter';
 import { LiveReplayService } from './live.replay.service';
-import { LiveSimulatorAdapter } from './live.simulator.adapter';
 import { buildLiveTopicFreshness } from './live.topic-freshness';
 import {
   LiveDeltaPayload,
@@ -55,12 +54,11 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly simulatorAdapter: LiveSimulatorAdapter,
     private readonly providerAdapter: LiveProviderAdapter,
     private readonly liveCaptureService: LiveCaptureService,
     private readonly liveReplayService: LiveReplayService,
   ) {
-    this.adapter = this.resolveAdapter();
+    this.adapter = this.providerAdapter;
   }
 
   async onModuleInit(): Promise<void> {
@@ -127,10 +125,7 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       running: adapterHealth.running,
       startedAt: adapterHealth.startedAt,
       lastEventAt: adapterHealth.lastEventAt,
-      tickMs: adapterHealth.tickMs,
       heartbeatMs: adapterHealth.heartbeatMs,
-      seed: adapterHealth.seed,
-      speedMultiplier: adapterHealth.speedMultiplier,
       details,
     };
   }
@@ -309,16 +304,6 @@ export class LiveService implements OnModuleInit, OnModuleDestroy {
       );
     }
   }
-
-  private resolveAdapter(): LiveAdapter {
-    const source = this.configService.get<string>('LIVE_SOURCE', 'provider');
-
-    if (source === 'simulator') {
-      return this.simulatorAdapter;
-    }
-    return this.providerAdapter;
-  }
-
   private wrapEnvelope<
     TPayload extends
       | LivePublicState

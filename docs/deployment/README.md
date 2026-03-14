@@ -22,12 +22,6 @@ Deployment baseline for F1 VibeTiming.
 make run
 ```
 
-Run in simulator mode with attached logs:
-
-```bash
-make run-sim
-```
-
 Run in provider mode with container-visible provider frame and payload logs:
 
 ```bash
@@ -59,7 +53,6 @@ make help
 - `API_PORT`: HTTP port (default `4000`)
 - `DATABASE_URL`: Postgres DSN
 - `ERGAST_BASE_URL`: standings/results provider base URL
-- `LIVE_SOURCE`: `simulator` by default in `compose.yml`; `make run` overrides it to `provider`
 - `LIVE_SIGNALR_BASE_URL`: SignalR base URL
 - `LIVE_SIGNALR_HUB`: SignalR hub name
 - `LIVE_SIGNALR_TOPICS`: live topic subscription list

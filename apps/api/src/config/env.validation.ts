@@ -6,11 +6,7 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
   ERGAST_BASE_URL: Joi.string().uri().default('https://api.jolpi.ca/ergast'),
-  LIVE_SOURCE: Joi.string().valid('simulator', 'provider').default('simulator'),
-  LIVE_SIMULATOR_TICK_MS: Joi.number().integer().min(250).default(2000),
-  LIVE_SIMULATOR_SPEED_MULTIPLIER: Joi.number().min(0.25).max(8).default(1),
   LIVE_HEARTBEAT_MS: Joi.number().integer().min(1000).default(15000),
-  LIVE_SIMULATOR_SEED: Joi.number().integer().min(1).default(2026),
   LIVE_SIGNALR_BASE_URL: Joi.string()
     .uri({ scheme: ['https', 'http'] })
     .default('https://livetiming.formula1.com/signalr'),

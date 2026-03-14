@@ -2,7 +2,7 @@ services:
   postgres-init:
     image: alpine:3.21
     container_name: f1-vibetiming-postgres-init
-    restart: 'no'
+    restart: "no"
     command: >-
       sh -c "mkdir -p /workspace/postgres /workspace/backups &&
       chown -R 70:70 /workspace/postgres &&
@@ -24,11 +24,11 @@ services:
       POSTGRES_DB: f1_vibetiming
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - ./.data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d f1_vibetiming']
+      test: ["CMD-SHELL", "pg_isready -U postgres -d f1_vibetiming"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,7 +63,7 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: f1-vibetiming-api
     restart: unless-stopped
-    profiles: ['app']
+    profiles: ["app"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +74,6 @@ services:
       API_PORT: 4000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/f1_vibetiming?schema=public
       ERGAST_BASE_URL: https://api.jolpi.ca/ergast
-      LIVE_SOURCE: ${LIVE_SOURCE:-simulator}
       LIVE_SIGNALR_BASE_URL: https://livetiming.formula1.com/signalr
       LIVE_PROVIDER_LOG: ${LIVE_PROVIDER_LOG:-off}
       LIVE_PROVIDER_LOG_MAX_CHARS: ${LIVE_PROVIDER_LOG_MAX_CHARS:-600}
@@ -83,7 +82,7 @@ services:
       LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS: ${LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS:-30}
       LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC: ${LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC:-21600}
     ports:
-      - '4000:4000'
+      - "4000:4000"
 
   web:
     build:
@@ -91,11 +90,11 @@ services:
       dockerfile: apps/web/Dockerfile
     container_name: f1-vibetiming-web
     restart: unless-stopped
-    profiles: ['app']
+    profiles: ["app"]
     depends_on:
       - api
     environment:
       F1_API_BASE_URL: http://api:4000/api
       NEXT_PUBLIC_API_BASE_URL: http://api:4000/api
     ports:
-      - '3000:3000'
+      - "3000:3000"

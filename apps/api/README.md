@@ -49,7 +49,6 @@ Standings endpoints:
 
 Live runtime environment variables:
 
-- `LIVE_SOURCE` (`simulator` default for local dev; set `provider` to use real live feed)
 - `LIVE_SIGNALR_BASE_URL` (default `https://livetiming.formula1.com/signalr`)
 - `LIVE_SIGNALR_HUB` (default `streaming`)
 - `LIVE_SIGNALR_TOPICS` (comma-separated topic list)
@@ -62,12 +61,6 @@ Live runtime environment variables:
 - `LIVE_PROVIDER_RAW_RETENTION_DAYS` (default `30`; raw event retention window)
 - `LIVE_PROVIDER_SNAPSHOT_RETENTION_DAYS` (default `30`; snapshot retention window)
 - `LIVE_PROVIDER_SNAPSHOT_RESTORE_MAX_AGE_SEC` (default `21600`; max age restored on startup)
-
-Simulator-only tuning env vars:
-
-- `LIVE_SIMULATOR_TICK_MS`
-- `LIVE_SIMULATOR_SPEED_MULTIPLIER`
-- `LIVE_SIMULATOR_SEED`
 
 Local capture persistence:
 

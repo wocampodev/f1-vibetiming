@@ -1,8 +1,15 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
-import { SeasonPaginationQueryDto } from './season-pagination-query.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
-export class StandingsQueryDto extends SeasonPaginationQueryDto {
+export class StandingsQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1950)
+  @Max(2100)
+  season?: number;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

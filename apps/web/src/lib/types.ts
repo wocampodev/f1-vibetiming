@@ -74,21 +74,21 @@ export interface ConstructorStandingsResponse {
   standings: ConstructorStandingItem[];
 }
 
-export type LiveStreamStatus = 'connecting' | 'live' | 'degraded' | 'stopped';
+export type LiveStreamStatus = "connecting" | "live" | "degraded" | "stopped";
 
 export type LiveFlagStatus =
-  | 'green'
-  | 'yellow'
-  | 'red'
-  | 'safety_car'
-  | 'virtual_safety_car'
-  | 'checkered';
+  | "green"
+  | "yellow"
+  | "red"
+  | "safety_car"
+  | "virtual_safety_car"
+  | "checkered";
 
 export interface LiveSessionState {
   weekendId: string | null;
   sessionId: string | null;
   sessionName: string | null;
-  phase: 'running' | 'finished' | 'unknown';
+  phase: "running" | "finished" | "unknown";
   flag: LiveFlagStatus;
   currentLap: number | null;
   totalLaps: number | null;
@@ -106,23 +106,22 @@ export interface LiveTrackStatusSample {
 }
 
 export type LivePitState =
-  | 'on_track'
-  | 'pit_lane'
-  | 'pit_out'
-  | 'pit_garage'
-  | 'in_pit'
-  | 'off_track'
-  | 'stopped'
-  | 'unknown';
+  | "on_track"
+  | "pit_lane"
+  | "pit_out"
+  | "pit_garage"
+  | "in_pit"
+  | "off_track"
+  | "stopped"
+  | "unknown";
 
 export type LivePositionSource =
-  | 'simulator'
-  | 'timing_data'
-  | 'best_lap'
-  | 'last_lap'
-  | 'driver_code';
+  | "timing_data"
+  | "best_lap"
+  | "last_lap"
+  | "driver_code";
 
-export type LivePositionConfidence = 'high' | 'medium' | 'low';
+export type LivePositionConfidence = "high" | "medium" | "low";
 
 export interface LiveMiniSector {
   sector: number;
@@ -153,7 +152,7 @@ export interface LiveLeaderboardEntry {
 export interface LiveRaceControlMessage {
   id: string;
   emittedAt: string;
-  category: 'flag' | 'control' | 'incident' | 'pit';
+  category: "flag" | "control" | "incident" | "pit";
   message: string;
   flag?: LiveFlagStatus;
 }
@@ -173,13 +172,13 @@ export interface LiveBoardSectorCell {
 }
 
 export interface LiveBoardTireState {
-  compound: 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | null;
+  compound: "SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET" | null;
   ageLaps: number | null;
   isNew: boolean | null;
 }
 
 export interface LiveBoardProjectionState {
-  mode: 'pass_through' | 'stabilized' | 'withheld';
+  mode: "pass_through" | "stabilized" | "withheld";
   lowConfidenceLeaderSuppressions: number;
   lastLowConfidenceLeaderAt: string | null;
   lastLowConfidenceLeaderCode: string | null;
@@ -269,15 +268,12 @@ export interface LiveHealthDetails {
 }
 
 export interface LiveHealthState {
-  source: 'simulator' | 'provider';
+  source: "provider";
   status: LiveStreamStatus;
   running: boolean;
   startedAt: string | null;
   lastEventAt: string | null;
-  tickMs: number;
   heartbeatMs: number;
-  seed: number | null;
-  speedMultiplier: number | null;
   details?: LiveHealthDetails | null;
 }
 
@@ -297,8 +293,8 @@ export interface LiveStatusPayload {
 
 export interface LiveEnvelope<TPayload> {
   sequence: number;
-  source: 'simulator' | 'provider';
-  eventType: 'initial_state' | 'delta_update' | 'heartbeat' | 'status';
+  source: "provider";
+  eventType: "initial_state" | "delta_update" | "heartbeat" | "status";
   emittedAt: string;
   payload: TPayload;
 }
