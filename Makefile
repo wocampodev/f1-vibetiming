@@ -3,11 +3,8 @@
 POSTGRES_CONTAINER ?= f1-vibetiming-postgres
 POSTGRES_USER ?= postgres
 POSTGRES_DB ?= f1_vibetiming
-TOPIC ?= TimingData
 BACKUP_FILE ?=
 WEB_SMOKE_PORT ?=
-SESSION_KEY ?=
-MAX_AGE_SEC ?=
 PROVIDER_LOG ?= off
 PROVIDER_LOG_MAX_CHARS ?= 600
 
@@ -21,7 +18,7 @@ PROVIDER_LOG_MAX_CHARS ?= 600
 	run down \
 	stack-up stack-up-provider-capture stack-up-provider-verbose stack-down \
 	logs-api health \
-	backup backup-now restore backup-restore provider-inspect provider-inspect-topic provider-audit provider-export sql provider-psql
+	backup backup-now restore backup-restore sql
 
 help: ## Show the simplified command surface
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -143,24 +140,5 @@ restore: ## Restore a SQL backup file into local Postgres (set BACKUP_FILE=...)
 backup-restore:
 	$(MAKE) restore BACKUP_FILE="$(BACKUP_FILE)"
 
-provider-inspect: ## Show provider capture summary (set TOPIC=TimingData for recent payloads)
-	sh scripts/live-provider-inspect.sh "$(TOPIC)"
-
-provider-inspect-topic:
-	sh scripts/live-provider-inspect.sh "$(TOPIC)"
-
-provider-audit: ## Audit latest provider ranking session (set SESSION_KEY=... or MAX_AGE_SEC=...)
-	@if [ -n "$(SESSION_KEY)" ]; then \
-		MAX_AGE_SEC=$(MAX_AGE_SEC) pnpm --filter api live:audit "$(SESSION_KEY)"; \
-	else \
-		MAX_AGE_SEC=$(MAX_AGE_SEC) pnpm --filter api live:audit; \
-	fi
-
-provider-export: ## Export provider capture reports into docs/live-provider/reports
-	node scripts/live-provider-export.mjs
-
 sql: ## Open an interactive PostgreSQL shell inside the local container
-	docker exec -it $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
-
-provider-psql:
 	docker exec -it $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
