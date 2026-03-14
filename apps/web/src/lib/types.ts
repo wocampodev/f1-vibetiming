@@ -54,23 +54,20 @@ export interface ConstructorStandingItem {
   };
 }
 
-export interface DriverStandingsResponse {
+export interface StandingsSnapshot {
   season: number;
   round: number | null;
   previousRound: number | null;
   availableRounds: number[];
   freshness: Freshness;
   meta: PaginationMeta;
+}
+
+export interface DriverStandingsResponse extends StandingsSnapshot {
   standings: DriverStandingItem[];
 }
 
-export interface ConstructorStandingsResponse {
-  season: number;
-  round: number | null;
-  previousRound: number | null;
-  availableRounds: number[];
-  freshness: Freshness;
-  meta: PaginationMeta;
+export interface ConstructorStandingsResponse extends StandingsSnapshot {
   standings: ConstructorStandingItem[];
 }
 
@@ -84,11 +81,17 @@ export type LiveFlagStatus =
   | "virtual_safety_car"
   | "checkered";
 
+export type LiveSessionPhase = "running" | "finished" | "unknown";
+
+export type TireCompound = "SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET";
+
+export type LiveRaceControlCategory = "flag" | "control" | "incident" | "pit";
+
 export interface LiveSessionState {
   weekendId: string | null;
   sessionId: string | null;
   sessionName: string | null;
-  phase: "running" | "finished" | "unknown";
+  phase: LiveSessionPhase;
   flag: LiveFlagStatus;
   currentLap: number | null;
   totalLaps: number | null;
@@ -152,7 +155,7 @@ export interface LiveLeaderboardEntry {
 export interface LiveRaceControlMessage {
   id: string;
   emittedAt: string;
-  category: "flag" | "control" | "incident" | "pit";
+  category: LiveRaceControlCategory;
   message: string;
   flag?: LiveFlagStatus;
 }
@@ -172,7 +175,7 @@ export interface LiveBoardSectorCell {
 }
 
 export interface LiveBoardTireState {
-  compound: "SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET" | null;
+  compound: TireCompound | null;
   ageLaps: number | null;
   isNew: boolean | null;
 }
