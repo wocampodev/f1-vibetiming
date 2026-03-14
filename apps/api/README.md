@@ -47,6 +47,10 @@ Standings endpoints:
 - `GET /api/standings/drivers?season=<year>&round=<round>`
 - `GET /api/standings/constructors?season=<year>&round=<round>`
 
+Scope note:
+
+- Legacy calendar/weekend/session-result endpoints are intentionally removed; product-facing API scope is live timing plus standings.
+
 Live runtime environment variables:
 
 - `LIVE_SIGNALR_BASE_URL` (default `https://livetiming.formula1.com/signalr`)

@@ -220,18 +220,35 @@ function createLiveReplayServiceMock(overrides?: Record<string, unknown>) {
   };
 }
 
+function createLiveServiceHarness(options?: {
+  configValues?: Record<string, unknown>;
+  providerOverrides?: Record<string, unknown>;
+  captureOverrides?: Record<string, unknown>;
+  replayOverrides?: Record<string, unknown>;
+}) {
+  const config = createConfigMock(options?.configValues ?? {});
+  const provider = createProviderAdapterMock(options?.providerOverrides);
+  const capture = createLiveCaptureServiceMock(options?.captureOverrides);
+  const replay = createLiveReplayServiceMock(options?.replayOverrides);
+  const service = new LiveService(
+    config as never,
+    provider as never,
+    capture as never,
+    replay as never,
+  );
+
+  return {
+    config,
+    provider,
+    capture,
+    replay,
+    service,
+  };
+}
+
 describe('LiveService', () => {
   it('starts the provider source and exposes current state', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
+    const { provider, service } = createLiveServiceHarness();
 
     await service.onModuleInit();
 
@@ -255,16 +272,7 @@ describe('LiveService', () => {
   });
 
   it('builds a rich live board projection without changing the live state contract', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
+    const { service } = createLiveServiceHarness();
 
     await service.onModuleInit();
 
@@ -304,16 +312,7 @@ describe('LiveService', () => {
   });
 
   it('streams an initial_state envelope when state is available', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
+    const { service } = createLiveServiceHarness();
 
     await service.onModuleInit();
     const event = await firstValueFrom(service.stream());
@@ -333,25 +332,18 @@ describe('LiveService', () => {
   });
 
   it('streams status envelope when provider is degraded without state', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock({
-      start: jest.fn((publish: (event: unknown) => void) => {
-        publish({
-          type: 'status',
-          status: 'degraded',
-          message: 'Provider adapter failed to start',
-        });
-        return Promise.resolve();
-      }),
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({
+            type: 'status',
+            status: 'degraded',
+            message: 'Provider adapter failed to start',
+          });
+          return Promise.resolve();
+        }),
+      },
     });
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
     const event = await firstValueFrom(service.stream());
@@ -368,16 +360,7 @@ describe('LiveService', () => {
   });
 
   it('passes adapter diagnostics through the health payload', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
+    const { service } = createLiveServiceHarness();
 
     await service.onModuleInit();
 
@@ -395,40 +378,33 @@ describe('LiveService', () => {
   });
 
   it('persists provider topic freshness metadata with snapshots', async () => {
-    const config = createConfigMock({});
     const providerState = createLiveState();
-    const provider = createProviderAdapterMock({
-      start: jest.fn((publish: (event: unknown) => void) => {
-        publish({ type: 'initial_state', state: providerState });
-        return Promise.resolve();
-      }),
-      getHealth: jest.fn(() => ({
-        running: true,
-        startedAt: '2026-03-03T00:00:00.000Z',
-        lastEventAt: '2026-03-03T00:00:00.000Z',
-        heartbeatMs: 15000,
-        details: {
-          topics: ['TimingData', 'LapCount', 'CarData.z'],
-          topicMessageCount: {
-            TimingData: 18,
-            LapCount: 2,
-            CarData: 0,
+    const { capture, service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: providerState });
+          return Promise.resolve();
+        }),
+        getHealth: jest.fn(() => ({
+          running: true,
+          startedAt: '2026-03-03T00:00:00.000Z',
+          lastEventAt: '2026-03-03T00:00:00.000Z',
+          heartbeatMs: 15000,
+          details: {
+            topics: ['TimingData', 'LapCount', 'CarData.z'],
+            topicMessageCount: {
+              TimingData: 18,
+              LapCount: 2,
+              CarData: 0,
+            },
+            topicLastSeenAt: {
+              TimingData: '2026-03-03T00:00:00.000Z',
+              LapCount: '2026-03-03T00:00:00.000Z',
+            },
           },
-          topicLastSeenAt: {
-            TimingData: '2026-03-03T00:00:00.000Z',
-            LapCount: '2026-03-03T00:00:00.000Z',
-          },
-        },
-      })),
+        })),
+      },
     });
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -461,16 +437,8 @@ describe('LiveService', () => {
   });
 
   it('replays a recent persisted provider session before adapter updates', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock({
-      start: jest.fn(() => Promise.resolve()),
-    });
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Restored Session';
-    const capture = createLiveCaptureServiceMock({
-      loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
-      getHealth: jest.fn(() => ({ enabled: true })),
-    });
     const replayTopicFreshness = createTopicFreshnessState({
       capturedAt: '2026-03-03T00:00:05.000Z',
       topics: [
@@ -486,24 +454,27 @@ describe('LiveService', () => {
         },
       ],
     });
-    const replay = createLiveReplayServiceMock({
-      replayLatestProviderSession: jest.fn(() =>
-        Promise.resolve({
-          sessionKey: 'provider:restored:session',
-          eventCount: 12,
-          firstEventAt: '2026-03-03T00:00:00.000Z',
-          lastEventAt: '2026-03-03T00:00:05.000Z',
-          state: restoredState,
-          topicFreshness: replayTopicFreshness,
-        }),
-      ),
+    const { capture, service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn(() => Promise.resolve()),
+      },
+      captureOverrides: {
+        loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
+        getHealth: jest.fn(() => ({ enabled: true })),
+      },
+      replayOverrides: {
+        replayLatestProviderSession: jest.fn(() =>
+          Promise.resolve({
+            sessionKey: 'provider:restored:session',
+            eventCount: 12,
+            firstEventAt: '2026-03-03T00:00:00.000Z',
+            lastEventAt: '2026-03-03T00:00:05.000Z',
+            state: restoredState,
+            topicFreshness: replayTopicFreshness,
+          }),
+        ),
+      },
     });
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -529,10 +500,6 @@ describe('LiveService', () => {
   });
 
   it('falls back to the persisted snapshot when replay has no recent provider session', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock({
-      start: jest.fn(() => Promise.resolve()),
-    });
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Snapshot Session';
     const restoredPublicState = createPublicState(restoredState);
@@ -552,27 +519,25 @@ describe('LiveService', () => {
       internalLeaderConfidence: restoredState.leaderboard[0].positionConfidence,
       publicLeaderCode: restoredPublicState.leaderboard[0].driverCode,
     });
-    const capture = createLiveCaptureServiceMock({
-      loadLatestSnapshotBundle: jest.fn(() =>
-        Promise.resolve({
-          sessionKey: 'provider:snapshot:session',
-          generatedAt: restoredState.generatedAt,
-          version: 4,
-          changedFields: ['leaderboard'],
-          internalState: restoredState,
-          publicState: restoredPublicState,
-          projectionState: restoredProjectionState,
-        }),
-      ),
-      getHealth: jest.fn(() => ({ enabled: true })),
+    const { capture, replay, service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn(() => Promise.resolve()),
+      },
+      captureOverrides: {
+        loadLatestSnapshotBundle: jest.fn(() =>
+          Promise.resolve({
+            sessionKey: 'provider:snapshot:session',
+            generatedAt: restoredState.generatedAt,
+            version: 4,
+            changedFields: ['leaderboard'],
+            internalState: restoredState,
+            publicState: restoredPublicState,
+            projectionState: restoredProjectionState,
+          }),
+        ),
+        getHealth: jest.fn(() => ({ enabled: true })),
+      },
     });
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -588,7 +553,6 @@ describe('LiveService', () => {
   });
 
   it('keeps the previous provider order when a later update would publish a low-confidence P1', async () => {
-    const config = createConfigMock({});
     const trustedState = cloneLiveState();
     trustedState.session.sessionName = 'Australian Grand Prix - Qualifying';
     trustedState.leaderboard = [
@@ -644,25 +608,19 @@ describe('LiveService', () => {
       }),
     ];
 
-    const provider = createProviderAdapterMock({
-      start: jest.fn((publish: (event: unknown) => void) => {
-        publish({ type: 'initial_state', state: trustedState });
-        publish({
-          type: 'delta_update',
-          state: weakState,
-          changedFields: ['leaderboard'],
-        });
-        return Promise.resolve();
-      }),
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: trustedState });
+          publish({
+            type: 'delta_update',
+            state: weakState,
+            changedFields: ['leaderboard'],
+          });
+          return Promise.resolve();
+        }),
+      },
     });
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -706,7 +664,6 @@ describe('LiveService', () => {
   });
 
   it('withholds provider leaderboard rows when startup data only has a low-confidence driver-code leader', async () => {
-    const config = createConfigMock({});
     const weakState = cloneLiveState();
     weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
     weakState.leaderboard = [
@@ -721,20 +678,14 @@ describe('LiveService', () => {
       }),
     ];
 
-    const provider = createProviderAdapterMock({
-      start: jest.fn((publish: (event: unknown) => void) => {
-        publish({ type: 'initial_state', state: weakState });
-        return Promise.resolve();
-      }),
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: weakState });
+          return Promise.resolve();
+        }),
+      },
     });
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -748,7 +699,6 @@ describe('LiveService', () => {
   });
 
   it('withholds provider leaderboard rows when startup data only has a low-confidence best-lap leader', async () => {
-    const config = createConfigMock({});
     const weakState = cloneLiveState();
     weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
     weakState.leaderboard = [
@@ -764,20 +714,14 @@ describe('LiveService', () => {
       }),
     ];
 
-    const provider = createProviderAdapterMock({
-      start: jest.fn((publish: (event: unknown) => void) => {
-        publish({ type: 'initial_state', state: weakState });
-        return Promise.resolve();
-      }),
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: weakState });
+          return Promise.resolve();
+        }),
+      },
     });
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
 
     await service.onModuleInit();
 
@@ -791,16 +735,7 @@ describe('LiveService', () => {
   });
 
   it('stops the provider adapter on module destroy', async () => {
-    const config = createConfigMock({});
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
+    const { provider, service } = createLiveServiceHarness();
 
     await service.onModuleInit();
     await service.onModuleDestroy();

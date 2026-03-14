@@ -59,6 +59,7 @@ Use `make help` for the full list. Most-used targets:
 - Ongoing development now happens on `develop`
 - Stabilized work should go from `develop` to `main` through pull requests
 - Local refactors and validation can continue without live provider traffic by using the captured data and automated tests
+- The public product surface is intentionally narrow: live timing plus standings only; legacy weekend/session result routes are removed
 
 ## Quality Checks
 
