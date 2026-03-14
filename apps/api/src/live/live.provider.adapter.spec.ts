@@ -6,9 +6,9 @@ import {
   extractCookieJarEntries,
   extractFeedMessagesFromRawText,
   extractFeedMessagesFromRawTextWithStats,
-  formatProviderLogValue,
-  ProviderStateAccumulator,
-} from './live.provider.adapter';
+} from './live.provider.protocol';
+import { formatProviderLogValue } from './live.provider.logging';
+import { ProviderStateAccumulator } from './live.provider.state';
 
 describe('extractCookieJarEntries', () => {
   it('keeps only cookie pairs and deduplicates by cookie name', () => {

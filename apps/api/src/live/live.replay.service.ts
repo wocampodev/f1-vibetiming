@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LiveCaptureSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { ProviderStateAccumulator } from './live.provider.adapter';
+import { ProviderStateAccumulator } from './live.provider.state';
 import {
   LivePositionConfidence,
   LivePositionSource,
