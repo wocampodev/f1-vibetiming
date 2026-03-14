@@ -6,7 +6,7 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
   ERGAST_BASE_URL: Joi.string().uri().default('https://api.jolpi.ca/ergast'),
-  LIVE_SOURCE: Joi.string().valid('simulator', 'provider').default('provider'),
+  LIVE_SOURCE: Joi.string().valid('simulator', 'provider').default('simulator'),
   LIVE_SIMULATOR_TICK_MS: Joi.number().integer().min(250).default(2000),
   LIVE_SIMULATOR_SPEED_MULTIPLIER: Joi.number().min(0.25).max(8).default(1),
   LIVE_HEARTBEAT_MS: Joi.number().integer().min(1000).default(15000),
@@ -23,14 +23,9 @@ export const envValidationSchema = Joi.object({
     .integer()
     .min(1000)
     .default(30000),
-  LIVE_PROVIDER_LOG_FRAMES: Joi.boolean()
-    .truthy('true', '1', 'yes', 'on')
-    .falsy('false', '0', 'no', 'off')
-    .default(false),
-  LIVE_PROVIDER_LOG_MESSAGES: Joi.boolean()
-    .truthy('true', '1', 'yes', 'on')
-    .falsy('false', '0', 'no', 'off')
-    .default(false),
+  LIVE_PROVIDER_LOG: Joi.string()
+    .valid('off', 'frames', 'messages', 'all')
+    .default('off'),
   LIVE_PROVIDER_LOG_MAX_CHARS: Joi.number().integer().min(80).default(600),
   LIVE_PROVIDER_CAPTURE_ENABLED: Joi.boolean()
     .truthy('true', '1', 'yes', 'on')

@@ -11,6 +11,7 @@ flowchart LR
     providerAdapter[SignalR Provider Adapter]
     normalizer[Live Feed Normalizer]
     streamGateway[SSE Stream Gateway]
+    boardEndpoint[/api/live/board]
     stateEndpoint[/api/live/state]
     healthEndpoint[/api/live/health]
     standingsIngestion[Standings Ingestion]
@@ -22,6 +23,7 @@ flowchart LR
   signalr --> providerAdapter
   providerAdapter --> normalizer
   normalizer --> streamGateway
+  normalizer --> boardEndpoint
   normalizer --> stateEndpoint
   normalizer --> healthEndpoint
 
@@ -30,6 +32,7 @@ flowchart LR
 
   db --> web
   streamGateway --> web
+  boardEndpoint --> web
   stateEndpoint --> web
   healthEndpoint --> web
 ```
@@ -40,7 +43,8 @@ Implementation notes:
 - Provider normalization currently covers session, timing, timing stats, car telemetry, position, and race-control topics.
 - Provider capture can persist raw decoded messages, topic shape summaries, and normalized live snapshots for local analysis.
 - Leaderboard entries include bounded speed-history and track-status-history windows for trend rendering.
-- Web consumes SSE first and uses `/api/live/state` as fallback polling path.
+- Web consumes SSE first and uses `/api/live/board` as its browser-facing polling path.
+- `/api/live/state` remains the stable legacy snapshot contract.
 - `/api/live/health` includes provider transport diagnostics plus local capture metadata (active run, persisted snapshot freshness, and per-topic snapshot freshness details).
 - Standings remain DB-backed with per-round history persistence, selectable round snapshots, and previous-round movement deltas.
 

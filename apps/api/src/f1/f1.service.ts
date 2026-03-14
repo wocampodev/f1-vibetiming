@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IngestionStatus, SessionStatus } from '@prisma/client';
+import { IngestionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface SeasonPaginationOptions {
@@ -475,19 +475,5 @@ export class F1Service {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     };
-  }
-
-  async markSessionsCompleted(now: Date = new Date()): Promise<number> {
-    const result = await this.prisma.session.updateMany({
-      where: {
-        startsAt: { lt: now },
-        status: SessionStatus.SCHEDULED,
-      },
-      data: {
-        status: SessionStatus.COMPLETED,
-      },
-    });
-
-    return result.count;
   }
 }

@@ -41,7 +41,7 @@ make run
 For noisier payload diagnostics while attached to container logs:
 
 ```bash
-make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true
+make run PROVIDER_LOG=all
 ```
 
 Force an immediate SQL backup:
@@ -72,7 +72,7 @@ Tonight capture checklist:
 
 ```bash
 make down
-make run PROVIDER_LOG_MESSAGES=true
+make run PROVIDER_LOG=messages
 make health
 make provider-audit
 make provider-export

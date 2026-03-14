@@ -75,9 +75,10 @@ Use `make help` for the full list. Most-used targets:
 
 - Local development defaults to simulator mode (`LIVE_SOURCE=simulator`).
 - Raw `docker compose` still defaults to simulator mode; `make run` overrides that to provider mode.
-- For noisier provider payload diagnostics, run `make run PROVIDER_LOG_FRAMES=true PROVIDER_LOG_MESSAGES=true`.
+- For noisier provider payload diagnostics, run `make run PROVIDER_LOG=all`.
 - Local provider capture now persists raw events and snapshots into PostgreSQL with a bind mount at `./.data/postgres` and daily SQL backups at `./.data/backups`.
-- Web consumes SSE from `/api/live/stream` and falls back to polling `/api/live/state` when needed.
+- Web consumes SSE from `/api/live/stream`, fetches `/api/live/board` on live updates, and falls back to polling `/api/live/board` when needed.
+- `/api/live/state` remains the stable legacy live snapshot contract for non-board consumers.
 - Live health diagnostics are exposed at `/api/live/health`.
 - Live leaderboard rows include bounded speed-history and track-status-history arrays for trend visuals.
 - Standings support round selection with previous-round movement and points delta context.

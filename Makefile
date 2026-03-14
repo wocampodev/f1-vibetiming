@@ -8,8 +8,7 @@ BACKUP_FILE ?=
 WEB_SMOKE_PORT ?=
 SESSION_KEY ?=
 MAX_AGE_SEC ?=
-PROVIDER_LOG_FRAMES ?= false
-PROVIDER_LOG_MESSAGES ?= false
+PROVIDER_LOG ?= off
 PROVIDER_LOG_MAX_CHARS ?= 600
 
 .PHONY: \
@@ -100,7 +99,7 @@ test-all:
 
 run: ## Run Docker in provider mode with attached logs
 	$(MAKE) env-copy
-	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=$(PROVIDER_LOG_FRAMES) LIVE_PROVIDER_LOG_MESSAGES=$(PROVIDER_LOG_MESSAGES) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up --build
+	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up --build
 
 run-sim: ## Run Docker in simulator mode with attached logs
 	$(MAKE) env-copy
@@ -118,8 +117,9 @@ stack-up-provider:
 stack-up-provider-capture:
 	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
 
+stack-up-provider-verbose: PROVIDER_LOG = all
 stack-up-provider-verbose:
-	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG_FRAMES=$(PROVIDER_LOG_FRAMES) LIVE_PROVIDER_LOG_MESSAGES=$(PROVIDER_LOG_MESSAGES) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up -d --build
+	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up -d --build
 
 stack-down:
 	docker compose --profile app down
