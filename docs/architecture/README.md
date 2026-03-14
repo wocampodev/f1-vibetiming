@@ -12,6 +12,7 @@ Read in this order:
 6. `06-ci-flow.md`
 7. `07-live-mode-extension.md`
 8. `08-live-provider-persistence.md`
+9. `09-live-runtime-internals.md`
 
 Notes:
 
