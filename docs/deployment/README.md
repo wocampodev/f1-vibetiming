@@ -99,6 +99,7 @@ make restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
 - `api` service runs `prisma db push` at startup before `start:prod`.
 - `postgres-init` prepares bind-mounted local directories before PostgreSQL starts.
 - Product scope is intentionally minimal: live dashboard + championship standings.
+- Legacy calendar/weekend/session-result endpoints and simulator runtime are intentionally removed from the deployed surface.
 - Runtime should stay provider-first without synthetic fallback data.
 - `/api/live/health` is the primary provider diagnostics endpoint (transport throughput + parser/decode reliability).
 - `/standings` now relies on per-round standings history persisted in Postgres; keep schema synced with `prisma db push` during deploys.
