@@ -17,8 +17,8 @@ F1 VibeTiming is a two-view product:
 Primary command surface:
 
 - run `make help`
-- use the `Makefile` at the repo root as the main place to discover local actions
-- `.opencode/commands.yml` now wraps those same `make` targets
+- use the repo-root `Makefile` as the source of truth for local actions
+- `.opencode/commands.yml` only wraps those same `make` targets
 
 Recommended local bootstrap:
 
@@ -68,13 +68,14 @@ Use `make help` for the full list. Most-used targets:
 - Raw `docker compose` and `make run` both start the provider-based live runtime.
 - For noisier provider payload diagnostics, run `make run PROVIDER_LOG=all`.
 - Local provider capture now persists raw events and snapshots into PostgreSQL with a bind mount at `./.data/postgres` and daily SQL backups at `./.data/backups`.
+- Local transmission-analysis material belongs in `data-analysis/` only and stays out of git.
 - Web consumes SSE from `/api/live/stream`, fetches `/api/live/board` on live updates, and falls back to polling `/api/live/board` when needed.
 - `/api/live/state` remains the stable legacy live snapshot contract for non-board consumers.
 - Live health diagnostics are exposed at `/api/live/health`.
 - Live leaderboard rows include bounded speed-history and track-status-history arrays for trend visuals.
 - Standings support round selection with previous-round movement and points delta context.
 
-## Planning Artifacts
+## Repo Guides
 
 - Primary command catalog: `Makefile`
 - OpenCode wrapper catalog: `.opencode/commands.yml`
