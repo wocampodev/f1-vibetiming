@@ -10,7 +10,3 @@ Files:
 Primary command surface:
 
 - `Makefile`
-
-Canonical planning doc:
-
-- `AGENTS.md`

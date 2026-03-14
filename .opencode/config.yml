@@ -25,7 +25,6 @@ decisions:
   - Avoid synthetic fallback behavior in provider mode
 
 artifacts:
-  handoff: AGENTS.md
   commands: .opencode/commands.yml
 
 ci:

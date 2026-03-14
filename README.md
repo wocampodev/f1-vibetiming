@@ -84,7 +84,6 @@ Use `make help` for the full list. Most-used targets:
 
 ## Planning Artifacts
 
-- Session handoff (canonical): `AGENTS.md`
 - Primary command catalog: `Makefile`
 - OpenCode wrapper catalog: `.opencode/commands.yml`
 - Architecture docs: `docs/architecture/README.md`
