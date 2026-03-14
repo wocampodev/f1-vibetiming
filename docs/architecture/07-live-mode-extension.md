@@ -40,7 +40,7 @@ flowchart LR
 Implementation notes:
 
 - Live stream transport is SignalR with reconnect/backoff handling in API and web.
-- Provider normalization currently covers session, timing, timing stats, car telemetry, position, and race-control topics.
+- Provider runtime is now split into protocol helpers, generic value parsers, topic parsers, telemetry store, session state, and reducer/coordinator layers.
 - Provider capture can persist raw decoded messages, topic shape summaries, and normalized live snapshots for local analysis.
 - Leaderboard entries include bounded speed-history and track-status-history windows for trend rendering.
 - Web consumes SSE first and uses `/api/live/board` as its browser-facing polling path.
@@ -51,6 +51,12 @@ Implementation notes:
 Source of truth:
 
 - `apps/api/src/live/live.provider.adapter.ts`
+- `apps/api/src/live/live.provider.state.ts`
+- `apps/api/src/live/live.provider.store.ts`
+- `apps/api/src/live/live.provider.session.ts`
+- `apps/api/src/live/live.provider.leaderboard.ts`
+- `apps/api/src/live/live.provider.parsers.ts`
+- `apps/api/src/live/README.md`
 - `apps/api/src/live/live.service.ts`
 - `apps/web/src/components/live-dashboard.tsx`
 - `apps/api/src/ingestion/ingestion.service.ts`

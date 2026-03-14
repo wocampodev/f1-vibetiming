@@ -59,8 +59,13 @@ Implementation notes:
 Source of truth:
 
 - `apps/api/src/live/live.provider.adapter.ts`
+- `apps/api/src/live/live.provider.state.ts`
+- `apps/api/src/live/live.provider.store.ts`
+- `apps/api/src/live/live.provider.session.ts`
+- `apps/api/src/live/live.provider.leaderboard.ts`
 - `apps/api/src/live/live.capture.service.ts`
 - `apps/api/src/live/live.capture.scheduler.ts`
 - `apps/api/src/live/live.service.ts`
+- `apps/api/src/live/README.md`
 - `apps/api/prisma/schema.prisma`
 - `compose.yml`
