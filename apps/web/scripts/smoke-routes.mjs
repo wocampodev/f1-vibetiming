@@ -11,8 +11,8 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const routes = [
-  { path: '/', status: 200, contains: 'Live dashboard' },
-  { path: '/live', status: 200, contains: 'Live dashboard' },
+  { path: '/', status: 200, contains: 'Waiting for live board projection.' },
+  { path: '/live', status: 200, contains: 'Waiting for live board projection.' },
   { path: '/standings', status: 200, contains: 'Championship standings' },
   { path: '/calendar', status: 404 },
   { path: '/session', status: 404 },
