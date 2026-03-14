@@ -1,4 +1,4 @@
-import { LiveBoardRow } from "@/lib/types";
+import { LiveBoardRow, TireCompound } from "@/lib/types";
 import {
   formatGap,
   formatLapDelta,
@@ -9,7 +9,7 @@ import {
   miniSectorClassName,
 } from "@/lib/live-board";
 
-const tireToneByCompound: Record<string, string> = {
+const tireToneByCompound: Record<TireCompound, string> = {
   SOFT: "border-red-400/40 bg-red-500/10 text-red-100",
   MEDIUM: "border-yellow-400/40 bg-yellow-400/10 text-yellow-100",
   HARD: "border-zinc-300/40 bg-zinc-400/10 text-zinc-100",
