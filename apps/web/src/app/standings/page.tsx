@@ -32,6 +32,32 @@ export default async function StandingsPage() {
     );
   }
 
+  const sortedDrivers = [...drivers.standings].sort((left, right) => {
+    if (right.points !== left.points) {
+      return right.points - left.points;
+    }
+
+    if (right.wins !== left.wins) {
+      return right.wins - left.wins;
+    }
+
+    return `${left.driver.givenName} ${left.driver.familyName}`.localeCompare(
+      `${right.driver.givenName} ${right.driver.familyName}`,
+    );
+  });
+
+  const sortedConstructors = [...constructors.standings].sort((left, right) => {
+    if (right.points !== left.points) {
+      return right.points - left.points;
+    }
+
+    if (right.wins !== left.wins) {
+      return right.wins - left.wins;
+    }
+
+    return left.team.name.localeCompare(right.team.name);
+  });
+
   return (
     <div className="space-y-5">
       <section className="panel p-6">
@@ -61,9 +87,9 @@ export default async function StandingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {drivers.standings.map((item) => (
+                {sortedDrivers.map((item, index) => (
                   <tr key={item.driver.id} className="border-t border-[var(--line)]/70">
-                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{item.position}</td>
+                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{index + 1}</td>
                     <td className="px-4 py-2 text-[var(--ink)]">
                       {item.driver.givenName} {item.driver.familyName}
                     </td>
@@ -91,9 +117,9 @@ export default async function StandingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {constructors.standings.map((item) => (
+                {sortedConstructors.map((item, index) => (
                   <tr key={item.team.id} className="border-t border-[var(--line)]/70">
-                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{item.position}</td>
+                    <td className="px-4 py-2 font-semibold text-[#cfe2ff]">P{index + 1}</td>
                     <td className="px-4 py-2 text-[var(--ink)]">{item.team.name}</td>
                     <td className="px-4 py-2 text-right font-semibold text-[#67d6ff]">
                       {item.points.toFixed(0)}
