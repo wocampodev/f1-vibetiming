@@ -44,3 +44,33 @@ export const sortConstructorStandings = (
     return left.team.name.localeCompare(right.team.name);
   });
 };
+
+export const parseStandingsNumberParam = (
+  value: string | string[] | undefined,
+): number | undefined => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export const buildStandingsHref = (input: {
+  season?: number;
+  round?: number;
+}) => {
+  const params = new URLSearchParams();
+
+  if (input.season) {
+    params.set("season", `${input.season}`);
+  }
+
+  if (input.round) {
+    params.set("round", `${input.round}`);
+  }
+
+  const query = params.toString();
+  return query.length > 0 ? `/standings?${query}` : "/standings";
+};

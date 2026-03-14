@@ -7,6 +7,7 @@ import { LiveRaceControlPanel } from "@/components/live-race-control-panel";
 import {
   LiveDashboardAlerts,
   LiveDashboardEmptyState,
+  LiveDashboardHeader,
 } from "@/components/live-dashboard-state";
 import { useLiveBoardStream } from "@/components/use-live-board-stream";
 
@@ -22,6 +23,7 @@ export function LiveDashboard() {
     <section className="panel overflow-hidden p-0">
       {boardState ? (
         <div>
+          <LiveDashboardHeader boardState={boardState} />
           <LiveDashboardAlerts
             streamStale={streamStale}
             projectionMode={boardState.projection.mode}
