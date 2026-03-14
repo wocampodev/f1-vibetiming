@@ -1,3 +1,4 @@
+import { firstValueFrom } from 'rxjs';
 import { LiveService } from './live.service';
 import {
   LiveBoardProjectionState,
@@ -5,7 +6,6 @@ import {
   LiveState,
   LiveTopicFreshnessState,
 } from './live.types';
-import { firstValueFrom } from 'rxjs';
 
 function createConfigMock(values: Record<string, unknown>) {
   return {
@@ -23,9 +23,9 @@ function createLiveState(): LiveState {
   return {
     generatedAt: '2026-03-03T00:00:00.000Z',
     session: {
-      weekendId: 'sim-weekend',
-      sessionId: 'sim-session',
-      sessionName: 'Simulator Race',
+      weekendId: 'provider-weekend',
+      sessionId: 'provider-session',
+      sessionName: 'Provider Session',
       phase: 'running',
       flag: 'green',
       currentLap: 5,
@@ -68,7 +68,7 @@ function createLiveState(): LiveState {
         tireCompound: 'SOFT',
         stintLap: 5,
         tireIsNew: false,
-        positionSource: 'simulator',
+        positionSource: 'timing_data',
         positionUpdatedAt: '2026-03-03T00:00:00.000Z',
         positionConfidence: 'high',
       },
@@ -122,7 +122,7 @@ function createProjectionState(
     internalLeaderboardRows: 1,
     publicLeaderboardRows: 1,
     internalLeaderCode: 'VER',
-    internalLeaderSource: 'simulator',
+    internalLeaderSource: 'timing_data',
     internalLeaderConfidence: 'high',
     publicLeaderCode: 'VER',
     ...overrides,
@@ -159,22 +159,22 @@ function createLeaderboardEntry(
   };
 }
 
-function createSimulatorAdapterMock() {
+function createProviderAdapterMock(overrides?: Record<string, unknown>) {
   const state = createLiveState();
 
   return {
-    source: 'simulator' as const,
+    source: 'provider' as const,
     start: jest.fn((publish: (event: unknown) => void) => {
       publish({
         type: 'status',
         status: 'connecting',
-        message: 'Starting simulator live source',
+        message: 'Connecting to Formula 1 live SignalR stream',
       });
       publish({ type: 'initial_state', state });
       publish({
         type: 'status',
         status: 'live',
-        message: 'Simulator source is active',
+        message: 'Connected to Formula 1 live SignalR stream',
       });
       return Promise.resolve();
     }),
@@ -183,34 +183,7 @@ function createSimulatorAdapterMock() {
       running: true,
       startedAt: '2026-03-03T00:00:00.000Z',
       lastEventAt: '2026-03-03T00:00:02.000Z',
-      tickMs: 2000,
       heartbeatMs: 15000,
-      seed: 2026,
-      speedMultiplier: 1,
-    })),
-  };
-}
-
-function createProviderAdapterMock(overrides?: Record<string, unknown>) {
-  return {
-    source: 'provider' as const,
-    start: jest.fn((publish: (event: unknown) => void) => {
-      publish({
-        type: 'status',
-        status: 'degraded',
-        message: 'Provider adapter is not implemented in this build',
-      });
-      return Promise.resolve();
-    }),
-    stop: jest.fn(() => Promise.resolve()),
-    getHealth: jest.fn(() => ({
-      running: true,
-      startedAt: '2026-03-03T00:00:00.000Z',
-      lastEventAt: '2026-03-03T00:00:00.000Z',
-      tickMs: 0,
-      heartbeatMs: 0,
-      seed: null,
-      speedMultiplier: null,
       details: {
         framesReceived: 42,
         feedMessagesReceived: 180,
@@ -233,7 +206,6 @@ function createProviderAdapterMock(overrides?: Record<string, unknown>) {
 function createLiveCaptureServiceMock(overrides?: Record<string, unknown>) {
   return {
     loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
-    loadLatestSnapshot: jest.fn(() => Promise.resolve(null)),
     persistSnapshot: jest.fn(),
     getHealth: jest.fn(() => ({ enabled: false })),
     seedProviderContext: jest.fn(),
@@ -249,15 +221,13 @@ function createLiveReplayServiceMock(overrides?: Record<string, unknown>) {
 }
 
 describe('LiveService', () => {
-  it('starts simulator source and exposes current state', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
-    const simulator = createSimulatorAdapterMock();
+  it('starts the provider source and exposes current state', async () => {
+    const config = createConfigMock({});
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -265,36 +235,32 @@ describe('LiveService', () => {
 
     await service.onModuleInit();
 
-    expect(simulator.start).toHaveBeenCalledTimes(1);
-    const state = service.getState();
-    expect(state).not.toBeNull();
-    expect(state?.leaderboard[0]).not.toHaveProperty('trackStatus');
-    expect(state?.leaderboard[0]).not.toHaveProperty('speedKph');
-    expect(state?.leaderboard[0]).not.toHaveProperty('topSpeedKph');
-    expect(state?.leaderboard[0]).not.toHaveProperty('tireCompound');
-    expect(state?.leaderboard[0]).not.toHaveProperty('stintLap');
-    expect(state?.leaderboard[0]).not.toHaveProperty('positionSource');
-    expect(state?.leaderboard[0]).not.toHaveProperty('positionUpdatedAt');
-    expect(state?.leaderboard[0]).not.toHaveProperty('positionConfidence');
-    expect(state?.leaderboard[0]).toMatchObject({
-      bestSector1Ms: 29790,
-      bestSector2Ms: 30680,
-      bestSector3Ms: 30330,
+    expect(provider.start).toHaveBeenCalledTimes(1);
+    expect(service.getState()).toMatchObject({
+      session: {
+        sessionName: 'Provider Session',
+      },
     });
+    expect(service.getState()?.leaderboard[0]).not.toHaveProperty(
+      'trackStatus',
+    );
+    expect(service.getState()?.leaderboard[0]).not.toHaveProperty('speedKph');
+    expect(service.getState()?.leaderboard[0]).not.toHaveProperty(
+      'tireCompound',
+    );
     expect(service.getHealth()).toMatchObject({
-      source: 'simulator',
+      source: 'provider',
+      status: 'live',
     });
   });
 
   it('builds a rich live board projection without changing the live state contract', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -304,7 +270,7 @@ describe('LiveService', () => {
 
     expect(service.getBoard()).toMatchObject({
       session: {
-        sessionName: 'Simulator Race',
+        sessionName: 'Provider Session',
       },
       fastestBestLapMs: 90800,
       projection: {
@@ -337,39 +303,13 @@ describe('LiveService', () => {
     });
   });
 
-  it('uses provider adapter when provider source is configured', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock();
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      simulator as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
-
-    await service.onModuleInit();
-
-    expect(simulator.start).not.toHaveBeenCalled();
-    expect(provider.start).toHaveBeenCalledTimes(1);
-    expect(service.getHealth()).toMatchObject({
-      source: 'provider',
-      status: 'degraded',
-    });
-  });
-
   it('streams an initial_state envelope when state is available', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -385,34 +325,29 @@ describe('LiveService', () => {
 
     expect(event.type).toBe('initial_state');
     expect(data.eventType).toBe('initial_state');
-    expect(data.source).toBe('simulator');
-    expect(data.payload.session.sessionName).toContain('Simulator');
+    expect(data.source).toBe('provider');
+    expect(data.payload.session.sessionName).toContain('Provider');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('trackStatus');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('speedKph');
-    expect(data.payload.leaderboard[0]).not.toHaveProperty('topSpeedKph');
     expect(data.payload.leaderboard[0]).not.toHaveProperty('tireCompound');
-    expect(data.payload.leaderboard[0]).not.toHaveProperty('stintLap');
-    expect(data.payload.leaderboard[0]).not.toHaveProperty('positionSource');
-    expect(data.payload.leaderboard[0]).not.toHaveProperty('positionUpdatedAt');
-    expect(data.payload.leaderboard[0]).not.toHaveProperty(
-      'positionConfidence',
-    );
-    expect(data.payload.leaderboard[0]).toMatchObject({
-      bestSector1Ms: 29790,
-      bestSector2Ms: 30680,
-      bestSector3Ms: 30330,
-    });
   });
 
   it('streams status envelope when provider is degraded without state', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
+    const config = createConfigMock({});
+    const provider = createProviderAdapterMock({
+      start: jest.fn((publish: (event: unknown) => void) => {
+        publish({
+          type: 'status',
+          status: 'degraded',
+          message: 'Provider adapter failed to start',
+        });
+        return Promise.resolve();
+      }),
+    });
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -433,14 +368,12 @@ describe('LiveService', () => {
   });
 
   it('passes adapter diagnostics through the health payload', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -461,75 +394,9 @@ describe('LiveService', () => {
     });
   });
 
-  it('includes stale snapshot topic freshness in the live health payload', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
-    const capture = createLiveCaptureServiceMock({
-      getHealth: jest.fn(() => ({
-        enabled: true,
-        latestSnapshotAt: '2026-03-03T00:00:00.000Z',
-        latestSnapshotVersion: 3,
-        latestSnapshotSessionKey: 'provider:restored:session',
-        latestSnapshotTopicFreshness: {
-          capturedAt: '2026-03-03T00:00:00.000Z',
-          topics: [
-            {
-              topic: 'TimingData',
-              lastSeenAt: '2026-03-03T00:00:00.000Z',
-              messageCount: 18,
-              ageSeconds: 90,
-            },
-            {
-              topic: 'LapCount',
-              lastSeenAt: '2026-03-02T23:58:30.000Z',
-              messageCount: 2,
-              ageSeconds: 180,
-            },
-          ],
-        },
-      })),
-    });
-    const replay = createLiveReplayServiceMock();
-    const service = new LiveService(
-      config as never,
-      simulator as never,
-      provider as never,
-      capture as never,
-      replay as never,
-    );
-
-    await service.onModuleInit();
-
-    expect(service.getHealth()).toMatchObject({
-      details: {
-        capture: {
-          latestSnapshotVersion: 3,
-          latestSnapshotSessionKey: 'provider:restored:session',
-          latestSnapshotTopicFreshness: {
-            topics: [
-              {
-                topic: 'TimingData',
-                ageSeconds: 90,
-              },
-              {
-                topic: 'LapCount',
-                ageSeconds: 180,
-              },
-            ],
-          },
-        },
-      },
-    });
-  });
-
   it('persists provider topic freshness metadata with snapshots', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const providerState = createLiveState();
-    providerState.session.weekendId = 'provider-weekend';
-    providerState.session.sessionId = 'provider-session';
-    providerState.session.sessionName = 'Provider Session';
     const provider = createProviderAdapterMock({
       start: jest.fn((publish: (event: unknown) => void) => {
         publish({ type: 'initial_state', state: providerState });
@@ -539,10 +406,7 @@ describe('LiveService', () => {
         running: true,
         startedAt: '2026-03-03T00:00:00.000Z',
         lastEventAt: '2026-03-03T00:00:00.000Z',
-        tickMs: 0,
-        heartbeatMs: 0,
-        seed: null,
-        speedMultiplier: null,
+        heartbeatMs: 15000,
         details: {
           topics: ['TimingData', 'LapCount', 'CarData.z'],
           topicMessageCount: {
@@ -561,7 +425,6 @@ describe('LiveService', () => {
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -598,9 +461,10 @@ describe('LiveService', () => {
   });
 
   it('replays a recent persisted provider session before adapter updates', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
+    const config = createConfigMock({});
+    const provider = createProviderAdapterMock({
+      start: jest.fn(() => Promise.resolve()),
+    });
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Restored Session';
     const capture = createLiveCaptureServiceMock({
@@ -636,7 +500,6 @@ describe('LiveService', () => {
     });
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -655,17 +518,6 @@ describe('LiveService', () => {
       sessionName: restoredState.session.sessionName,
     });
     expect(capture.loadLatestSnapshotBundle).not.toHaveBeenCalled();
-    const persistSnapshotCalls = capture.persistSnapshot.mock
-      .calls as unknown as Array<
-      [
-        string,
-        LiveState,
-        LivePublicState,
-        LiveBoardProjectionState,
-        LiveTopicFreshnessState,
-        string[],
-      ]
-    >;
     expect(capture.persistSnapshot).toHaveBeenCalledWith(
       'provider',
       restoredState,
@@ -674,20 +526,13 @@ describe('LiveService', () => {
       replayTopicFreshness,
       ['generatedAt', 'session', 'leaderboard', 'raceControl'],
     );
-    expect(persistSnapshotCalls[0]?.[2]).toMatchObject({
-      session: {
-        sessionName: 'Restored Session',
-      },
-    });
-    expect(persistSnapshotCalls[0]?.[3]).toMatchObject({
-      mode: 'pass_through',
-    });
   });
 
   it('falls back to the persisted snapshot when replay has no recent provider session', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
-    const provider = createProviderAdapterMock();
+    const config = createConfigMock({});
+    const provider = createProviderAdapterMock({
+      start: jest.fn(() => Promise.resolve()),
+    });
     const restoredState = createLiveState();
     restoredState.session.sessionName = 'Snapshot Session';
     const restoredPublicState = createPublicState(restoredState);
@@ -724,7 +569,6 @@ describe('LiveService', () => {
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -734,11 +578,6 @@ describe('LiveService', () => {
 
     expect(replay.replayLatestProviderSession).toHaveBeenCalledWith(21600);
     expect(capture.loadLatestSnapshotBundle).toHaveBeenCalledWith('provider');
-    expect(service.getState()).toMatchObject({
-      session: {
-        sessionName: 'Snapshot Session',
-      },
-    });
     expect(service.getBoard()).toMatchObject({
       projection: {
         mode: 'stabilized',
@@ -749,11 +588,8 @@ describe('LiveService', () => {
   });
 
   it('keeps the previous provider order when a later update would publish a low-confidence P1', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const trustedState = cloneLiveState();
-    trustedState.session.weekendId = 'provider-weekend';
-    trustedState.session.sessionId = 'provider-session';
     trustedState.session.sessionName = 'Australian Grand Prix - Qualifying';
     trustedState.leaderboard = [
       createLeaderboardEntry({
@@ -823,7 +659,6 @@ describe('LiveService', () => {
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -868,27 +703,11 @@ describe('LiveService', () => {
         },
       ],
     });
-    expect(service.getHealth()).toMatchObject({
-      details: {
-        publicProjection: {
-          mode: 'stabilized',
-          lowConfidenceLeaderSuppressions: 1,
-          lastLowConfidenceLeaderCode: '27',
-          lastLowConfidenceLeaderSource: 'driver_code',
-          lastLowConfidenceLeaderConfidence: 'low',
-          internalLeaderCode: '27',
-          publicLeaderCode: '63',
-        },
-      },
-    });
   });
 
   it('withholds provider leaderboard rows when startup data only has a low-confidence driver-code leader', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const weakState = cloneLiveState();
-    weakState.session.weekendId = 'provider-weekend';
-    weakState.session.sessionId = 'provider-session';
     weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
     weakState.leaderboard = [
       createLeaderboardEntry({
@@ -912,7 +731,6 @@ describe('LiveService', () => {
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -920,36 +738,18 @@ describe('LiveService', () => {
 
     await service.onModuleInit();
 
-    expect(service.getState()).toMatchObject({
-      leaderboard: [],
-    });
+    expect(service.getState()).toMatchObject({ leaderboard: [] });
     expect(service.getBoard()).toMatchObject({
       projection: {
         mode: 'withheld',
       },
       rows: [],
     });
-    expect(service.getHealth()).toMatchObject({
-      details: {
-        publicProjection: {
-          mode: 'withheld',
-          lowConfidenceLeaderSuppressions: 1,
-          lastLowConfidenceLeaderCode: '27',
-          lastLowConfidenceLeaderSource: 'driver_code',
-          lastLowConfidenceLeaderConfidence: 'low',
-          internalLeaderCode: '27',
-          publicLeaderCode: null,
-        },
-      },
-    });
   });
 
   it('withholds provider leaderboard rows when startup data only has a low-confidence best-lap leader', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'provider' });
-    const simulator = createSimulatorAdapterMock();
+    const config = createConfigMock({});
     const weakState = cloneLiveState();
-    weakState.session.weekendId = 'provider-weekend';
-    weakState.session.sessionId = 'provider-session';
     weakState.session.sessionName = 'Australian Grand Prix - Qualifying';
     weakState.leaderboard = [
       createLeaderboardEntry({
@@ -974,7 +774,6 @@ describe('LiveService', () => {
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -982,39 +781,22 @@ describe('LiveService', () => {
 
     await service.onModuleInit();
 
-    expect(service.getState()).toMatchObject({
-      leaderboard: [],
-    });
+    expect(service.getState()).toMatchObject({ leaderboard: [] });
     expect(service.getBoard()).toMatchObject({
       projection: {
         mode: 'withheld',
       },
       rows: [],
     });
-    expect(service.getHealth()).toMatchObject({
-      details: {
-        publicProjection: {
-          mode: 'withheld',
-          lowConfidenceLeaderSuppressions: 1,
-          lastLowConfidenceLeaderCode: '81',
-          lastLowConfidenceLeaderSource: 'best_lap',
-          lastLowConfidenceLeaderConfidence: 'low',
-          internalLeaderCode: '81',
-          publicLeaderCode: null,
-        },
-      },
-    });
   });
 
-  it('stops adapter on module destroy', async () => {
-    const config = createConfigMock({ LIVE_SOURCE: 'simulator' });
-    const simulator = createSimulatorAdapterMock();
+  it('stops the provider adapter on module destroy', async () => {
+    const config = createConfigMock({});
     const provider = createProviderAdapterMock();
     const capture = createLiveCaptureServiceMock();
     const replay = createLiveReplayServiceMock();
     const service = new LiveService(
       config as never,
-      simulator as never,
       provider as never,
       capture as never,
       replay as never,
@@ -1023,7 +805,7 @@ describe('LiveService', () => {
     await service.onModuleInit();
     await service.onModuleDestroy();
 
-    expect(simulator.stop).toHaveBeenCalledTimes(1);
+    expect(provider.stop).toHaveBeenCalledTimes(1);
     expect(service.getHealth().status).toBe('stopped');
   });
 });

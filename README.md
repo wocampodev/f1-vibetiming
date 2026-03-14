@@ -34,12 +34,6 @@ This will:
 - start local infrastructure
 - push the Prisma schema
 
-The default Docker runtime is provider mode with attached logs. If you want the simulator instead:
-
-```bash
-make run-sim
-```
-
 Open:
 
 - Live dashboard: `http://localhost:3000/`
@@ -52,7 +46,6 @@ Use `make help` for the full list. Most-used targets:
 - `make bootstrap`
 - `make validate`
 - `make run`
-- `make run-sim`
 - `make down`
 - `make health`
 - `make provider-inspect`
@@ -73,8 +66,8 @@ Use `make help` for the full list. Most-used targets:
 
 ## Live Runtime Notes
 
-- Local development defaults to simulator mode (`LIVE_SOURCE=simulator`).
-- Raw `docker compose` still defaults to simulator mode; `make run` overrides that to provider mode.
+- Local development now runs provider-first only.
+- Raw `docker compose` and `make run` both start the provider-based live runtime.
 - For noisier provider payload diagnostics, run `make run PROVIDER_LOG=all`.
 - Local provider capture now persists raw events and snapshots into PostgreSQL with a bind mount at `./.data/postgres` and daily SQL backups at `./.data/backups`.
 - Web consumes SSE from `/api/live/stream`, fetches `/api/live/board` on live updates, and falls back to polling `/api/live/board` when needed.

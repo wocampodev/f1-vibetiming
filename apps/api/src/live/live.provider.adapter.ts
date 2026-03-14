@@ -214,10 +214,7 @@ export class LiveProviderAdapter implements LiveAdapter {
       running: this.running,
       startedAt: this.startedAt,
       lastEventAt: this.lastEventAt,
-      tickMs: 0,
       heartbeatMs: this.heartbeatMs,
-      seed: null,
-      speedMultiplier: null,
       details: {
         baseUrl: this.baseUrl,
         hub: this.hubName,

@@ -18,8 +18,8 @@ PROVIDER_LOG_MAX_CHARS ?= 600
 	db-generate db-push db-migrate \
 	dev dev-api dev-web \
 	format-check lint build test test-api test-api-e2e test-web-smoke validate test-all \
-	run run-sim down \
-	stack-up stack-up-provider stack-up-provider-capture stack-up-provider-verbose stack-down \
+	run down \
+	stack-up stack-up-provider-capture stack-up-provider-verbose stack-down \
 	logs-api health \
 	backup backup-now restore backup-restore provider-inspect provider-inspect-topic provider-audit provider-export sql provider-psql
 
@@ -99,11 +99,7 @@ test-all:
 
 run: ## Run Docker in provider mode with attached logs
 	$(MAKE) env-copy
-	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up --build
-
-run-sim: ## Run Docker in simulator mode with attached logs
-	$(MAKE) env-copy
-	LIVE_SOURCE=simulator docker compose --profile app up --build
+	LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up --build
 
 down: ## Stop the local Docker stack
 	docker compose down
@@ -111,15 +107,12 @@ down: ## Stop the local Docker stack
 stack-up:
 	docker compose --profile app up -d --build
 
-stack-up-provider:
-	LIVE_SOURCE=provider docker compose --profile app up -d --build
-
 stack-up-provider-capture:
-	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
+	LIVE_PROVIDER_CAPTURE_ENABLED=true docker compose --profile app up -d --build
 
 stack-up-provider-verbose: PROVIDER_LOG = all
 stack-up-provider-verbose:
-	LIVE_SOURCE=provider LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up -d --build
+	LIVE_PROVIDER_CAPTURE_ENABLED=true LIVE_PROVIDER_LOG=$(PROVIDER_LOG) LIVE_PROVIDER_LOG_MAX_CHARS=$(PROVIDER_LOG_MAX_CHARS) docker compose --profile app up -d --build
 
 stack-down:
 	docker compose --profile app down

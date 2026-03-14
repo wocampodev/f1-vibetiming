@@ -9,9 +9,6 @@ validate:
 run:
   - make run
 
-run_sim:
-  - make run-sim
-
 down:
   - make down
 

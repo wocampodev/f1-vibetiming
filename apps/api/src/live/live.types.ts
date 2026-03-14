@@ -1,4 +1,4 @@
-export type LiveFeedSource = 'simulator' | 'provider';
+export type LiveFeedSource = 'provider';
 
 export type LiveStreamEventType =
   | 'initial_state'
@@ -48,7 +48,6 @@ export type LivePitState =
   | 'unknown';
 
 export type LivePositionSource =
-  | 'simulator'
   | 'timing_data'
   | 'best_lap'
   | 'last_lap'
@@ -256,9 +255,6 @@ export interface LiveAdapterHealth {
   running: boolean;
   startedAt: string | null;
   lastEventAt: string | null;
-  tickMs: number;
   heartbeatMs: number;
-  seed: number | null;
-  speedMultiplier: number | null;
   details?: Record<string, unknown>;
 }
