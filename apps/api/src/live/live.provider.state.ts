@@ -1,6 +1,4 @@
 import {
-  LiveFlagStatus,
-  LiveRaceControlMessage,
   LiveSpeedSample,
   LiveState,
   LiveTrackStatusSample,
@@ -12,21 +10,18 @@ import {
   LiveResolvedPositionMetadata,
   resolveLeaderboard,
 } from './live.provider.leaderboard';
+import { ProviderSessionState } from './live.provider.session';
 import {
   appendSpeedHistoryPoint,
   appendTrackStatusHistoryPoint,
   asRecord,
   asRecordArray,
-  asString,
-  buildRaceControlMessages,
   JsonRecord,
   mergeRecords,
-  normalizeFlag,
   normalizeTrackStatus,
   parseSpeedKph,
   toInt,
   toIso,
-  TRACK_STATUS_FLAG_MAP,
 } from './live.provider.parsers';
 
 export class ProviderStateAccumulator {
@@ -53,16 +48,7 @@ export class ProviderStateAccumulator {
     string,
     LiveTrackStatusSample[]
   >();
-
-  private sessionName: string | null = null;
-  private weekendId: string | null = null;
-  private sessionId: string | null = null;
-  private currentLap: number | null = null;
-  private totalLaps: number | null = null;
-  private phase: 'running' | 'finished' | 'unknown' = 'unknown';
-  private flag: LiveFlagStatus = 'green';
-  private clockIso: string | null = null;
-  private raceControl: LiveRaceControlMessage[] = [];
+  private readonly sessionState = new ProviderSessionState();
 
   private appendSpeedHistory(number: string, kph: number, at: string): void {
     const history = this.speedHistoryByNumber.get(number) ?? [];
@@ -112,22 +98,22 @@ export class ProviderStateAccumulator {
         this.ingestPosition(record, emittedAt, changed);
         break;
       case 'LapCount':
-        this.ingestLapCount(record, changed);
+        this.sessionState.ingestLapCount(record, changed);
         break;
       case 'SessionInfo':
-        this.ingestSessionInfo(record, changed);
+        this.sessionState.ingestSessionInfo(record, changed);
         break;
       case 'SessionStatus':
-        this.ingestSessionStatus(record, changed);
+        this.sessionState.ingestSessionStatus(record, changed);
         break;
       case 'TrackStatus':
-        this.ingestTrackStatus(record, changed);
+        this.sessionState.ingestTrackStatus(record, changed);
         break;
       case 'ExtrapolatedClock':
-        this.ingestExtrapolatedClock(record, emittedAt, changed);
+        this.sessionState.ingestExtrapolatedClock(record, emittedAt, changed);
         break;
       case 'RaceControlMessages':
-        this.ingestRaceControlMessages(record, emittedAt, changed);
+        this.sessionState.ingestRaceControlMessages(record, emittedAt, changed);
         break;
       default:
         break;
@@ -289,112 +275,23 @@ export class ProviderStateAccumulator {
     }
   }
 
-  private ingestLapCount(record: JsonRecord, changed: Set<string>): void {
-    this.currentLap = toInt(record.CurrentLap);
-    this.totalLaps = toInt(record.TotalLaps);
-    changed.add('session.currentLap');
-    changed.add('session.totalLaps');
-  }
-
-  private ingestSessionInfo(record: JsonRecord, changed: Set<string>): void {
-    const meeting = asRecord(record.Meeting);
-    const meetingKey =
-      asString(meeting?.Key) ??
-      asString(meeting?.Name) ??
-      asString(record.Meeting);
-    const meetingName = asString(meeting?.Name);
-    const sessionName = asString(record.Name);
-
-    this.weekendId = meetingKey ?? this.weekendId;
-    this.sessionId = asString(record.Key) ?? this.sessionId;
-    this.sessionName =
-      [meetingName, sessionName].filter((part) => Boolean(part)).join(' - ') ||
-      this.sessionName;
-
-    changed.add('session.weekendId');
-    changed.add('session.sessionId');
-    changed.add('session.sessionName');
-  }
-
-  private ingestSessionStatus(record: JsonRecord, changed: Set<string>): void {
-    const status = (asString(record.Status) ?? '').toLowerCase();
-    if (status.includes('finish') || status.includes('ended')) {
-      this.phase = 'finished';
-      this.flag = 'checkered';
-    } else if (status.includes('start') || status.includes('running')) {
-      this.phase = 'running';
-    }
-
-    changed.add('session.phase');
-    changed.add('session.flag');
-  }
-
-  private ingestTrackStatus(record: JsonRecord, changed: Set<string>): void {
-    const mapped = TRACK_STATUS_FLAG_MAP[asString(record.Status) ?? ''];
-    const fromMessage = normalizeFlag(record.Message);
-    const flag = mapped ?? fromMessage;
-    if (!flag) {
-      return;
-    }
-
-    this.flag = flag;
-    changed.add('session.flag');
-  }
-
-  private ingestExtrapolatedClock(
-    record: JsonRecord,
-    emittedAt: string,
-    changed: Set<string>,
-  ): void {
-    const value = asString(record.Utc) ?? asString(record.Remaining);
-    this.clockIso = value ? toIso(value, emittedAt) : emittedAt;
-    changed.add('session.clockIso');
-  }
-
-  private ingestRaceControlMessages(
-    record: JsonRecord,
-    emittedAt: string,
-    changed: Set<string>,
-  ): void {
-    const nextMessages = buildRaceControlMessages(record, emittedAt);
-    if (nextMessages.length === 0) {
-      return;
-    }
-
-    this.raceControl = nextMessages;
-    changed.add('raceControl');
-  }
-
   getSessionMetadata() {
-    return {
-      weekendId: this.weekendId,
-      sessionId: this.sessionId,
-      sessionName: this.sessionName,
-    };
+    return this.sessionState.getMetadata();
   }
 
   buildState(emittedAt: string): LiveState | null {
     const draftLeaderboard = this.buildDraftLeaderboard(emittedAt);
     const leaderboard = this.resolveLeaderboard(draftLeaderboard, emittedAt);
 
-    if (!this.hasSessionInfo(leaderboard)) {
+    if (!this.sessionState.hasSessionInfo(leaderboard.length)) {
       return null;
     }
 
     return {
       generatedAt: emittedAt,
-      session: {
-        weekendId: this.weekendId,
-        sessionId: this.sessionId,
-        sessionName: this.sessionName,
-        phase: this.phase,
-        flag: this.flag,
-        currentLap: this.currentLap,
-        totalLaps: this.totalLaps,
-        clockIso: this.clockIso ?? emittedAt,
-      },
+      session: this.sessionState.buildSessionState(emittedAt),
       leaderboard,
-      raceControl: this.raceControl,
+      raceControl: this.sessionState.getRaceControl(),
     };
   }
 
@@ -466,16 +363,5 @@ export class ProviderStateAccumulator {
     }
 
     return result.leaderboard;
-  }
-
-  private hasSessionInfo(
-    leaderboard: ReturnType<typeof resolveLeaderboard>['leaderboard'],
-  ): boolean {
-    return (
-      this.sessionName !== null ||
-      this.currentLap !== null ||
-      this.totalLaps !== null ||
-      leaderboard.length > 0
-    );
   }
 }
