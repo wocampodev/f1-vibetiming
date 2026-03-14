@@ -22,7 +22,7 @@ Deployment baseline for F1 VibeTiming.
 make run
 ```
 
-Run in provider mode with container-visible provider frame and payload logs:
+Enable container-visible provider frame and payload logs:
 
 ```bash
 make run PROVIDER_LOG=all
@@ -75,6 +75,7 @@ make help
 - The `postgres-backup` sidecar writes compressed `pg_dump` files to `./.data/backups` once per day.
 - The backup sidecar also prunes backup files older than the configured retention window.
 - Keep `./.data` out of git and do not delete it if you want to preserve local capture history.
+- Keep transmission-analysis exports and helper scripts in `data-analysis/`; that folder is local-only and intentionally excluded from git.
 - On the first run after switching from Docker named volumes to the bind mount, PostgreSQL starts with the local data already present in `./.data/postgres`; restore from backup if you need to seed older local data.
 
 Run an immediate backup on demand:
@@ -103,3 +104,4 @@ make restore BACKUP_FILE=./.data/backups/<backup-file>.sql.gz
 - Runtime should stay provider-first without synthetic fallback data.
 - `/api/live/health` is the primary provider diagnostics endpoint (transport throughput + parser/decode reliability).
 - `/standings` now relies on per-round standings history persisted in Postgres; keep schema synced with `prisma db push` during deploys.
+- The versioned repo only keeps product/runtime docs; capture analysis artifacts stay local in `data-analysis/`.

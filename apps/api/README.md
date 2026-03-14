@@ -72,3 +72,8 @@ Local capture persistence:
 - Daily SQL backups: `./.data/backups`
 - Local-only provider analysis exports: `data-analysis/` (gitignored)
 - Internal live module map: `apps/api/src/live/README.md`
+
+Operational references:
+
+- deployment workflow and local stack notes: `docs/deployment/README.md`
+- repo-level workflow and command surface: `README.md`
