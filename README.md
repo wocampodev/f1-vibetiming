@@ -48,9 +48,6 @@ Use `make help` for the full list. Most-used targets:
 - `make run`
 - `make down`
 - `make health`
-- `make provider-inspect`
-- `make provider-audit`
-- `make provider-export`
 - `make backup`
 - `make sql`
 
@@ -83,4 +80,4 @@ Use `make help` for the full list. Most-used targets:
 - OpenCode wrapper catalog: `.opencode/commands.yml`
 - Architecture docs: `docs/architecture/README.md`
 - Deployment notes: `docs/deployment/README.md`
-- Provider analysis docs: `docs/live-provider/README.md`
+- Local-only provider analysis exports: `data-analysis/` (gitignored)

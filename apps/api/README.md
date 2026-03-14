@@ -70,5 +70,5 @@ Local capture persistence:
 
 - Postgres bind mount: `./.data/postgres`
 - Daily SQL backups: `./.data/backups`
-- Local provider analysis docs: `docs/live-provider/README.md`
+- Local-only provider analysis exports: `data-analysis/` (gitignored)
 - Internal live module map: `apps/api/src/live/README.md`
