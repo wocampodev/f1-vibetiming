@@ -33,6 +33,14 @@ const sanitizeTimingAppValue = (value: unknown): unknown => {
   const sanitized: JsonRecord = {};
 
   for (const [key, nestedValue] of Object.entries(value)) {
+    if (key === 'Stints') {
+      const normalizedStints = normalizeTimingAppStints(nestedValue);
+      if (normalizedStints) {
+        sanitized[key] = normalizedStints;
+      }
+      continue;
+    }
+
     const normalizedCompound =
       key === 'Compound' ? asString(nestedValue)?.trim().toUpperCase() : null;
     if (normalizedCompound === 'UNKNOWN') {
@@ -43,6 +51,45 @@ const sanitizeTimingAppValue = (value: unknown): unknown => {
   }
 
   return sanitized;
+};
+
+const normalizeTimingAppStints = (value: unknown): JsonRecord | null => {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return null;
+    }
+
+    const normalized: JsonRecord = {};
+    for (const [index, stint] of value.entries()) {
+      const sanitizedStint = sanitizeTimingAppValue(stint);
+      if (
+        !isRecord(sanitizedStint) ||
+        Object.keys(sanitizedStint).length === 0
+      ) {
+        continue;
+      }
+
+      normalized[String(index)] = sanitizedStint;
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const normalized: JsonRecord = {};
+  for (const [stintKey, stintValue] of Object.entries(value)) {
+    const sanitizedStint = sanitizeTimingAppValue(stintValue);
+    if (!isRecord(sanitizedStint) || Object.keys(sanitizedStint).length === 0) {
+      continue;
+    }
+
+    normalized[stintKey] = sanitizedStint;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
 };
 
 export class ProviderTelemetryStore {

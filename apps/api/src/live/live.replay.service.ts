@@ -15,6 +15,19 @@ interface ReplayEventRow {
   emittedAt: Date;
 }
 
+interface ProviderReplayScope {
+  sessionKey: string;
+  emittedAt: Date;
+  captureRunIds: string[] | null;
+}
+
+interface ProviderCaptureRunRow {
+  id: string;
+  startedAt: Date;
+  lastEventAt: Date | null;
+  finishedAt: Date | null;
+}
+
 export interface LiveSessionReplayResult {
   sessionKey: string;
   eventCount: number;
@@ -92,6 +105,12 @@ const incrementCount = <T extends string>(
   map.set(key, (map.get(key) ?? 0) + 1);
 };
 
+const UNKNOWN_PROVIDER_SESSION_SUFFIX = ':unknown-session';
+const UNKNOWN_SESSION_RUN_CHAIN_MAX_GAP_MS = 3 * 60 * 60 * 1000;
+
+const isUnknownProviderSessionKey = (sessionKey: string): boolean =>
+  sessionKey.endsWith(UNKNOWN_PROVIDER_SESSION_SUFFIX);
+
 const buildTopicFreshness = (
   events: ReplayEventRow[],
 ): LiveTopicFreshnessState | null => {
@@ -132,7 +151,7 @@ export class LiveReplayService {
       return null;
     }
 
-    return this.auditProviderRanking(latestSession.sessionKey);
+    return this.auditProviderScope(latestSession);
   }
 
   async replayLatestProviderSession(
@@ -143,13 +162,23 @@ export class LiveReplayService {
       return null;
     }
 
-    return this.replayProviderSession(latestSession.sessionKey);
+    return this.replayProviderScope(latestSession);
   }
 
   async replayProviderSession(
     sessionKey: string,
   ): Promise<LiveSessionReplayResult | null> {
-    const events = await this.loadProviderEvents(sessionKey);
+    return this.replayProviderScope({
+      sessionKey,
+      emittedAt: new Date(),
+      captureRunIds: null,
+    });
+  }
+
+  private async replayProviderScope(
+    scope: ProviderReplayScope,
+  ): Promise<LiveSessionReplayResult | null> {
+    const events = await this.loadProviderEvents(scope);
     if (events.length === 0) {
       return null;
     }
@@ -167,7 +196,7 @@ export class LiveReplayService {
     const lastEventAt = events.at(-1)?.emittedAt.toISOString() ?? null;
 
     return {
-      sessionKey,
+      sessionKey: scope.sessionKey,
       eventCount: events.length,
       firstEventAt,
       lastEventAt,
@@ -179,7 +208,17 @@ export class LiveReplayService {
   async auditProviderRanking(
     sessionKey: string,
   ): Promise<LiveRankingAuditResult | null> {
-    const events = await this.loadProviderEvents(sessionKey);
+    return this.auditProviderScope({
+      sessionKey,
+      emittedAt: new Date(),
+      captureRunIds: null,
+    });
+  }
+
+  private async auditProviderScope(
+    scope: ProviderReplayScope,
+  ): Promise<LiveRankingAuditResult | null> {
+    const events = await this.loadProviderEvents(scope);
     if (events.length === 0) {
       return null;
     }
@@ -398,7 +437,7 @@ export class LiveReplayService {
     }));
 
     return {
-      sessionKey,
+      sessionKey: scope.sessionKey,
       eventCount: events.length,
       timingDataPositionFields,
       timingDataLineOnlyHints,
@@ -413,12 +452,24 @@ export class LiveReplayService {
     };
   }
 
-  private loadProviderEvents(sessionKey: string): Promise<ReplayEventRow[]> {
+  private loadProviderEvents(
+    scope: ProviderReplayScope,
+  ): Promise<ReplayEventRow[]> {
+    const where: Prisma.LiveProviderEventWhereInput = {
+      source: LiveCaptureSource.PROVIDER,
+      ...(scope.captureRunIds && scope.captureRunIds.length > 0
+        ? {
+            captureRunId: {
+              in: scope.captureRunIds,
+            },
+          }
+        : {
+            sessionKey: scope.sessionKey,
+          }),
+    };
+
     return this.prisma.liveProviderEvent.findMany({
-      where: {
-        source: LiveCaptureSource.PROVIDER,
-        sessionKey,
-      },
+      where,
       orderBy: [{ emittedAt: 'asc' }, { runSequence: 'asc' }],
       select: {
         topic: true,
@@ -430,13 +481,14 @@ export class LiveReplayService {
 
   private async loadLatestProviderSession(
     maxAgeSec?: number,
-  ): Promise<{ sessionKey: string; emittedAt: Date } | null> {
+  ): Promise<ProviderReplayScope | null> {
     const latestEvent = await this.prisma.liveProviderEvent.findFirst({
       where: {
         source: LiveCaptureSource.PROVIDER,
       },
       orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
       select: {
+        captureRunId: true,
         sessionKey: true,
         emittedAt: true,
       },
@@ -455,6 +507,66 @@ export class LiveReplayService {
       }
     }
 
-    return latestEvent;
+    return {
+      sessionKey: latestEvent.sessionKey,
+      emittedAt: latestEvent.emittedAt,
+      captureRunIds:
+        latestEvent.captureRunId &&
+        isUnknownProviderSessionKey(latestEvent.sessionKey)
+          ? await this.loadRecentUnknownSessionRunIds(
+              latestEvent.sessionKey,
+              latestEvent.captureRunId,
+            )
+          : null,
+    };
+  }
+
+  private async loadRecentUnknownSessionRunIds(
+    sessionKey: string,
+    latestCaptureRunId: string,
+  ): Promise<string[] | null> {
+    const runs = await this.prisma.liveCaptureRun.findMany({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+        sessionKey,
+      },
+      orderBy: [{ startedAt: 'desc' }],
+      select: {
+        id: true,
+        startedAt: true,
+        lastEventAt: true,
+        finishedAt: true,
+      },
+    });
+
+    const latestRunIndex = runs.findIndex(
+      (run) => run.id === latestCaptureRunId,
+    );
+    if (latestRunIndex < 0) {
+      return null;
+    }
+
+    const captureRunIds: string[] = [runs[latestRunIndex].id];
+    let oldestIncludedStartAt = runs[latestRunIndex].startedAt.getTime();
+
+    for (let index = latestRunIndex + 1; index < runs.length; index += 1) {
+      const run = runs[index] as ProviderCaptureRunRow;
+      const previousActivityAt = (
+        run.lastEventAt ??
+        run.finishedAt ??
+        run.startedAt
+      ).getTime();
+      if (
+        oldestIncludedStartAt - previousActivityAt >
+        UNKNOWN_SESSION_RUN_CHAIN_MAX_GAP_MS
+      ) {
+        break;
+      }
+
+      captureRunIds.push(run.id);
+      oldestIncludedStartAt = run.startedAt.getTime();
+    }
+
+    return captureRunIds;
   }
 }

@@ -200,9 +200,18 @@ export const buildDraftLeaderboardEntry = (
     'TimeDiffToCarAhead',
   ]);
 
-  const stints = flattenStints(input.timingApp?.Stints);
-  const latestStint =
-    stints.length > 0 ? asRecord(stints[stints.length - 1]) : null;
+  const stints = flattenStints(input.timingApp?.Stints)
+    .map((stint) => asRecord(stint))
+    .filter((stint): stint is JsonRecord => stint != null);
+  const latestStint = stints.at(-1) ?? null;
+  const latestKnownCompoundStint =
+    [...stints]
+      .reverse()
+      .find((stint) => normalizeCompound(stint.Compound) != null) ?? null;
+  const latestKnownNewStint =
+    [...stints]
+      .reverse()
+      .find((stint) => parseBooleanValue(stint.New) != null) ?? null;
   const pitState = resolvePitState(input.timing, trackStatus);
   const miniSectors = parseMiniSectors(input.timing);
   const completedLaps =
@@ -256,9 +265,12 @@ export const buildDraftLeaderboardEntry = (
       miniSectors,
       tireCompound:
         normalizeCompound(latestStint?.Compound) ??
+        normalizeCompound(latestKnownCompoundStint?.Compound) ??
         normalizeCompound(input.timing.Compound),
       stintLap: toInt(latestStint?.TotalLaps),
-      tireIsNew: parseBooleanValue(latestStint?.New),
+      tireIsNew:
+        parseBooleanValue(latestStint?.New) ??
+        parseBooleanValue(latestKnownNewStint?.New),
       positionSource:
         explicitPosition != null
           ? 'timing_data'

@@ -28,7 +28,7 @@ function SectorCluster({
   const miniSectors = row.miniSectors
     .filter((miniSector) => miniSector.sector === cell.index)
     .sort((left, right) => left.segment - right.segment);
-  const tone = getSectorTone(cell);
+  const tone = getSectorTone(cell, miniSectors);
   const valueTone =
     tone === "session_best"
       ? "text-fuchsia-300"
@@ -73,7 +73,7 @@ function SectorCluster({
         >
           {formatSectorTime(cell.valueMs)}
         </span>
-        {cell.personalBestMs != null ? (
+        {cell.personalBestMs != null && cell.personalBestMs !== cell.valueMs ? (
           <span className={`pb-0.5 font-mono text-[10px] ${referenceTone}`}>
             {formatSectorTime(cell.personalBestMs)}
           </span>
