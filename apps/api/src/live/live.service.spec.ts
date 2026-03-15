@@ -694,7 +694,14 @@ describe('LiveService', () => {
       projection: {
         mode: 'withheld',
       },
-      rows: [],
+      rows: [
+        {
+          position: 1,
+          driverCode: '27',
+          positionSource: 'driver_code',
+          positionConfidence: 'low',
+        },
+      ],
     });
   });
 
@@ -730,7 +737,14 @@ describe('LiveService', () => {
       projection: {
         mode: 'withheld',
       },
-      rows: [],
+      rows: [
+        {
+          position: 1,
+          driverCode: '81',
+          positionSource: 'best_lap',
+          positionConfidence: 'low',
+        },
+      ],
     });
   });
 
