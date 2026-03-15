@@ -10,6 +10,8 @@ import {
   appendTrackStatusHistoryPoint,
   asRecord,
   asRecordArray,
+  asString,
+  isRecord,
   JsonRecord,
   mergeRecords,
   normalizeTrackStatus,
@@ -18,6 +20,30 @@ import {
   toIso,
 } from './live.provider.parsers';
 import { LiveSpeedSample, LiveTrackStatusSample } from './live.types';
+
+const sanitizeTimingAppValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeTimingAppValue(item));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const sanitized: JsonRecord = {};
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const normalizedCompound =
+      key === 'Compound' ? asString(nestedValue)?.trim().toUpperCase() : null;
+    if (normalizedCompound === 'UNKNOWN') {
+      continue;
+    }
+
+    sanitized[key] = sanitizeTimingAppValue(nestedValue);
+  }
+
+  return sanitized;
+};
 
 export class ProviderTelemetryStore {
   private readonly driverByNumber = new Map<string, JsonRecord>();
@@ -122,7 +148,10 @@ export class ProviderTelemetryStore {
       }
 
       const current = this.timingAppByNumber.get(number) ?? {};
-      this.timingAppByNumber.set(number, mergeRecords(current, line));
+      this.timingAppByNumber.set(
+        number,
+        mergeRecords(current, sanitizeTimingAppValue(line) as JsonRecord),
+      );
       updated = true;
     }
 

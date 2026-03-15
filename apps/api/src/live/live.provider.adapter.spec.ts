@@ -323,6 +323,69 @@ describe('ProviderStateAccumulator', () => {
     });
   });
 
+  it('keeps the last known tire compound when timing app patches send UNKNOWN', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '43': {
+            Position: '2',
+            NumberOfLaps: 12,
+            LastLapTime: { Value: '1:29.500' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '43': {
+            Stints: {
+              '0': {
+                Compound: 'MEDIUM',
+                TotalLaps: 6,
+                New: 'false',
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '43': {
+            Stints: {
+              '0': {
+                Compound: 'UNKNOWN',
+                TotalLaps: 12,
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      driverNumber: '43',
+      tireCompound: 'MEDIUM',
+      stintLap: 12,
+      tireIsNew: false,
+    });
+  });
+
   it('keeps merged timing fields across partial updates', () => {
     const emittedAt = '2026-03-03T00:00:00.000Z';
     const accumulator = new ProviderStateAccumulator();
