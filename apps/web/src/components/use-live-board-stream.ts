@@ -18,10 +18,20 @@ const HEALTH_POLL_MS = 10000;
 const STALE_THRESHOLD_MS = 40000;
 const NO_FEED_NOTICE_THRESHOLD_SEC = 20;
 
-export function useLiveBoardStream() {
-  const [boardState, setBoardState] = useState<LiveBoardState | null>(null);
-  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
-  const [health, setHealth] = useState<LiveHealthState | null>(null);
+export function useLiveBoardStream({
+  initialBoardState = null,
+  initialHealth = null,
+}: {
+  initialBoardState?: LiveBoardState | null;
+  initialHealth?: LiveHealthState | null;
+} = {}) {
+  const [boardState, setBoardState] = useState<LiveBoardState | null>(
+    initialBoardState,
+  );
+  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(
+    initialHealth?.lastEventAt ?? initialBoardState?.generatedAt ?? null,
+  );
+  const [health, setHealth] = useState<LiveHealthState | null>(initialHealth);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
