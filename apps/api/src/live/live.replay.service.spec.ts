@@ -9,12 +9,16 @@ function createPrismaMock(events: Array<Record<string, unknown>>) {
         Promise.resolve(
           events.length > 0
             ? {
+                captureRunId: 'run-1',
                 sessionKey: 'provider:australia:qualifying',
                 emittedAt: (events.at(-1)?.emittedAt as Date) ?? new Date(),
               }
             : null,
         ),
       ),
+    },
+    liveCaptureRun: {
+      findMany: jest.fn(() => Promise.resolve([])),
     },
   };
 }
@@ -123,6 +127,7 @@ describe('LiveReplayService', () => {
       },
       orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
       select: {
+        captureRunId: true,
         sessionKey: true,
         emittedAt: true,
       },
@@ -187,6 +192,7 @@ describe('LiveReplayService', () => {
       },
       orderBy: [{ emittedAt: 'desc' }, { runSequence: 'desc' }],
       select: {
+        captureRunId: true,
         sessionKey: true,
         emittedAt: true,
       },
@@ -214,6 +220,126 @@ describe('LiveReplayService', () => {
     const service = new LiveReplayService(prisma as never);
     await expect(service.auditLatestProviderSession(1)).resolves.toBeNull();
     expect(prisma.liveProviderEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it('replays only the recent run chain for unknown provider sessions', async () => {
+    const recentSessionKey = 'provider:unknown-weekend:unknown-session';
+    const replayEvents = [
+      {
+        topic: 'TimingAppData',
+        payload: {
+          Lines: {
+            '12': {
+              Stints: {
+                '0': {
+                  Compound: 'MEDIUM',
+                },
+                '1': {
+                  Compound: 'HARD',
+                  TotalLaps: 10,
+                },
+              },
+            },
+          },
+        },
+        emittedAt: new Date('2026-03-15T07:20:51.260Z'),
+      },
+      {
+        topic: 'TimingData',
+        payload: {
+          Lines: {
+            '12': {
+              GapToLeader: 'LAP 43',
+              NumberOfLaps: 42,
+              LastLapTime: { Value: '1:31.000' },
+            },
+            '63': {
+              Position: '2',
+              GapToLeader: '+7.500',
+              NumberOfLaps: 42,
+              LastLapTime: { Value: '1:31.500' },
+            },
+          },
+        },
+        emittedAt: new Date('2026-03-15T08:10:00.000Z'),
+      },
+    ];
+    const prisma = {
+      liveProviderEvent: {
+        findFirst: jest.fn(() =>
+          Promise.resolve({
+            captureRunId: 'run-current',
+            sessionKey: recentSessionKey,
+            emittedAt: new Date('2026-03-15T08:10:00.000Z'),
+          }),
+        ),
+        findMany: jest.fn(() => Promise.resolve(replayEvents)),
+      },
+      liveCaptureRun: {
+        findMany: jest.fn(() =>
+          Promise.resolve([
+            {
+              id: 'run-current',
+              startedAt: new Date('2026-03-15T08:00:00.000Z'),
+              lastEventAt: new Date('2026-03-15T08:10:00.000Z'),
+              finishedAt: null,
+            },
+            {
+              id: 'run-previous',
+              startedAt: new Date('2026-03-15T07:20:00.000Z'),
+              lastEventAt: new Date('2026-03-15T07:59:00.000Z'),
+              finishedAt: new Date('2026-03-15T07:59:00.000Z'),
+            },
+            {
+              id: 'run-yesterday',
+              startedAt: new Date('2026-03-14T07:00:00.000Z'),
+              lastEventAt: new Date('2026-03-14T08:00:00.000Z'),
+              finishedAt: new Date('2026-03-14T08:00:00.000Z'),
+            },
+          ]),
+        ),
+      },
+    };
+
+    const service = new LiveReplayService(prisma as never);
+    const replay = await service.replayLatestProviderSession(21600);
+
+    expect(prisma.liveCaptureRun.findMany).toHaveBeenCalledWith({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+        sessionKey: recentSessionKey,
+      },
+      orderBy: [{ startedAt: 'desc' }],
+      select: {
+        id: true,
+        startedAt: true,
+        lastEventAt: true,
+        finishedAt: true,
+      },
+    });
+    expect(prisma.liveProviderEvent.findMany).toHaveBeenCalledWith({
+      where: {
+        source: LiveCaptureSource.PROVIDER,
+        captureRunId: {
+          in: ['run-current', 'run-previous'],
+        },
+      },
+      orderBy: [{ emittedAt: 'asc' }, { runSequence: 'asc' }],
+      select: {
+        topic: true,
+        payload: true,
+        emittedAt: true,
+      },
+    });
+    expect(replay?.state?.leaderboard[0]).toMatchObject({
+      driverCode: '12',
+      position: 1,
+      tireCompound: 'HARD',
+    });
+    expect(replay?.state?.leaderboard[1]).toMatchObject({
+      driverCode: '63',
+      position: 2,
+    });
   });
 
   it('audits risky line-hint ranking inputs from persisted events', async () => {

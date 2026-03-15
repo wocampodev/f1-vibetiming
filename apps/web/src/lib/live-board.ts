@@ -1,7 +1,15 @@
-import { LiveBoardSectorCell, LiveBoardState, LiveEnvelope } from "@/lib/types";
+import {
+  LiveBoardSectorCell,
+  LiveBoardState,
+  LiveEnvelope,
+  LiveMiniSector,
+} from "@/lib/types";
 
 export type SectorTone = "session_best" | "personal_best" | "timed" | "empty";
 export type LiveGapMode = "timed" | "race" | "provider";
+
+const SESSION_BEST_MINI_SECTOR_STATUSES = new Set([2050, 2051]);
+const PERSONAL_BEST_MINI_SECTOR_STATUSES = new Set([2044, 2045, 2049, 2064, 2065]);
 
 export const parseEnvelope = <TPayload>(
   raw: string,
@@ -97,9 +105,32 @@ export const resolveGapMode = (
   return "provider";
 };
 
-export const getSectorTone = (cell: LiveBoardSectorCell): SectorTone => {
+export const getSectorTone = (
+  cell: LiveBoardSectorCell,
+  miniSectors: LiveMiniSector[] = [],
+): SectorTone => {
   if (cell.valueMs == null) {
     return "empty";
+  }
+
+  if (
+    miniSectors.some((miniSector) =>
+      SESSION_BEST_MINI_SECTOR_STATUSES.has(miniSector.status),
+    )
+  ) {
+    return "session_best";
+  }
+
+  if (
+    miniSectors.some((miniSector) =>
+      PERSONAL_BEST_MINI_SECTOR_STATUSES.has(miniSector.status),
+    )
+  ) {
+    return "personal_best";
+  }
+
+  if (miniSectors.length > 0) {
+    return "timed";
   }
 
   if (cell.sessionBestMs != null && cell.valueMs <= cell.sessionBestMs) {

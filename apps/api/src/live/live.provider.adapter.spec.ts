@@ -323,6 +323,188 @@ describe('ProviderStateAccumulator', () => {
     });
   });
 
+  it('keeps the last known tire compound when timing app patches send UNKNOWN', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '43': {
+            Position: '2',
+            NumberOfLaps: 12,
+            LastLapTime: { Value: '1:29.500' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '43': {
+            Stints: {
+              '0': {
+                Compound: 'MEDIUM',
+                TotalLaps: 6,
+                New: 'false',
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '43': {
+            Stints: {
+              '0': {
+                Compound: 'UNKNOWN',
+                TotalLaps: 12,
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      driverNumber: '43',
+      tireCompound: 'MEDIUM',
+      stintLap: 12,
+      tireIsNew: false,
+    });
+  });
+
+  it('keeps the last known tire compound when timing app patches send empty stints', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '55': {
+            Position: '4',
+            NumberOfLaps: 8,
+            LastLapTime: { Value: '1:30.200' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '55': {
+            Stints: {
+              '0': {
+                Compound: 'MEDIUM',
+                TotalLaps: 6,
+                New: 'false',
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '55': {
+            Stints: [],
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '55': {
+            Stints: [{ TotalLaps: 8 }],
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      driverNumber: '55',
+      tireCompound: 'MEDIUM',
+      stintLap: 8,
+      tireIsNew: false,
+    });
+  });
+
+  it('falls back to the most recent known stint compound when the latest stint omits it', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '31': {
+            Position: '5',
+            NumberOfLaps: 11,
+            LastLapTime: { Value: '1:30.800' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    accumulator.ingest(
+      'TimingAppData',
+      {
+        Lines: {
+          '31': {
+            Stints: {
+              '0': {
+                Compound: 'MEDIUM',
+                TotalLaps: 10,
+                New: 'false',
+              },
+              '1': {
+                TotalLaps: 1,
+              },
+            },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      driverNumber: '31',
+      tireCompound: 'MEDIUM',
+      stintLap: 1,
+      tireIsNew: false,
+    });
+  });
+
   it('keeps merged timing fields across partial updates', () => {
     const emittedAt = '2026-03-03T00:00:00.000Z';
     const accumulator = new ProviderStateAccumulator();
@@ -1021,6 +1203,59 @@ describe('ProviderStateAccumulator', () => {
     expect(state?.leaderboard[1]).toMatchObject({
       position: 2,
       driverCode: 'PIA',
+    });
+  });
+
+  it('promotes a LAP gap leader to P1 when timing position is missing', () => {
+    const emittedAt = '2026-03-03T00:00:00.000Z';
+    const accumulator = new ProviderStateAccumulator();
+
+    accumulator.ingest(
+      'TimingData',
+      {
+        Lines: {
+          '12': {
+            NumberOfLaps: 42,
+            GapToLeader: 'LAP 43',
+            IntervalToPositionAhead: { Value: 'LAP 43' },
+            LastLapTime: { Value: '1:31.000' },
+          },
+          '63': {
+            Position: '2',
+            NumberOfLaps: 42,
+            GapToLeader: '+7.500',
+            IntervalToPositionAhead: { Value: '+7.500' },
+            LastLapTime: { Value: '1:31.500' },
+          },
+          '44': {
+            Position: '3',
+            NumberOfLaps: 42,
+            GapToLeader: '+15.000',
+            IntervalToPositionAhead: { Value: '+7.500' },
+            LastLapTime: { Value: '1:32.000' },
+          },
+        },
+      },
+      emittedAt,
+    );
+
+    const state = accumulator.buildState(emittedAt);
+
+    expect(state?.leaderboard[0]).toMatchObject({
+      position: 1,
+      driverCode: '12',
+      gapToLeaderText: 'LAP 43',
+      positionSource: 'timing_data',
+      positionUpdatedAt: emittedAt,
+      positionConfidence: 'high',
+    });
+    expect(state?.leaderboard[1]).toMatchObject({
+      position: 2,
+      driverCode: '63',
+    });
+    expect(state?.leaderboard[2]).toMatchObject({
+      position: 3,
+      driverCode: '44',
     });
   });
 

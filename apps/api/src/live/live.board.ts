@@ -120,18 +120,44 @@ const buildProjection = (
   ...projection,
 });
 
+const toBoardFallbackEntries = (
+  internalRows: LiveState['leaderboard'],
+): LivePublicState['leaderboard'] => {
+  return internalRows.map((entry) => ({
+    position: entry.position,
+    driverCode: entry.driverCode,
+    driverName: entry.driverName,
+    teamName: entry.teamName,
+    gapToLeaderSec: null,
+    intervalToAheadSec: null,
+    sector1Ms: entry.sector1Ms,
+    sector2Ms: entry.sector2Ms,
+    sector3Ms: entry.sector3Ms,
+    bestSector1Ms: entry.bestSector1Ms,
+    bestSector2Ms: entry.bestSector2Ms,
+    bestSector3Ms: entry.bestSector3Ms,
+    lastLapMs: entry.lastLapMs,
+    bestLapMs: entry.bestLapMs,
+    speedHistoryKph: entry.speedHistoryKph,
+    trackStatusHistory: entry.trackStatusHistory,
+  }));
+};
+
 const buildBoardRow = (
   publicEntry: LivePublicState['leaderboard'][number],
   internalEntry: LiveState['leaderboard'][number] | null,
   sessionCurrentLap: number | null,
   fastestBestLapMs: number | null,
   sessionBestSectors: [number | null, number | null, number | null],
+  projectionMode: LiveBoardProjectionState['mode'],
 ): LiveBoardRow => {
   const source = internalEntry?.positionSource ?? 'driver_code';
   const confidence = internalEntry?.positionConfidence ?? 'low';
   const teamStyle = resolveTeamBoardStyle(
     internalEntry?.teamName ?? publicEntry.teamName,
   );
+  const redactedGaps =
+    projectionMode !== 'pass_through' && publicEntry.position > 1;
 
   return {
     position: publicEntry.position,
@@ -142,22 +168,26 @@ const buildBoardRow = (
     teamKey: teamStyle?.key ?? null,
     teamColor: teamStyle?.color ?? null,
     completedLaps: internalEntry?.completedLaps ?? null,
-    intervalToAheadSec: publicEntry.intervalToAheadSec,
+    intervalToAheadSec: redactedGaps ? null : publicEntry.intervalToAheadSec,
     intervalToAheadText:
       publicEntry.position === 1
         ? sessionCurrentLap != null
           ? `LAP ${sessionCurrentLap}`
           : 'LEADER'
-        : (internalEntry?.intervalToAheadText ??
-          formatGapText(publicEntry.intervalToAheadSec)),
-    gapToLeaderSec: publicEntry.gapToLeaderSec,
+        : redactedGaps
+          ? null
+          : (internalEntry?.intervalToAheadText ??
+            formatGapText(publicEntry.intervalToAheadSec)),
+    gapToLeaderSec: redactedGaps ? null : publicEntry.gapToLeaderSec,
     gapToLeaderText:
       publicEntry.position === 1
         ? sessionCurrentLap != null
           ? `LAP ${sessionCurrentLap}`
           : 'LEADER'
-        : (internalEntry?.gapToLeaderText ??
-          formatGapText(publicEntry.gapToLeaderSec)),
+        : redactedGaps
+          ? null
+          : (internalEntry?.gapToLeaderText ??
+            formatGapText(publicEntry.gapToLeaderSec)),
     pitState: internalEntry?.pitState ?? null,
     pitStops: internalEntry?.pitStops ?? null,
     tire: {
@@ -230,6 +260,8 @@ export const buildLiveBoardState = ({
 
   const publicRows = publicState?.leaderboard ?? [];
   const internalRows = internalState?.leaderboard ?? [];
+  const boardRows =
+    publicRows.length > 0 ? publicRows : toBoardFallbackEntries(internalRows);
   const internalRowsByCode = new Map(
     internalRows.map((entry) => [entry.driverCode, entry]),
   );
@@ -240,13 +272,14 @@ export const buildLiveBoardState = ({
     generatedAt: baseState.generatedAt,
     session: baseState.session,
     fastestBestLapMs,
-    rows: publicRows.map((entry) =>
+    rows: boardRows.map((entry) =>
       buildBoardRow(
         entry,
         internalRowsByCode.get(entry.driverCode) ?? null,
         baseState.session.currentLap,
         fastestBestLapMs,
         sessionBestSectors,
+        projection.mode,
       ),
     ),
     raceControl: baseState.raceControl,

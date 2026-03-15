@@ -552,6 +552,313 @@ describe('LiveService', () => {
     expect(capture.persistSnapshot).not.toHaveBeenCalled();
   });
 
+  it('keeps restored provider tire and sector context when fresh updates are sparse', async () => {
+    const restoredState = cloneLiveState();
+    restoredState.session.weekendId = null;
+    restoredState.session.sessionId = null;
+    restoredState.session.sessionName = null;
+    restoredState.leaderboard = [
+      createLeaderboardEntry({
+        driverNumber: '43',
+        driverCode: 'COL',
+        driverName: 'Franco Colapinto',
+        teamName: 'Alpine',
+        tireCompound: 'MEDIUM',
+        stintLap: 6,
+        tireIsNew: false,
+        bestSector1Ms: 29500,
+        bestSector2Ms: 30100,
+        bestSector3Ms: 29900,
+      }),
+    ];
+
+    const sparseState = cloneLiveState();
+    sparseState.generatedAt = '2026-03-03T00:00:05.000Z';
+    sparseState.session.weekendId = null;
+    sparseState.session.sessionId = null;
+    sparseState.session.sessionName = null;
+    sparseState.leaderboard = [
+      createLeaderboardEntry({
+        driverNumber: '43',
+        driverCode: 'COL',
+        driverName: 'Franco Colapinto',
+        teamName: 'Alpine',
+        tireCompound: null,
+        stintLap: null,
+        tireIsNew: null,
+        bestSector1Ms: null,
+        bestSector2Ms: null,
+        bestSector3Ms: null,
+      }),
+    ];
+
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: sparseState });
+          return Promise.resolve();
+        }),
+      },
+      captureOverrides: {
+        loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
+      },
+      replayOverrides: {
+        replayLatestProviderSession: jest.fn(() =>
+          Promise.resolve({
+            sessionKey: 'provider:unknown-weekend:unknown-session',
+            eventCount: 24,
+            firstEventAt: restoredState.generatedAt,
+            lastEventAt: sparseState.generatedAt,
+            state: restoredState,
+            topicFreshness: createTopicFreshnessState(),
+          }),
+        ),
+      },
+    });
+
+    await service.onModuleInit();
+
+    expect(service.getBoard()).toMatchObject({
+      rows: [
+        {
+          driverCode: 'COL',
+          tire: {
+            compound: 'MEDIUM',
+            ageLaps: 6,
+            isNew: false,
+          },
+          bestSectors: [
+            {
+              valueMs: 29500,
+            },
+            {
+              valueMs: 30100,
+            },
+            {
+              valueMs: 29900,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('retains restored provider rows when a fresh startup update only includes a partial grid', async () => {
+    const restoredState = cloneLiveState();
+    restoredState.session.weekendId = null;
+    restoredState.session.sessionId = null;
+    restoredState.session.sessionName = null;
+    restoredState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverNumber: '30',
+        driverCode: 'LAW',
+        driverName: 'Liam Lawson',
+        tireCompound: 'SOFT',
+      }),
+      createLeaderboardEntry({
+        position: 2,
+        driverNumber: '43',
+        driverCode: 'COL',
+        driverName: 'Franco Colapinto',
+        tireCompound: 'MEDIUM',
+      }),
+    ];
+
+    const sparseState = cloneLiveState();
+    sparseState.generatedAt = '2026-03-03T00:00:05.000Z';
+    sparseState.session.weekendId = null;
+    sparseState.session.sessionId = null;
+    sparseState.session.sessionName = null;
+    sparseState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverNumber: '30',
+        driverCode: 'LAW',
+        driverName: 'Liam Lawson',
+        tireCompound: null,
+      }),
+    ];
+
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: sparseState });
+          return Promise.resolve();
+        }),
+      },
+      captureOverrides: {
+        loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
+      },
+      replayOverrides: {
+        replayLatestProviderSession: jest.fn(() =>
+          Promise.resolve({
+            sessionKey: 'provider:unknown-weekend:unknown-session',
+            eventCount: 24,
+            firstEventAt: restoredState.generatedAt,
+            lastEventAt: sparseState.generatedAt,
+            state: restoredState,
+            topicFreshness: createTopicFreshnessState(),
+          }),
+        ),
+      },
+    });
+
+    await service.onModuleInit();
+
+    expect(service.getBoard()).toMatchObject({
+      rows: [
+        {
+          driverCode: 'LAW',
+          tire: {
+            compound: 'SOFT',
+          },
+        },
+        {
+          driverCode: 'COL',
+          tire: {
+            compound: 'MEDIUM',
+          },
+        },
+      ],
+    });
+  });
+
+  it('preserves restored timing-data positions when a fresh restart only has low-confidence ordering', async () => {
+    const restoredState = cloneLiveState();
+    restoredState.session.weekendId = null;
+    restoredState.session.sessionId = null;
+    restoredState.session.sessionName = null;
+    restoredState.leaderboard = [
+      createLeaderboardEntry({
+        position: 1,
+        driverNumber: '12',
+        driverCode: 'ANT',
+        driverName: 'Andrea Kimi Antonelli',
+        tireCompound: 'HARD',
+        positionSource: 'timing_data',
+        positionUpdatedAt: '2026-03-03T00:00:00.000Z',
+        positionConfidence: 'high',
+      }),
+      createLeaderboardEntry({
+        position: 2,
+        driverNumber: '63',
+        driverCode: 'RUS',
+        driverName: 'George Russell',
+        tireCompound: 'HARD',
+        positionSource: 'timing_data',
+        positionUpdatedAt: '2026-03-03T00:00:00.000Z',
+        positionConfidence: 'high',
+      }),
+      createLeaderboardEntry({
+        position: 3,
+        driverNumber: '44',
+        driverCode: 'HAM',
+        driverName: 'Lewis Hamilton',
+        tireCompound: 'HARD',
+        positionSource: 'timing_data',
+        positionUpdatedAt: '2026-03-03T00:00:00.000Z',
+        positionConfidence: 'high',
+      }),
+    ];
+
+    const sparseState = cloneLiveState();
+    sparseState.generatedAt = '2026-03-03T00:00:05.000Z';
+    sparseState.session.weekendId = null;
+    sparseState.session.sessionId = null;
+    sparseState.session.sessionName = null;
+    sparseState.leaderboard = [
+      createLeaderboardEntry({
+        position: 17,
+        driverNumber: '12',
+        driverCode: 'ANT',
+        driverName: 'Andrea Kimi Antonelli',
+        tireCompound: null,
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+      createLeaderboardEntry({
+        position: 4,
+        driverNumber: '63',
+        driverCode: 'RUS',
+        driverName: 'George Russell',
+        tireCompound: null,
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+      createLeaderboardEntry({
+        position: 5,
+        driverNumber: '44',
+        driverCode: 'HAM',
+        driverName: 'Lewis Hamilton',
+        tireCompound: null,
+        positionSource: 'driver_code',
+        positionUpdatedAt: null,
+        positionConfidence: 'low',
+      }),
+    ];
+
+    const { service } = createLiveServiceHarness({
+      providerOverrides: {
+        start: jest.fn((publish: (event: unknown) => void) => {
+          publish({ type: 'initial_state', state: sparseState });
+          return Promise.resolve();
+        }),
+      },
+      captureOverrides: {
+        loadLatestSnapshotBundle: jest.fn(() => Promise.resolve(null)),
+      },
+      replayOverrides: {
+        replayLatestProviderSession: jest.fn(() =>
+          Promise.resolve({
+            sessionKey: 'provider:unknown-weekend:unknown-session',
+            eventCount: 24,
+            firstEventAt: restoredState.generatedAt,
+            lastEventAt: sparseState.generatedAt,
+            state: restoredState,
+            topicFreshness: createTopicFreshnessState(),
+          }),
+        ),
+      },
+    });
+
+    await service.onModuleInit();
+
+    expect(service.getBoard()).toMatchObject({
+      rows: [
+        {
+          position: 1,
+          driverCode: 'ANT',
+          tire: {
+            compound: 'HARD',
+          },
+          positionSource: 'timing_data',
+          positionConfidence: 'medium',
+        },
+        {
+          position: 2,
+          driverCode: 'RUS',
+          tire: {
+            compound: 'HARD',
+          },
+          positionSource: 'timing_data',
+          positionConfidence: 'medium',
+        },
+        {
+          position: 3,
+          driverCode: 'HAM',
+          tire: {
+            compound: 'HARD',
+          },
+          positionSource: 'timing_data',
+          positionConfidence: 'medium',
+        },
+      ],
+    });
+  });
+
   it('keeps the previous provider order when a later update would publish a low-confidence P1', async () => {
     const trustedState = cloneLiveState();
     trustedState.session.sessionName = 'Australian Grand Prix - Qualifying';
@@ -629,35 +936,35 @@ describe('LiveService', () => {
         position: 1,
         driverCode: '63',
         driverName: 'George Russell',
-        gapToLeaderSec: null,
-        intervalToAheadSec: null,
+        gapToLeaderSec: 0,
+        intervalToAheadSec: 0,
       },
       {
         position: 2,
         driverCode: '27',
         driverName: 'Nico Hulkenberg',
-        gapToLeaderSec: null,
-        intervalToAheadSec: null,
+        gapToLeaderSec: 0,
+        intervalToAheadSec: 0,
       },
     ]);
     expect(service.getBoard()).toMatchObject({
       projection: {
-        mode: 'stabilized',
+        mode: 'pass_through',
       },
       rows: [
         {
           position: 1,
           driverCode: '63',
           teamKey: 'mercedes',
-          positionSource: 'driver_code',
-          positionConfidence: 'low',
+          positionSource: 'timing_data',
+          positionConfidence: 'medium',
         },
         {
           position: 2,
           driverCode: '27',
           teamKey: 'sauber',
-          positionSource: 'driver_code',
-          positionConfidence: 'low',
+          positionSource: 'timing_data',
+          positionConfidence: 'medium',
         },
       ],
     });
@@ -694,7 +1001,14 @@ describe('LiveService', () => {
       projection: {
         mode: 'withheld',
       },
-      rows: [],
+      rows: [
+        {
+          position: 1,
+          driverCode: '27',
+          positionSource: 'driver_code',
+          positionConfidence: 'low',
+        },
+      ],
     });
   });
 
@@ -730,7 +1044,14 @@ describe('LiveService', () => {
       projection: {
         mode: 'withheld',
       },
-      rows: [],
+      rows: [
+        {
+          position: 1,
+          driverCode: '81',
+          positionSource: 'best_lap',
+          positionConfidence: 'low',
+        },
+      ],
     });
   });
 

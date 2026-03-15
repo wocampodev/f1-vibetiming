@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   LiveBoardState,
+  LiveDeltaPayload,
   LiveHealthState,
   LiveHeartbeatPayload,
+  LiveState,
 } from "@/lib/types";
 import { parseEnvelope } from "@/lib/live-board";
 
@@ -17,6 +19,7 @@ const FALLBACK_POLL_MS = 5000;
 const HEALTH_POLL_MS = 10000;
 const STALE_THRESHOLD_MS = 40000;
 const NO_FEED_NOTICE_THRESHOLD_SEC = 20;
+const BOARD_REFRESH_MIN_INTERVAL_MS = 750;
 
 export function useLiveBoardStream({
   initialBoardState = null,
@@ -82,23 +85,84 @@ export function useLiveBoardStream({
     let stream: EventSource | null = null;
     let reconnectTimer: number | null = null;
     let fallbackTimer: number | null = null;
+    let boardRefreshTimer: number | null = null;
     let closed = false;
     let reconnectAttempt = 0;
+    let lastBoardLoadStartedAt = 0;
+    let pendingBoardRefresh = false;
+    let inFlightBoardRequest: Promise<void> | null = null;
 
     const loadBoard = async () => {
+      if (inFlightBoardRequest) {
+        return inFlightBoardRequest;
+      }
+
+      lastBoardLoadStartedAt = Date.now();
+
+      inFlightBoardRequest = (async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/live/board`, {
+            cache: "no-store",
+          });
+          if (!response.ok) {
+            return;
+          }
+
+          const nextBoard = (await response.json()) as LiveBoardState | null;
+          setBoardState(nextBoard);
+        } catch {
+          // keep retrying on next scheduled refresh or fallback interval
+        }
+      })();
+
       try {
-        const response = await fetch(`${API_BASE_URL}/live/board`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
+        await inFlightBoardRequest;
+      } finally {
+        inFlightBoardRequest = null;
+
+        if (pendingBoardRefresh && !closed) {
+          scheduleBoardRefresh();
+        }
+      }
+    };
+
+    const clearBoardRefreshTimer = () => {
+      if (boardRefreshTimer == null) {
+        return;
+      }
+
+      window.clearTimeout(boardRefreshTimer);
+      boardRefreshTimer = null;
+    };
+
+    const scheduleBoardRefresh = (preferImmediate = false) => {
+      if (closed) {
+        return;
+      }
+
+      pendingBoardRefresh = true;
+      if (boardRefreshTimer != null) {
+        return;
+      }
+
+      const elapsedMs = Date.now() - lastBoardLoadStartedAt;
+      const delayMs =
+        lastBoardLoadStartedAt === 0
+          ? 0
+          : Math.max(
+              0,
+              BOARD_REFRESH_MIN_INTERVAL_MS - elapsedMs,
+            );
+
+      boardRefreshTimer = window.setTimeout(() => {
+        boardRefreshTimer = null;
+        if (!pendingBoardRefresh || closed) {
           return;
         }
 
-        const nextBoard = (await response.json()) as LiveBoardState | null;
-        setBoardState(nextBoard);
-      } catch {
-        // keep retrying on next event or interval
-      }
+        pendingBoardRefresh = false;
+        void loadBoard();
+      }, preferImmediate ? delayMs : Math.max(delayMs, 100));
     };
 
     const stopFallback = () => {
@@ -115,9 +179,9 @@ export function useLiveBoardStream({
         return;
       }
 
-      void loadBoard();
+      scheduleBoardRefresh(true);
       fallbackTimer = window.setInterval(() => {
-        void loadBoard();
+        scheduleBoardRefresh(true);
       }, FALLBACK_POLL_MS);
     };
 
@@ -158,7 +222,6 @@ export function useLiveBoardStream({
       stream.onopen = () => {
         reconnectAttempt = 0;
         stopFallback();
-        void loadBoard();
       };
 
       stream.onerror = () => {
@@ -167,8 +230,19 @@ export function useLiveBoardStream({
         scheduleReconnect();
       };
 
-      const handleUpdate = () => {
-        void loadBoard();
+      const handleUpdate = (event: MessageEvent<string>) => {
+        const envelope = parseEnvelope<LiveState | LiveDeltaPayload>(event.data);
+        const generatedAt = envelope
+          ? "state" in envelope.payload
+            ? envelope.payload.state.generatedAt
+            : envelope.payload.generatedAt
+          : null;
+
+        if (generatedAt) {
+          setLastHeartbeat(generatedAt);
+        }
+
+        scheduleBoardRefresh(true);
       };
 
       const handleHeartbeat = (event: MessageEvent<string>) => {
@@ -185,7 +259,10 @@ export function useLiveBoardStream({
       stream.addEventListener("heartbeat", handleHeartbeat as EventListener);
     };
 
-    void loadBoard();
+    if (!initialBoardState) {
+      scheduleBoardRefresh(true);
+    }
+
     openStream();
 
     return () => {
@@ -196,9 +273,10 @@ export function useLiveBoardStream({
       }
 
       stopFallback();
+      clearBoardRefreshTimer();
       closeStream();
     };
-  }, []);
+  }, [initialBoardState]);
 
   const streamStale = useMemo(() => {
     const reference = lastHeartbeat ?? boardState?.generatedAt ?? null;

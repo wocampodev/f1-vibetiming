@@ -28,7 +28,7 @@ function SectorCluster({
   const miniSectors = row.miniSectors
     .filter((miniSector) => miniSector.sector === cell.index)
     .sort((left, right) => left.segment - right.segment);
-  const tone = getSectorTone(cell);
+  const tone = getSectorTone(cell, miniSectors);
   const valueTone =
     tone === "session_best"
       ? "text-fuchsia-300"
@@ -46,13 +46,13 @@ function SectorCluster({
   const placeholderSegments = Array.from({ length: 6 }, (_, index) => index);
 
   return (
-    <div className="min-w-[9rem] space-y-2">
-      <div className="flex min-h-2 flex-wrap gap-2.5">
+    <div className="w-[7.25rem] shrink-0 space-y-1.5">
+      <div className="flex min-h-2 flex-nowrap gap-1.5">
         {miniSectors.length > 0
           ? miniSectors.map((miniSector) => (
               <span
                 key={`${miniSector.sector}-${miniSector.segment}`}
-                className={`h-2 w-4 rounded-full ${miniSectorClassName(
+                className={`h-2 w-3.5 shrink-0 rounded-full ${miniSectorClassName(
                   miniSector.status,
                   miniSector.active,
                   tone,
@@ -63,18 +63,18 @@ function SectorCluster({
           : placeholderSegments.map((segment) => (
               <span
                 key={`placeholder-${cell.index}-${segment}`}
-                className="h-2 w-4 rounded-full bg-slate-900/90"
+                className="h-2 w-3.5 shrink-0 rounded-full bg-slate-900/90"
               />
             ))}
       </div>
       <div className="flex items-end gap-2">
         <span
-          className={`font-mono text-2xl font-semibold leading-none ${valueTone}`}
+          className={`font-mono text-[1.35rem] font-semibold leading-none ${valueTone}`}
         >
           {formatSectorTime(cell.valueMs)}
         </span>
-        {cell.personalBestMs != null ? (
-          <span className={`pb-0.5 font-mono text-xs ${referenceTone}`}>
+        {cell.personalBestMs != null && cell.personalBestMs !== cell.valueMs ? (
+          <span className={`pb-0.5 font-mono text-[10px] ${referenceTone}`}>
             {formatSectorTime(cell.personalBestMs)}
           </span>
         ) : null}
@@ -85,18 +85,18 @@ function SectorCluster({
 
 function DriverCell({ row }: { row: LiveBoardRow }) {
   return (
-    <div className="flex min-w-[15rem] items-center gap-3">
+    <div className="flex w-[13.5rem] min-w-[13.5rem] max-w-[13.5rem] items-center gap-2.5">
       <div
         className="h-11 w-1 rounded-full"
         style={{ backgroundColor: row.teamColor ?? "#38506e" }}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-semibold text-[#f4f9ff]">
             {row.driverName ?? row.driverCode}
           </span>
-          <span className="rounded-md border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-xs font-bold tracking-[0.18em] text-slate-200">
+          <span className="rounded-md border border-slate-700/80 bg-slate-950/70 px-1.5 py-1 text-xs font-bold tracking-[0.18em] text-slate-200">
             {row.driverNumber}
           </span>
         </div>
@@ -193,7 +193,7 @@ function LiveRow({
         <DriverCell row={row} />
       </td>
       <td className="px-3 py-3 align-top">
-        <div className="flex flex-wrap gap-6">
+        <div className="flex min-w-max flex-nowrap gap-4 whitespace-nowrap">
           {row.lastSectors.map((sector, index) => (
             <SectorCluster key={sector.index} row={row} sectorIndex={index} />
           ))}
@@ -235,12 +235,12 @@ export function LiveBoardTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1140px] bg-[#070d15] text-sm">
+      <table className="w-full min-w-[1240px] bg-[#070d15] text-sm">
         <thead className="border-b border-[var(--line)] bg-[#101b2a] text-left text-[11px] uppercase tracking-[0.18em] text-[#94a7c2]">
           <tr>
             <th className="px-3 py-3">Pos</th>
             <th className="px-3 py-3">Driver</th>
-            <th className="px-3 py-3">Sectors</th>
+            <th className="px-3 py-3 whitespace-nowrap">Sectors</th>
             <th className="px-3 py-3">Best Lap</th>
             <th className="px-3 py-3">Last Lap</th>
             <th className="px-3 py-3">Tire</th>

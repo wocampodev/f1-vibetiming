@@ -9,6 +9,18 @@ export interface ResolveLeaderboardResult {
   resolvedPositionMetaByNumber: Map<string, LiveResolvedPositionMetadata>;
 }
 
+const LEADER_GAP_PATTERN = /^LAP\s+\d+$/i;
+
+const isTimingDataLeaderCandidate = (
+  entry: LiveLeaderboardDraftEntry,
+): boolean => {
+  if (entry.explicitPosition != null) {
+    return false;
+  }
+
+  return LEADER_GAP_PATTERN.test(entry.gapToLeaderText ?? '');
+};
+
 export const sortDraftLeaderboard = (
   draftLeaderboard: LiveLeaderboardDraftEntry[],
 ): boolean => {
@@ -144,6 +156,15 @@ const resolveEntryPosition = (input: {
       position: entry.explicitPosition,
       source: 'timing_data',
       updatedAt: entry.positionUpdatedAt,
+      confidence: 'high',
+    };
+  }
+
+  if (!assignedPositions.has(1) && isTimingDataLeaderCandidate(entry)) {
+    return {
+      position: 1,
+      source: 'timing_data',
+      updatedAt: emittedAt,
       confidence: 'high',
     };
   }
