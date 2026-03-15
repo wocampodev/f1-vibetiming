@@ -10,9 +10,19 @@ import {
   LiveDashboardHeader,
 } from "@/components/live-dashboard-state";
 import { useLiveBoardStream } from "@/components/use-live-board-stream";
+import { LiveBoardState, LiveHealthState } from "@/lib/types";
 
-export function LiveDashboard() {
-  const { boardState, streamStale, noFeedYet } = useLiveBoardStream();
+export function LiveDashboard({
+  initialBoardState = null,
+  initialHealth = null,
+}: {
+  initialBoardState?: LiveBoardState | null;
+  initialHealth?: LiveHealthState | null;
+}) {
+  const { boardState, streamStale, noFeedYet } = useLiveBoardStream({
+    initialBoardState,
+    initialHealth,
+  });
   const rows = boardState?.rows ?? [];
   const gapMode = useMemo(
     () => resolveGapMode(boardState?.session ?? null),

@@ -16,13 +16,19 @@ const body = Source_Sans_3({
 });
 
 const navItems = [
-  { href: "/", label: "Live" },
+  { href: "/live", label: "Live" },
   { href: "/standings", label: "Standings" },
 ];
 
 export const metadata: Metadata = {
-  title: "F1 VibeTiming | Live and Standings",
-  description: "Simple F1 app with live dashboard and championship standings.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
+  title: {
+    default: "F1 VibeTiming",
+    template: "%s | F1 VibeTiming",
+  },
+  description: "Live timing board and championship standings for F1 weekends.",
 };
 
 export default function RootLayout({
@@ -36,7 +42,10 @@ export default function RootLayout({
         <div className="min-h-screen">
           <header className="border-b border-[var(--line)] bg-[#070d15]/95 backdrop-blur">
             <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4 sm:px-6">
-              <Link href="/" className="text-2xl uppercase tracking-wide text-[var(--ink)]">
+              <Link
+                href="/live"
+                className="text-2xl uppercase tracking-wide text-[var(--ink)]"
+              >
                 F1 VibeTiming
               </Link>
               <nav className="flex items-center gap-4 text-sm font-semibold uppercase tracking-wide text-[#b9cae2]">

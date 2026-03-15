@@ -1,13 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getConstructorStandings, getDriverStandings } from "@/lib/api";
 import { StandingsTable } from "@/components/standings-table";
 import {
   buildStandingsHref,
   formatStandingsUpdatedAt,
+  hasStandingsNumberParam,
   parseStandingsNumberParam,
   sortConstructorStandings,
   sortDriverStandings,
 } from "@/lib/standings";
+
+export const metadata: Metadata = {
+  title: "Championship Standings",
+  description:
+    "Follow the current F1 driver and constructor title fight with round-by-round standings snapshots.",
+  alternates: {
+    canonical: "/standings",
+  },
+};
 
 export default async function StandingsPage({
   searchParams,
@@ -16,10 +28,20 @@ export default async function StandingsPage({
 }) {
   const resolvedSearchParams: Record<string, string | string[] | undefined> =
     await Promise.resolve(searchParams ?? {});
+  const rawSeason = resolvedSearchParams.season;
+  const rawRound = resolvedSearchParams.round;
   const requestedSeason = parseStandingsNumberParam(
-    resolvedSearchParams.season,
+    rawSeason,
   );
-  const requestedRound = parseStandingsNumberParam(resolvedSearchParams.round);
+  const requestedRound = parseStandingsNumberParam(rawRound);
+
+  if (hasStandingsNumberParam(rawSeason) && requestedSeason == null) {
+    notFound();
+  }
+
+  if (hasStandingsNumberParam(rawRound) && requestedRound == null) {
+    notFound();
+  }
   const [drivers, constructors] = await Promise.all([
     getDriverStandings(requestedSeason, requestedRound),
     getConstructorStandings(requestedSeason, requestedRound),

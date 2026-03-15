@@ -1,5 +1,5 @@
-import { LiveDashboard } from "@/components/live-dashboard";
+import { permanentRedirect } from "next/navigation";
 
 export default function HomePage() {
-  return <LiveDashboard />;
+  permanentRedirect("/live");
 }

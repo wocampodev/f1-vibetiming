@@ -10,7 +10,6 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const routes = [
-  { path: "/", status: 200, contains: "Waiting for live board projection." },
   {
     path: "/live",
     status: 200,
@@ -59,6 +58,21 @@ async function waitUntilReachable(timeoutMs = 90_000) {
 }
 
 async function runSmokeChecks() {
+  const redirectResponse = await fetch(`${baseUrl}/`, {
+    redirect: "manual",
+  });
+  if (redirectResponse.status !== 308) {
+    throw new Error(
+      `Smoke check failed for /: expected HTTP 308, got ${redirectResponse.status}`,
+    );
+  }
+
+  if (redirectResponse.headers.get("location") !== "/live") {
+    throw new Error(
+      `Smoke check failed for /: expected redirect location /live, got ${redirectResponse.headers.get("location")}`,
+    );
+  }
+
   for (const route of routes) {
     const response = await fetch(`${baseUrl}${route.path}`);
     const expectedStatus = route.status ?? 200;

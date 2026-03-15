@@ -48,14 +48,26 @@ export const sortConstructorStandings = (
 export const parseStandingsNumberParam = (
   value: string | string[] | undefined,
 ): number | undefined => {
+  if (Array.isArray(value) && value.length !== 1) {
+    return undefined;
+  }
+
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) {
     return undefined;
   }
 
+  if (!/^\d+$/.test(raw)) {
+    return undefined;
+  }
+
   const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
+
+export const hasStandingsNumberParam = (
+  value: string | string[] | undefined,
+): boolean => value !== undefined;
 
 export const buildStandingsHref = (input: {
   season?: number;

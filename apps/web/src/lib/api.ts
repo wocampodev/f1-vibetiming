@@ -1,4 +1,9 @@
-import { ConstructorStandingsResponse, DriverStandingsResponse } from "./types";
+import {
+  ConstructorStandingsResponse,
+  DriverStandingsResponse,
+  LiveBoardState,
+  LiveHealthState,
+} from "./types";
 
 const API_BASE_URL =
   process.env.F1_API_BASE_URL ??
@@ -6,9 +11,18 @@ const API_BASE_URL =
   "http://localhost:4000/api";
 
 async function fetchFromApi<T>(path: string): Promise<T | null> {
+  return fetchFromApiWithOptions<T>(path, {
+    next: { revalidate: 60 },
+  });
+}
+
+async function fetchFromApiWithOptions<T>(
+  path: string,
+  options: RequestInit & { next?: { revalidate?: number } },
+): Promise<T | null> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      next: { revalidate: 60 },
+      ...options,
     });
 
     if (!response.ok) {
@@ -44,4 +58,16 @@ export function getConstructorStandings(season?: number, round?: number) {
   return fetchFromApi<ConstructorStandingsResponse>(
     `/standings/constructors${query}`,
   );
+}
+
+export function getLiveBoard() {
+  return fetchFromApiWithOptions<LiveBoardState>("/live/board", {
+    cache: "no-store",
+  });
+}
+
+export function getLiveHealth() {
+  return fetchFromApiWithOptions<LiveHealthState>("/live/health", {
+    cache: "no-store",
+  });
 }
