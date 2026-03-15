@@ -85,18 +85,18 @@ function SectorCluster({
 
 function DriverCell({ row }: { row: LiveBoardRow }) {
   return (
-    <div className="flex min-w-[15rem] items-center gap-3">
+    <div className="flex w-[13.5rem] min-w-[13.5rem] max-w-[13.5rem] items-center gap-2.5">
       <div
         className="h-11 w-1 rounded-full"
         style={{ backgroundColor: row.teamColor ?? "#38506e" }}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-semibold text-[#f4f9ff]">
             {row.driverName ?? row.driverCode}
           </span>
-          <span className="rounded-md border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-xs font-bold tracking-[0.18em] text-slate-200">
+          <span className="rounded-md border border-slate-700/80 bg-slate-950/70 px-1.5 py-1 text-xs font-bold tracking-[0.18em] text-slate-200">
             {row.driverNumber}
           </span>
         </div>
